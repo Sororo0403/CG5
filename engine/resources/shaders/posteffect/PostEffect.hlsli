@@ -9,8 +9,9 @@ struct PostEffectVSOutput
 
 cbuffer PostEffectConstants : register(b0)
 {
-    int effectMode;
-    float3 padding;
+    int colorMode;
+    int enableVignetting;
+    float2 padding;
 };
 
 #endif // POST_EFFECT_HLSLI

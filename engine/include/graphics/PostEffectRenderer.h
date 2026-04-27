@@ -11,7 +11,7 @@ class SrvManager;
 /// </summary>
 class PostEffectRenderer {
   public:
-    enum class Mode : int32_t {
+    enum class ColorMode : int32_t {
         None = 0,
         Grayscale = 1,
         Sepia = 2,
@@ -34,19 +34,30 @@ class PostEffectRenderer {
     void Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle);
 
     /// <summary>
-    /// ポストエフェクトの種類を設定する
+    /// 色変換エフェクトの種類を設定する
     /// </summary>
-    void SetMode(Mode mode);
+    void SetColorMode(ColorMode mode);
 
     /// <summary>
-    /// 現在のポストエフェクトの種類を取得する
+    /// 現在の色変換エフェクトの種類を取得する
     /// </summary>
-    Mode GetMode() const { return mode_; }
+    ColorMode GetColorMode() const { return colorMode_; }
+
+    /// <summary>
+    /// ビネット効果の有効/無効を設定する
+    /// </summary>
+    void SetVignettingEnabled(bool enabled);
+
+    /// <summary>
+    /// ビネット効果が有効か取得する
+    /// </summary>
+    bool IsVignettingEnabled() const { return enableVignetting_; }
 
   private:
     struct EffectConstBuffer {
-        int32_t mode = 0;
-        float padding[3]{};
+        int32_t colorMode = 0;
+        int32_t enableVignetting = 0;
+        float padding[2]{};
     };
 
     void CreateRootSignature();
@@ -63,5 +74,6 @@ class PostEffectRenderer {
     EffectConstBuffer *mappedConstBuffer_ = nullptr;
     D3D12_VIEWPORT viewport_{};
     D3D12_RECT scissorRect_{};
-    Mode mode_ = Mode::Grayscale;
+    ColorMode colorMode_ = ColorMode::None;
+    bool enableVignetting_ = true;
 };

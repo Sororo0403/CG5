@@ -32,7 +32,8 @@ void GameScene::Initialize(const SceneContext &ctx) {
                                     renderHeight_);
     ctx_->postEffectRenderer->Initialize(ctx_->dxCommon, ctx_->srv,
                                          renderWidth_, renderHeight_);
-    ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::Grayscale);
+    ctx_->postEffectRenderer->SetColorMode(PostEffectRenderer::ColorMode::None);
+    ctx_->postEffectRenderer->SetVignettingEnabled(true);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -89,12 +90,17 @@ void GameScene::UpdatePostEffectControls() {
 
     if (ctx_->input) {
         if (ctx_->input->IsKeyTrigger(DIK_1)) {
-            ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::None);
+            ctx_->postEffectRenderer->SetColorMode(
+                PostEffectRenderer::ColorMode::None);
         } else if (ctx_->input->IsKeyTrigger(DIK_2)) {
-            ctx_->postEffectRenderer->SetMode(
-                PostEffectRenderer::Mode::Grayscale);
+            ctx_->postEffectRenderer->SetColorMode(
+                PostEffectRenderer::ColorMode::Grayscale);
         } else if (ctx_->input->IsKeyTrigger(DIK_3)) {
-            ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::Sepia);
+            ctx_->postEffectRenderer->SetColorMode(
+                PostEffectRenderer::ColorMode::Sepia);
+        } else if (ctx_->input->IsKeyTrigger(DIK_4)) {
+            ctx_->postEffectRenderer->SetVignettingEnabled(
+                !ctx_->postEffectRenderer->IsVignettingEnabled());
         }
     }
 
@@ -106,16 +112,19 @@ void GameScene::DrawPostEffectControls() {
         return;
     }
 
-    int mode = static_cast<int>(ctx_->postEffectRenderer->GetMode());
+    int colorMode = static_cast<int>(ctx_->postEffectRenderer->GetColorMode());
+    bool enableVignetting = ctx_->postEffectRenderer->IsVignettingEnabled();
     if (ImGui::Begin("Post Effect")) {
-        ImGui::RadioButton("None", &mode, 0);
-        ImGui::RadioButton("Grayscale", &mode, 1);
-        ImGui::RadioButton("Sepia", &mode, 2);
+        ImGui::RadioButton("None", &colorMode, 0);
+        ImGui::RadioButton("Grayscale", &colorMode, 1);
+        ImGui::RadioButton("Sepia", &colorMode, 2);
+        ImGui::Checkbox("Vignetting", &enableVignetting);
     }
     ImGui::End();
 
-    ctx_->postEffectRenderer->SetMode(
-        static_cast<PostEffectRenderer::Mode>(mode));
+    ctx_->postEffectRenderer->SetColorMode(
+        static_cast<PostEffectRenderer::ColorMode>(colorMode));
+    ctx_->postEffectRenderer->SetVignettingEnabled(enableVignetting);
 #endif // _DEBUG
 }
 

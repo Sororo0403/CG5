@@ -50,8 +50,13 @@ void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
     commandList->DrawInstanced(3, 1, 0, 0);
 }
 
-void PostEffectRenderer::SetMode(Mode mode) {
-    mode_ = mode;
+void PostEffectRenderer::SetColorMode(ColorMode mode) {
+    colorMode_ = mode;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetVignettingEnabled(bool enabled) {
+    enableVignetting_ = enabled;
     UpdateConstantBuffer();
 }
 
@@ -143,5 +148,6 @@ void PostEffectRenderer::UpdateConstantBuffer() {
         return;
     }
 
-    mappedConstBuffer_->mode = static_cast<int32_t>(mode_);
+    mappedConstBuffer_->colorMode = static_cast<int32_t>(colorMode_);
+    mappedConstBuffer_->enableVignetting = enableVignetting_ ? 1 : 0;
 }
