@@ -56,6 +56,9 @@ void PostEffectRenderer::CreateRootSignature() {
 
     CD3DX12_STATIC_SAMPLER_DESC sampler{};
     sampler.Init(0);
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 
     CD3DX12_ROOT_SIGNATURE_DESC desc{};
     desc.Init(1, &param, 1, &sampler,
@@ -88,9 +91,11 @@ void PostEffectRenderer::CreatePipelineState() {
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = 1;
     desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     desc.SampleDesc.Count = 1;
     desc.SampleMask = UINT_MAX;
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
     D3D12_DEPTH_STENCIL_DESC depth =
         CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);

@@ -1,8 +1,13 @@
 #include "GameScene.h"
 #include "DirectXCommon.h"
+#include "ModelManager.h"
+#include "ModelRenderer.h"
 #include "SpriteRenderer.h"
+#include "TextureManager.h"
 #include "WinApp.h"
 #include <cmath>
+
+using namespace DirectX;
 
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
@@ -14,9 +19,34 @@ void GameScene::Initialize(const SceneContext &ctx) {
                               renderHeight_);
     postEffectRenderer_.Initialize(ctx_->dxCommon, ctx_->srv, renderWidth_,
                                    renderHeight_);
+
+    camera_.Initialize(static_cast<float>(renderWidth_) /
+                       static_cast<float>(renderHeight_));
+    camera_.SetPosition({0.0f, 1.1f, -4.0f});
+    camera_.LookAt({0.0f, 0.85f, 0.0f});
+    camera_.SetPerspectiveFovDeg(45.0f);
+    camera_.UpdateMatrices();
+
+    modelTransform_.position = {0.0f, 0.0f, 0.0f};
+    modelTransform_.scale = {1.0f, 1.0f, 1.0f};
+
+    ctx_->dxCommon->BeginUpload();
+    modelId_ = ctx_->model->Load(L"resources/model/sneakWalk.gltf");
+    environmentTextureId_ = ctx_->texture->CreateDebugCubemap();
+    ctx_->dxCommon->EndUpload();
+    ctx_->texture->ReleaseUploadBuffers();
+
+    ctx_->modelRenderer->SetEnvironmentTexture(environmentTextureId_);
 }
 
-void GameScene::Update() { time_ += ctx_->deltaTime; }
+void GameScene::Update() {
+    time_ += ctx_->deltaTime;
+    ctx_->model->UpdateAnimation(modelId_, ctx_->deltaTime);
+
+    const XMVECTOR rotation =
+        XMQuaternionRotationRollPitchYaw(0.0f, time_ * 0.35f, 0.0f);
+    XMStoreFloat4(&modelTransform_.rotation, rotation);
+}
 
 void GameScene::Draw() {
     ResizeOffscreenIfNeeded();
@@ -42,6 +72,9 @@ void GameScene::ResizeOffscreenIfNeeded() {
     renderHeight_ = height;
     renderTexture_.Resize(renderWidth_, renderHeight_);
     postEffectRenderer_.Resize(renderWidth_, renderHeight_);
+    camera_.SetAspect(static_cast<float>(renderWidth_) /
+                      static_cast<float>(renderHeight_));
+    camera_.UpdateMatrices();
 }
 
 void GameScene::DrawOffscreenScene() {
@@ -56,30 +89,15 @@ void GameScene::DrawOffscreenScene() {
     background.color = {0.04f, 0.08f, 0.14f, 1.0f};
     spriteRenderer->Draw(background);
 
-    const float centerX = static_cast<float>(renderWidth_) * 0.5f;
-    const float centerY = static_cast<float>(renderHeight_) * 0.5f;
-    const float wave = (std::sinf(time_ * 2.0f) + 1.0f) * 0.5f;
-
-    Sprite panel{};
-    panel.textureId = 0;
-    panel.position = {centerX - 300.0f, centerY - 170.0f};
-    panel.size = {600.0f, 340.0f};
-    panel.color = {0.95f, 0.30f + 0.25f * wave, 0.12f, 1.0f};
-    spriteRenderer->Draw(panel);
-
-    Sprite viewport{};
-    viewport.textureId = 0;
-    viewport.position = {centerX - 230.0f, centerY - 110.0f};
-    viewport.size = {460.0f, 220.0f};
-    viewport.color = {0.13f, 0.37f, 0.62f, 1.0f};
-    spriteRenderer->Draw(viewport);
-
-    Sprite marker{};
-    marker.textureId = 0;
-    marker.position = {centerX - 70.0f + 140.0f * wave, centerY - 52.0f};
-    marker.size = {140.0f, 104.0f};
-    marker.color = {0.92f, 0.95f, 1.0f, 1.0f};
-    spriteRenderer->Draw(marker);
-
     spriteRenderer->PostDraw();
+
+    ModelRenderer *modelRenderer = ctx_->modelRenderer;
+    const Model *model = ctx_->model->GetModel(modelId_);
+    if (!model) {
+        return;
+    }
+
+    modelRenderer->PreDraw();
+    modelRenderer->Draw(*model, modelTransform_, camera_, environmentTextureId_);
+    modelRenderer->PostDraw();
 }

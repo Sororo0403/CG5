@@ -1,8 +1,11 @@
 #pragma once
 #include "BaseScene.h"
+#include "Camera.h"
 #include "PostEffectRenderer.h"
 #include "RenderTexture.h"
 #include "Sprite.h"
+#include "Transform.h"
+#include <cstdint>
 
 class GameScene : public BaseScene {
   public:
@@ -28,6 +31,10 @@ class GameScene : public BaseScene {
 
     RenderTexture renderTexture_;
     PostEffectRenderer postEffectRenderer_;
+    Camera camera_;
+    Transform modelTransform_;
+    uint32_t modelId_ = 0;
+    uint32_t environmentTextureId_ = 0;
     int renderWidth_ = 0;
     int renderHeight_ = 0;
     float time_ = 0.0f;
