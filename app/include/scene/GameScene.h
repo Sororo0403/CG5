@@ -1,5 +1,8 @@
 #pragma once
 #include "BaseScene.h"
+#include "PostEffectRenderer.h"
+#include "RenderTexture.h"
+#include "Sprite.h"
 
 class GameScene : public BaseScene {
   public:
@@ -18,4 +21,14 @@ class GameScene : public BaseScene {
     /// ゲームシーンを描画する
     /// </summary>
     void Draw() override;
+
+  private:
+    void ResizeOffscreenIfNeeded();
+    void DrawOffscreenScene();
+
+    RenderTexture renderTexture_;
+    PostEffectRenderer postEffectRenderer_;
+    int renderWidth_ = 0;
+    int renderHeight_ = 0;
+    float time_ = 0.0f;
 };

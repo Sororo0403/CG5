@@ -84,6 +84,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\RenderTexture.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\SkyboxRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\MaterialManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\camera\DebugCamera.cpp" />
@@ -139,6 +141,8 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxHelpers.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxUtils.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\PostEffectRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\RenderTexture.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\SkyboxRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\core\WinApp.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\Model.h" />
@@ -189,6 +193,18 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\debug\SkeletonDebugPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
@@ -236,6 +252,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
     <None Include="$(SolutionDir)engine\resources\shaders\particle\GPUParticle.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffect.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>

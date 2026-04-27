@@ -33,18 +33,7 @@ void DirectXCommon::BeginFrame() {
         D3D12_RESOURCE_STATE_RENDER_TARGET);
     commandList_->ResourceBarrier(1, &barrier);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
-        rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
-        static_cast<INT>(backBufferIndex_),
-        static_cast<INT>(rtvDescriptorSize_));
-
-    auto dsvHandle = dsvHeap_->GetCPUDescriptorHandleForHeapStart();
-
-    commandList_->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
-
-    commandList_->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
-    commandList_->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f,
-                                        0, 0, nullptr);
+    SetBackBufferRenderTarget(true);
 }
 
 void DirectXCommon::EndFrame() {
@@ -132,6 +121,25 @@ void DirectXCommon::WaitForGpu() {
         ThrowIfFailed(fence_->SetEventOnCompletion(fenceValue_, fenceEvent_),
                       "fence_->SetEventOnCompletion failed");
         WaitForSingleObject(fenceEvent_, INFINITE);
+    }
+}
+
+void DirectXCommon::SetBackBufferRenderTarget(bool clear) {
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
+        rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
+        static_cast<INT>(backBufferIndex_),
+        static_cast<INT>(rtvDescriptorSize_));
+
+    auto dsvHandle = dsvHeap_->GetCPUDescriptorHandleForHeapStart();
+
+    commandList_->RSSetViewports(1, &viewport_);
+    commandList_->RSSetScissorRects(1, &scissorRect_);
+    commandList_->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+
+    if (clear) {
+        commandList_->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
+        commandList_->ClearDepthStencilView(
+            dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
     }
 }
 

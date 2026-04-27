@@ -28,6 +28,12 @@ class DirectXCommon {
     void EndFrame();
 
     /// <summary>
+    /// 現在のバックバッファを描画先に設定する
+    /// </summary>
+    /// <param name="clear">trueの場合、色と深度をクリアする</param>
+    void SetBackBufferRenderTarget(bool clear = false);
+
+    /// <summary>
     /// 描画ターゲットと深度バッファを新しいサイズに合わせて再生成する
     /// </summary>
     /// <param name="width">クライアント領域の幅</param>
@@ -71,6 +77,12 @@ class DirectXCommon {
     /// </summary>
     /// <returns>バックバッファ数</returns>
     UINT GetSwapChainBufferCount() const { return kSwapChainBufferCount; }
+    /// <summary>
+    /// 深度ステンシルビューのCPUハンドルを取得する
+    /// </summary>
+    D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const {
+        return dsvHeap_->GetCPUDescriptorHandleForHeapStart();
+    }
 
   private:
     /// <summary>

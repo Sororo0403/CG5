@@ -106,12 +106,21 @@
     <Filter Include="resources\shaders\debug">
       <UniqueIdentifier>{5555559b-2eca-4b5d-bf84-335509c634f7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resources\shaders\posteffect">
+      <UniqueIdentifier>{2be6bc38-3dda-4303-a10f-338456c66f26}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\core\WinApp.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp">
+      <Filter>src\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp">
+      <Filter>src\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\RenderTexture.cpp">
       <Filter>src\graphics</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\SrvManager.cpp">
@@ -210,6 +219,12 @@
       <Filter>include\core</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\PostEffectRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\RenderTexture.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxUtils.h">
@@ -382,6 +397,12 @@
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\particle\GPUParticleUpdateCS.hlsl">
       <Filter>resources\shaders\particle</Filter>
     </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectPS.hlsl">
+      <Filter>resources\shaders\posteffect</Filter>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectVS.hlsl">
+      <Filter>resources\shaders\posteffect</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SolutionDir)engine\resources\shaders\model\Model.hlsli">
@@ -395,6 +416,9 @@
     </None>
     <None Include="$(SolutionDir)engine\resources\shaders\particle\GPUParticle.hlsli">
       <Filter>resources\shaders\particle</Filter>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
     </None>
   </ItemGroup>
 </Project>
