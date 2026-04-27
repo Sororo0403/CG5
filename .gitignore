@@ -365,16 +365,11 @@ FodyWeavers.xsd
 /app/imgui.ini
 
 # track resources
-!resources/
-!resources/**
+!app/resources/
+!app/resources/**
+!engine/resources/
+!engine/resources/**
 
 # track externals
-!externals/
-!externals/**
-
-# DirectXTex compiled shaders
-externals/**/Compiled/
-externals/**/*.pdb
-externals/**/*.obj
-externals/**/*.lib
-externals/**/*.cso
+!engine/externals/
+!engine/externals/**
