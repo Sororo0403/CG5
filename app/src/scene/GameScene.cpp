@@ -32,10 +32,13 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     ctx_->dxCommon->BeginUpload();
     modelId_ = ctx_->model->Load(L"resources/model/sneakWalk.gltf");
-    environmentTextureId_ = ctx_->texture->CreateDebugCubemap();
+    skyboxModelId_ =
+        ctx_->texture->Load(L"resources/rostock_laage_airport_4k.dds");
+    environmentTextureId_ = skyboxModelId_;
     ctx_->dxCommon->EndUpload();
     ctx_->texture->ReleaseUploadBuffers();
 
+    skyboxRenderer_.Initialize(ctx_->dxCommon, ctx_->srv, ctx_->texture);
     ctx_->modelRenderer->SetEnvironmentTexture(environmentTextureId_);
 }
 
@@ -78,26 +81,16 @@ void GameScene::ResizeOffscreenIfNeeded() {
 }
 
 void GameScene::DrawOffscreenScene() {
-    SpriteRenderer *spriteRenderer = ctx_->spriteRenderer;
-    spriteRenderer->PreDraw();
-
-    Sprite background{};
-    background.textureId = 0;
-    background.position = {0.0f, 0.0f};
-    background.size = {static_cast<float>(renderWidth_),
-                       static_cast<float>(renderHeight_)};
-    background.color = {0.04f, 0.08f, 0.14f, 1.0f};
-    spriteRenderer->Draw(background);
-
-    spriteRenderer->PostDraw();
-
     ModelRenderer *modelRenderer = ctx_->modelRenderer;
     const Model *model = ctx_->model->GetModel(modelId_);
     if (!model) {
         return;
     }
 
+    skyboxRenderer_.Draw(skyboxModelId_, camera_);
+
     modelRenderer->PreDraw();
-    modelRenderer->Draw(*model, modelTransform_, camera_, environmentTextureId_);
+    modelRenderer->Draw(*model, modelTransform_, camera_,
+                        environmentTextureId_);
     modelRenderer->PostDraw();
 }

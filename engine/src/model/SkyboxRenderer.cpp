@@ -149,7 +149,7 @@ void SkyboxRenderer::CreatePipelineState() {
     desc.SampleMask = UINT_MAX;
 
     D3D12_RASTERIZER_DESC rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    rasterizer.CullMode = D3D12_CULL_MODE_FRONT;
+    rasterizer.CullMode = D3D12_CULL_MODE_NONE;
     desc.RasterizerState = rasterizer;
 
     desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);

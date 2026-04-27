@@ -48,13 +48,6 @@ class TextureManager {
     uint32_t LoadFromMemory(const uint8_t *data, size_t size);
 
     /// <summary>
-    /// デバッグ用のキューブマップを生成する
-    /// </summary>
-    /// <param name="faceSize">各面の一辺サイズ</param>
-    /// <returns>生成されたテクスチャID</returns>
-    uint32_t CreateDebugCubemap(uint32_t faceSize = 4);
-
-    /// <summary>
     /// ロード時に使った一時UploadBufferを解放
     /// </summary>
     void ReleaseUploadBuffers();
