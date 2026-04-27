@@ -15,6 +15,7 @@ void PostEffectRenderer::Initialize(DirectXCommon *dxCommon,
 
     CreateRootSignature();
     CreatePipelineState();
+    CreateConstantBuffer();
     Resize(width, height);
 }
 
@@ -43,16 +44,24 @@ void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
     commandList->SetPipelineState(pipelineState_.Get());
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->SetGraphicsRootDescriptorTable(0, textureHandle);
+    commandList->SetGraphicsRootConstantBufferView(
+        1, constBuffer_->GetGPUVirtualAddress());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->DrawInstanced(3, 1, 0, 0);
+}
+
+void PostEffectRenderer::SetMode(Mode mode) {
+    mode_ = mode;
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::CreateRootSignature() {
     CD3DX12_DESCRIPTOR_RANGE range{};
     range.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
 
-    CD3DX12_ROOT_PARAMETER param{};
-    param.InitAsDescriptorTable(1, &range, D3D12_SHADER_VISIBILITY_PIXEL);
+    CD3DX12_ROOT_PARAMETER params[2]{};
+    params[0].InitAsDescriptorTable(1, &range, D3D12_SHADER_VISIBILITY_PIXEL);
+    params[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
     CD3DX12_STATIC_SAMPLER_DESC sampler{};
     sampler.Init(0);
@@ -61,7 +70,7 @@ void PostEffectRenderer::CreateRootSignature() {
     sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 
     CD3DX12_ROOT_SIGNATURE_DESC desc{};
-    desc.Init(1, &param, 1, &sampler,
+    desc.Init(_countof(params), params, 1, &sampler,
               D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
     Microsoft::WRL::ComPtr<ID3DBlob> blob;
@@ -107,4 +116,32 @@ void PostEffectRenderer::CreatePipelineState() {
     ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
                       &desc, IID_PPV_ARGS(&pipelineState_)),
                   "Create PostEffect pipeline state failed");
+}
+
+void PostEffectRenderer::CreateConstantBuffer() {
+    const UINT size = Align256(sizeof(EffectConstBuffer));
+
+    CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
+    auto desc = CD3DX12_RESOURCE_DESC::Buffer(size);
+
+    ThrowIfFailed(dxCommon_->GetDevice()->CreateCommittedResource(
+                      &heap, D3D12_HEAP_FLAG_NONE, &desc,
+                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                      IID_PPV_ARGS(&constBuffer_)),
+                  "Create PostEffect constant buffer failed");
+
+    ThrowIfFailed(constBuffer_->Map(
+                      0, nullptr,
+                      reinterpret_cast<void **>(&mappedConstBuffer_)),
+                  "Map PostEffect constant buffer failed");
+
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::UpdateConstantBuffer() {
+    if (!mappedConstBuffer_) {
+        return;
+    }
+
+    mappedConstBuffer_->mode = static_cast<int32_t>(mode_);
 }

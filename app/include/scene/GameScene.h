@@ -24,6 +24,8 @@ class GameScene : public BaseScene {
 
   private:
     void ResizeOffscreenIfNeeded();
+    void UpdatePostEffectControls();
+    void DrawPostEffectControls();
     void DrawOffscreenScene();
 
     Camera camera_;

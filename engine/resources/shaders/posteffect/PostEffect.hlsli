@@ -7,4 +7,10 @@ struct PostEffectVSOutput
     float2 uv : TEXCOORD;
 };
 
+cbuffer PostEffectConstants : register(b0)
+{
+    int effectMode;
+    float3 padding;
+};
+
 #endif // POST_EFFECT_HLSLI

@@ -1,6 +1,7 @@
 #include "GameScene.h"
 #include "Camera.h"
 #include "DirectXCommon.h"
+#include "Input.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
 #include "PostEffectRenderer.h"
@@ -9,6 +10,9 @@
 #include "SkyboxRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
+#ifdef _DEBUG
+#include "imgui.h"
+#endif // _DEBUG
 #include <cmath>
 
 using namespace DirectX;
@@ -28,6 +32,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
                                     renderHeight_);
     ctx_->postEffectRenderer->Initialize(ctx_->dxCommon, ctx_->srv,
                                          renderWidth_, renderHeight_);
+    ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::Grayscale);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -54,6 +59,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
 void GameScene::Update() {
     time_ += ctx_->deltaTime;
     ctx_->model->UpdateAnimation(modelId_, ctx_->deltaTime);
+    UpdatePostEffectControls();
 
     const XMVECTOR rotation =
         XMQuaternionRotationRollPitchYaw(0.0f, time_ * 0.35f, 0.0f);
@@ -62,6 +68,7 @@ void GameScene::Update() {
 
 void GameScene::Draw() {
     ResizeOffscreenIfNeeded();
+    DrawPostEffectControls();
 
     if (!ctx_->renderTexture || !ctx_->postEffectRenderer) {
         return;
@@ -73,6 +80,43 @@ void GameScene::Draw() {
 
     ctx_->dxCommon->SetBackBufferRenderTarget(false);
     ctx_->postEffectRenderer->Draw(ctx_->renderTexture->GetGpuHandle());
+}
+
+void GameScene::UpdatePostEffectControls() {
+    if (!ctx_->postEffectRenderer) {
+        return;
+    }
+
+    if (ctx_->input) {
+        if (ctx_->input->IsKeyTrigger(DIK_1)) {
+            ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::None);
+        } else if (ctx_->input->IsKeyTrigger(DIK_2)) {
+            ctx_->postEffectRenderer->SetMode(
+                PostEffectRenderer::Mode::Grayscale);
+        } else if (ctx_->input->IsKeyTrigger(DIK_3)) {
+            ctx_->postEffectRenderer->SetMode(PostEffectRenderer::Mode::Sepia);
+        }
+    }
+
+}
+
+void GameScene::DrawPostEffectControls() {
+#ifdef _DEBUG
+    if (!ctx_->postEffectRenderer) {
+        return;
+    }
+
+    int mode = static_cast<int>(ctx_->postEffectRenderer->GetMode());
+    if (ImGui::Begin("Post Effect")) {
+        ImGui::RadioButton("None", &mode, 0);
+        ImGui::RadioButton("Grayscale", &mode, 1);
+        ImGui::RadioButton("Sepia", &mode, 2);
+    }
+    ImGui::End();
+
+    ctx_->postEffectRenderer->SetMode(
+        static_cast<PostEffectRenderer::Mode>(mode));
+#endif // _DEBUG
 }
 
 void GameScene::ResizeOffscreenIfNeeded() {
