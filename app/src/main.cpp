@@ -3,12 +3,15 @@
 #include "Input.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
+#include "PostEffectRenderer.h"
+#include "RenderTexture.h"
 #include "SceneContext.h"
 #include "SceneManager.h"
 #include "SoundManager.h"
 #include "SpriteManager.h"
 #include "SpriteRenderer.h"
 #include "SrvManager.h"
+#include "SkyboxRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
 #ifdef _DEBUG
@@ -71,6 +74,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.texture = &textureManager;
     sceneCtx.dxCommon = &dxCommon;
     sceneCtx.srv = &srvManager;
+
+    RenderTexture renderTexture;
+    PostEffectRenderer postEffectRenderer;
+    SkyboxRenderer skyboxRenderer;
+    sceneCtx.renderTexture = &renderTexture;
+    sceneCtx.postEffectRenderer = &postEffectRenderer;
+    sceneCtx.skyboxRenderer = &skyboxRenderer;
 
     sceneCtx.deltaTime = 0.0f;
 

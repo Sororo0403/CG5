@@ -10,6 +10,9 @@ class SpriteRenderer;
 class TextureManager;
 class DirectXCommon;
 class SrvManager;
+class PostEffectRenderer;
+class RenderTexture;
+class SkyboxRenderer;
 
 #ifdef _DEBUG
 class ImguiManager;
@@ -29,6 +32,9 @@ struct SceneContext {
     TextureManager *texture = nullptr;
     DirectXCommon *dxCommon = nullptr;
     SrvManager *srv = nullptr;
+    RenderTexture *renderTexture = nullptr;
+    PostEffectRenderer *postEffectRenderer = nullptr;
+    SkyboxRenderer *skyboxRenderer = nullptr;
     float deltaTime = 0.0f;
 
 #ifdef _DEBUG

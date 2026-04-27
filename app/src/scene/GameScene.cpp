@@ -1,8 +1,12 @@
 #include "GameScene.h"
+#include "Camera.h"
 #include "DirectXCommon.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
+#include "PostEffectRenderer.h"
+#include "RenderTexture.h"
 #include "SpriteRenderer.h"
+#include "SkyboxRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
 #include <cmath>
@@ -12,13 +16,18 @@ using namespace DirectX;
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
 
+    if (!ctx_->renderTexture || !ctx_->postEffectRenderer ||
+        !ctx_->skyboxRenderer) {
+        return;
+    }
+
     renderWidth_ = ctx_->winApp->GetWidth();
     renderHeight_ = ctx_->winApp->GetHeight();
 
-    renderTexture_.Initialize(ctx_->dxCommon, ctx_->srv, renderWidth_,
-                              renderHeight_);
-    postEffectRenderer_.Initialize(ctx_->dxCommon, ctx_->srv, renderWidth_,
-                                   renderHeight_);
+    ctx_->renderTexture->Initialize(ctx_->dxCommon, ctx_->srv, renderWidth_,
+                                    renderHeight_);
+    ctx_->postEffectRenderer->Initialize(ctx_->dxCommon, ctx_->srv,
+                                         renderWidth_, renderHeight_);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -38,7 +47,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->dxCommon->EndUpload();
     ctx_->texture->ReleaseUploadBuffers();
 
-    skyboxRenderer_.Initialize(ctx_->dxCommon, ctx_->srv, ctx_->texture);
+    ctx_->skyboxRenderer->Initialize(ctx_->dxCommon, ctx_->srv, ctx_->texture);
     ctx_->modelRenderer->SetEnvironmentTexture(environmentTextureId_);
 }
 
@@ -54,15 +63,23 @@ void GameScene::Update() {
 void GameScene::Draw() {
     ResizeOffscreenIfNeeded();
 
-    renderTexture_.BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
+    if (!ctx_->renderTexture || !ctx_->postEffectRenderer) {
+        return;
+    }
+
+    ctx_->renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
     DrawOffscreenScene();
-    renderTexture_.EndRender();
+    ctx_->renderTexture->EndRender();
 
     ctx_->dxCommon->SetBackBufferRenderTarget(false);
-    postEffectRenderer_.Draw(renderTexture_.GetGpuHandle());
+    ctx_->postEffectRenderer->Draw(ctx_->renderTexture->GetGpuHandle());
 }
 
 void GameScene::ResizeOffscreenIfNeeded() {
+    if (!ctx_->renderTexture || !ctx_->postEffectRenderer) {
+        return;
+    }
+
     const int width = ctx_->winApp->GetWidth();
     const int height = ctx_->winApp->GetHeight();
 
@@ -73,24 +90,27 @@ void GameScene::ResizeOffscreenIfNeeded() {
 
     renderWidth_ = width;
     renderHeight_ = height;
-    renderTexture_.Resize(renderWidth_, renderHeight_);
-    postEffectRenderer_.Resize(renderWidth_, renderHeight_);
+    ctx_->renderTexture->Resize(renderWidth_, renderHeight_);
+    ctx_->postEffectRenderer->Resize(renderWidth_, renderHeight_);
     camera_.SetAspect(static_cast<float>(renderWidth_) /
                       static_cast<float>(renderHeight_));
     camera_.UpdateMatrices();
 }
 
 void GameScene::DrawOffscreenScene() {
+    if (!ctx_->skyboxRenderer) {
+        return;
+    }
+
     ModelRenderer *modelRenderer = ctx_->modelRenderer;
     const Model *model = ctx_->model->GetModel(modelId_);
     if (!model) {
         return;
     }
 
-    skyboxRenderer_.Draw(skyboxModelId_, camera_);
+    ctx_->skyboxRenderer->Draw(skyboxModelId_, camera_);
 
     modelRenderer->PreDraw();
-    modelRenderer->Draw(*model, modelTransform_, camera_,
-                        environmentTextureId_);
+    modelRenderer->Draw(*model, modelTransform_, camera_, environmentTextureId_);
     modelRenderer->PostDraw();
 }
