@@ -21,7 +21,12 @@ float4 ApplyFilterEffect(Texture2D sourceTexture, SamplerState sourceSampler,
 
     if (mode == 3)
     {
-        return SampleGaussianFilter(sourceTexture, sourceSampler, uv);
+        return SampleGaussianBlur(sourceTexture, sourceSampler, uv, 1, 1.0f);
+    }
+
+    if (mode == 4)
+    {
+        return SampleGaussianBlur(sourceTexture, sourceSampler, uv, 3, 2.0f);
     }
 
     return sourceTexture.Sample(sourceSampler, uv);

@@ -22,6 +22,7 @@ class PostEffectRenderer {
         Box3x3 = 1,
         Box5x5 = 2,
         Gaussian3x3 = 3,
+        GaussianBlur7x7 = 4,
     };
 
     /// <summary>
