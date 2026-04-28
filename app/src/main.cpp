@@ -1,6 +1,7 @@
 #include "DirectXCommon.h"
 #include "GameScene.h"
 #include "Input.h"
+#include "LightManager.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
 #include "PostEffectRenderer.h"
@@ -77,6 +78,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     spriteManager.Initialize(&dxCommon, &textureManager, &srvManager, width,
                              height);
 
+    LightManager lightManager;
+
     startupUpload.Finish();
 
     textureManager.ReleaseUploadBuffers();
@@ -92,6 +95,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.assets.texture = &textureManager;
     sceneCtx.renderer.model = modelManager.GetRenderer();
     sceneCtx.renderer.sprite = spriteManager.GetRenderer();
+    sceneCtx.renderer.light = &lightManager;
 
     RenderTexture renderTexture;
     PostEffectRenderer postEffectRenderer;

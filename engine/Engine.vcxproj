@@ -62,7 +62,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -76,7 +76,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -101,6 +101,7 @@
     <ClCompile Include="$(SolutionDir)engine\src\particle\GPUParticleSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\particle\CylinderParticleSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\scene\LevelLoader.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\light\LightManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\scene\SceneManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\input\Input.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\sound\SoundManager.cpp" />
@@ -136,6 +137,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\particle\CylinderParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\Transform.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\BaseScene.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\light\LightManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\imgui\ImguiManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\Camera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxHelpers.h" />

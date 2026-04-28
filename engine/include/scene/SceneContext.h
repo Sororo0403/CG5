@@ -13,6 +13,7 @@ class SrvManager;
 class PostEffectRenderer;
 class RenderTexture;
 class SkyboxRenderer;
+class LightManager;
 
 #ifdef _DEBUG
 class ImguiManager;
@@ -38,6 +39,7 @@ struct RendererServices {
     RenderTexture *renderTexture = nullptr;
     PostEffectRenderer *postEffectRenderer = nullptr;
     SkyboxRenderer *skyboxRenderer = nullptr;
+    LightManager *light = nullptr;
 };
 
 struct FrameState {

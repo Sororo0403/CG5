@@ -26,6 +26,7 @@ class GameScene : public BaseScene {
 
   private:
     void UpdatePostEffectControls();
+    void UpdateLighting();
     void ApplyDissolveMaterial();
     void DrawPostEffectControls();
     void DrawOffscreenScene();
@@ -48,4 +49,5 @@ class GameScene : public BaseScene {
     float dissolveThreshold_ = 0.35f;
     float dissolveEdgeWidth_ = 0.06f;
     float dissolveEdgeColor_[4] = {1.0f, 0.32f, 0.0f, 1.0f};
+    bool pointLightAnimate_ = true;
 };

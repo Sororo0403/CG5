@@ -56,7 +56,8 @@ struct SceneConstBufferData {
     XMFLOAT4 fillLightDirection;
     XMFLOAT4 fillLightColor;
     XMFLOAT4 ambientColor;
-    PointLightData pointLights[2];
+    PointLightData pointLights[kMaxForwardPointLights];
+    XMFLOAT4 pointLightParams;
     XMFLOAT4 lightingParams;
 };
 
@@ -161,13 +162,18 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
         };
         sceneDst->fillLightColor = currentLighting_.fillLightColor;
         sceneDst->ambientColor = currentLighting_.ambientColor;
-        for (size_t lightIndex = 0;
+        const uint32_t pointLightCount = std::min<uint32_t>(
+            currentLighting_.pointLightCount,
+            static_cast<uint32_t>(currentLighting_.pointLights.size()));
+        for (uint32_t lightIndex = 0;
              lightIndex < currentLighting_.pointLights.size(); ++lightIndex) {
             sceneDst->pointLights[lightIndex].positionRange =
                 currentLighting_.pointLights[lightIndex].positionRange;
             sceneDst->pointLights[lightIndex].colorIntensity =
                 currentLighting_.pointLights[lightIndex].colorIntensity;
         }
+        sceneDst->pointLightParams = {
+            static_cast<float>(pointLightCount), 0.0f, 0.0f, 0.0f};
         sceneDst->lightingParams = currentLighting_.lightingParams;
 
         D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =

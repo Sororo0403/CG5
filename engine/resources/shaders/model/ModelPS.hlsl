@@ -5,6 +5,8 @@ TextureCube<float4> gEnvironmentTexture : register(t2);
 Texture2D<float4> gDissolveNoiseTexture : register(t3);
 SamplerState samp0 : register(s0);
 
+static const int kMaxPointLights = 8;
+
 cbuffer ObjectTransform : register(b0)
 {
     float4x4 matWVP;
@@ -21,7 +23,8 @@ cbuffer SceneParams : register(b1)
     float4 fillLightDirection;
     float4 fillLightColor;
     float4 ambientColor;
-    PointLight pointLights[2];
+    PointLight pointLights[kMaxPointLights];
+    float4 pointLightParams;
     float4 lightingParams;
 };
 
@@ -85,28 +88,23 @@ float4 main(ModelVSOutput input) : SV_TARGET
 
     float3 pointAccum = float3(0.0f, 0.0f, 0.0f);
 
-    float3 point0Vector = pointLights[0].positionRange.xyz - input.worldPos;
-    float point0Distance = length(point0Vector);
-    if (point0Distance > 0.0001f)
+    int pointLightCount = min((int)pointLightParams.x, kMaxPointLights);
+    [loop]
+    for (int pointLightIndex = 0; pointLightIndex < pointLightCount; ++pointLightIndex)
     {
-        float3 point0Dir = point0Vector / point0Distance;
-        float point0Attenuation = saturate(1.0f - point0Distance / max(pointLights[0].positionRange.w, 0.001f));
-        point0Attenuation *= point0Attenuation;
-        float point0Diffuse = saturate(dot(normal, point0Dir));
-        pointAccum += pointLights[0].colorIntensity.rgb * point0Diffuse *
-                      point0Attenuation * pointLights[0].colorIntensity.w;
-    }
-
-    float3 point1Vector = pointLights[1].positionRange.xyz - input.worldPos;
-    float point1Distance = length(point1Vector);
-    if (point1Distance > 0.0001f)
-    {
-        float3 point1Dir = point1Vector / point1Distance;
-        float point1Attenuation = saturate(1.0f - point1Distance / max(pointLights[1].positionRange.w, 0.001f));
-        point1Attenuation *= point1Attenuation;
-        float point1Diffuse = saturate(dot(normal, point1Dir));
-        pointAccum += pointLights[1].colorIntensity.rgb * point1Diffuse *
-                      point1Attenuation * pointLights[1].colorIntensity.w;
+        float3 pointVector = pointLights[pointLightIndex].positionRange.xyz - input.worldPos;
+        float pointDistance = length(pointVector);
+        if (pointDistance > 0.0001f)
+        {
+            float3 pointDir = pointVector / pointDistance;
+            float pointAttenuation =
+                saturate(1.0f - pointDistance / max(pointLights[pointLightIndex].positionRange.w, 0.001f));
+            pointAttenuation *= pointAttenuation;
+            float pointDiffuse = saturate(dot(normal, pointDir));
+            pointAccum += pointLights[pointLightIndex].colorIntensity.rgb *
+                          pointDiffuse * pointAttenuation *
+                          pointLights[pointLightIndex].colorIntensity.w;
+        }
     }
 
     float3 lighting =

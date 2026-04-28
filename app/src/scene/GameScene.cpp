@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "DirectXCommon.h"
 #include "Input.h"
+#include "LightManager.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
 #include "PostEffectRenderer.h"
@@ -58,6 +59,15 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     modelTransform_.position = {0.0f, 0.0f, 0.0f};
     modelTransform_.scale = {1.0f, 1.0f, 1.0f};
+    if (ctx_->renderer.light) {
+        ctx_->renderer.light->SetPointLightCount(3);
+        ctx_->renderer.light->SetPointLight(
+            0, {{1.4f, 1.2f, -1.0f, 4.5f}, {1.0f, 0.38f, 0.18f, 2.4f}});
+        ctx_->renderer.light->SetPointLight(
+            1, {{-1.4f, 1.0f, 0.4f, 4.0f}, {0.16f, 0.42f, 1.0f, 1.8f}});
+        ctx_->renderer.light->SetPointLight(
+            2, {{0.0f, 1.8f, 1.8f, 5.0f}, {0.35f, 1.0f, 0.56f, 1.2f}});
+    }
 
     auto uploadContext = ctx_->core.dxCommon->BeginUploadContext();
     modelId_ = ctx_->assets.model->Load(uploadContext,
@@ -91,11 +101,33 @@ void GameScene::Update() {
         dissolveThreshold_ = 0.5f + 0.5f * std::sin(time_ * 0.8f);
     }
     ApplyDissolveMaterial();
+    UpdateLighting();
     UpdatePostEffectControls();
 
     const XMVECTOR rotation =
         XMQuaternionRotationRollPitchYaw(0.0f, time_ * 0.35f, 0.0f);
     XMStoreFloat4(&modelTransform_.rotation, rotation);
+}
+
+void GameScene::UpdateLighting() {
+    if (!ctx_->renderer.light || !pointLightAnimate_) {
+        return;
+    }
+
+    PointLight *point0 = ctx_->renderer.light->GetMutablePointLight(0);
+    PointLight *point1 = ctx_->renderer.light->GetMutablePointLight(1);
+    PointLight *point2 = ctx_->renderer.light->GetMutablePointLight(2);
+    if (point0) {
+        point0->positionRange.x = std::sin(time_ * 1.2f) * 1.6f;
+        point0->positionRange.z = std::cos(time_ * 1.2f) * 1.4f;
+    }
+    if (point1) {
+        point1->positionRange.x = std::sin(time_ * 0.85f + 2.1f) * 1.8f;
+        point1->positionRange.z = std::cos(time_ * 0.85f + 2.1f) * 1.6f;
+    }
+    if (point2) {
+        point2->positionRange.y = 1.6f + std::sin(time_ * 1.6f) * 0.35f;
+    }
 }
 
 void GameScene::ApplyDissolveMaterial() {
@@ -271,6 +303,45 @@ void GameScene::DrawPostEffectControls() {
     }
     ImGui::End();
 
+    if (ctx_->renderer.light) {
+        if (ImGui::Begin("Lighting")) {
+            SceneLighting &lighting =
+                ctx_->renderer.light->GetMutableSceneLighting();
+            ImGui::Checkbox("Animate Point Lights", &pointLightAnimate_);
+            int pointLightCount = static_cast<int>(lighting.pointLightCount);
+            ImGui::SliderInt("Point Light Count", &pointLightCount, 0,
+                             static_cast<int>(kMaxForwardPointLights));
+            ctx_->renderer.light->SetPointLightCount(
+                static_cast<uint32_t>(pointLightCount));
+            ImGui::ColorEdit3("Ambient", &lighting.ambientColor.x);
+            ImGui::SliderFloat("Specular", &lighting.lightingParams.y, 0.0f,
+                               1.0f);
+            ImGui::SliderFloat("Wrap", &lighting.lightingParams.w, 0.0f, 1.0f);
+            ImGui::Separator();
+            for (uint32_t lightIndex = 0; lightIndex < lighting.pointLightCount;
+                 ++lightIndex) {
+                ImGui::PushID(static_cast<int>(lightIndex));
+                ImGui::Text("Point Light %u", lightIndex);
+                ImGui::DragFloat3("Position", &lighting.pointLights[lightIndex]
+                                                   .positionRange.x,
+                                  0.05f);
+                ImGui::SliderFloat(
+                    "Range", &lighting.pointLights[lightIndex].positionRange.w,
+                    0.1f, 20.0f);
+                ImGui::ColorEdit3(
+                    "Color",
+                    &lighting.pointLights[lightIndex].colorIntensity.x);
+                ImGui::SliderFloat(
+                    "Intensity",
+                    &lighting.pointLights[lightIndex].colorIntensity.w, 0.0f,
+                    8.0f);
+                ImGui::Separator();
+                ImGui::PopID();
+            }
+        }
+        ImGui::End();
+    }
+
     ctx_->renderer.postEffectRenderer->SetColorMode(
         static_cast<PostEffectRenderer::ColorMode>(colorMode));
     ctx_->renderer.postEffectRenderer->SetFilterMode(
@@ -329,6 +400,9 @@ void GameScene::DrawOffscreenScene() {
 
     modelRenderer->PreDraw();
     ApplyDissolveMaterial();
+    if (ctx_->renderer.light) {
+        modelRenderer->SetSceneLighting(ctx_->renderer.light->GetSceneLighting());
+    }
     modelRenderer->Draw(*model, modelTransform_, camera_, environmentTextureId_);
     modelRenderer->PostDraw();
 }

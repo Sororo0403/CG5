@@ -82,8 +82,14 @@
     <Filter Include="src\collision">
       <UniqueIdentifier>{024bd489-5878-4b22-bcf0-02c6b87fc14e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\light">
+      <UniqueIdentifier>{0a89f421-9c63-4a11-befe-b15195d9e52b}</UniqueIdentifier>
+    </Filter>
     <Filter Include="include\collision">
       <UniqueIdentifier>{ae2140d3-1036-4cf2-8cc4-63cdbc1d3c3d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\light">
+      <UniqueIdentifier>{122b37f7-4a66-4f62-8f22-172f16b6351f}</UniqueIdentifier>
     </Filter>
     <Filter Include="resources">
       <UniqueIdentifier>{a7d15aa3-a2e6-492d-8656-1d600e7d5081}</UniqueIdentifier>
@@ -207,6 +213,9 @@
     <ClCompile Include="$(SolutionDir)engine\src\scene\LevelLoader.cpp">
       <Filter>src\scene</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\light\LightManager.cpp">
+      <Filter>src\light</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\model\SkyboxRenderer.cpp">
       <Filter>src\model</Filter>
     </ClCompile>
@@ -289,6 +298,9 @@
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\scene\BaseScene.h">
       <Filter>include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\light\LightManager.h">
+      <Filter>include\light</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\scene\SceneManager.h">
       <Filter>include\scene</Filter>
