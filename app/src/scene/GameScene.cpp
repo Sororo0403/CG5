@@ -111,6 +111,9 @@ void GameScene::UpdatePostEffectControls() {
                 PostEffectRenderer::FilterMode::Box5x5);
         } else if (ctx_->input->IsKeyTrigger(DIK_7)) {
             ctx_->postEffectRenderer->SetFilterMode(
+                PostEffectRenderer::FilterMode::Gaussian3x3);
+        } else if (ctx_->input->IsKeyTrigger(DIK_8)) {
+            ctx_->postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::None);
         }
     }
@@ -136,6 +139,7 @@ void GameScene::DrawPostEffectControls() {
         ImGui::RadioButton("No Filter", &filterMode, 0);
         ImGui::RadioButton("3x3 Box Filter", &filterMode, 1);
         ImGui::RadioButton("5x5 Box Filter", &filterMode, 2);
+        ImGui::RadioButton("3x3 Gaussian Filter", &filterMode, 3);
     }
     ImGui::End();
 

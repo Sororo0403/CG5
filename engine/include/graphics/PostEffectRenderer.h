@@ -21,6 +21,7 @@ class PostEffectRenderer {
         None = 0,
         Box3x3 = 1,
         Box5x5 = 2,
+        Gaussian3x3 = 3,
     };
 
     /// <summary>
