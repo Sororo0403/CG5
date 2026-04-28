@@ -125,6 +125,11 @@ class ModelRenderer {
     /// <param name="model">対象モデル</param>
     void CreateSkinClusters(Model &model);
     /// <summary>
+    /// モデル用スキンクラスターのSRV/UAVディスクリプタを解放する
+    /// </summary>
+    /// <param name="model">対象モデル</param>
+    void ReleaseSkinClusters(Model &model);
+    /// <summary>
     /// スキンクラスターのパレット内容を更新する
     /// </summary>
     /// <param name="model">対象モデル</param>

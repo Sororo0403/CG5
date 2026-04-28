@@ -37,8 +37,10 @@ void ImguiManager::Initialize(WinApp *winApp, DirectXCommon *dxCommon,
     };
 
     init_info.SrvDescriptorFreeFn = [](ImGui_ImplDX12_InitInfo *,
-                                       D3D12_CPU_DESCRIPTOR_HANDLE,
-                                       D3D12_GPU_DESCRIPTOR_HANDLE) {};
+                                       D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+                                       D3D12_GPU_DESCRIPTOR_HANDLE) {
+        gSrvManager->Free(cpuHandle);
+    };
 
     ImGui_ImplDX12_Init(&init_info);
 }

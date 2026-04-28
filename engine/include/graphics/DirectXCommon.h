@@ -11,6 +11,8 @@ class SrvManager;
 /// </summary>
 class DirectXCommon {
   public:
+    ~DirectXCommon();
+
     /// <summary>
     /// 初期化処理
     /// </summary>
@@ -162,7 +164,9 @@ class DirectXCommon {
     Microsoft::WRL::ComPtr<IDXGISwapChain4> swapChain_;
     Microsoft::WRL::ComPtr<ID3D12Device> device_;
     Microsoft::WRL::ComPtr<ID3D12CommandQueue> commandQueue_;
-    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> commandAllocator_;
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator>
+        commandAllocators_[kSwapChainBufferCount];
+    Microsoft::WRL::ComPtr<ID3D12CommandAllocator> uploadCommandAllocator_;
     Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> commandList_;
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
@@ -171,7 +175,8 @@ class DirectXCommon {
     UINT backBufferIndex_ = 0;
 
     Microsoft::WRL::ComPtr<ID3D12Fence> fence_;
-    UINT64 fenceValue_ = 0;
+    UINT64 nextFenceValue_ = 1;
+    UINT64 frameFenceValues_[kSwapChainBufferCount] = {};
     HANDLE fenceEvent_ = nullptr;
 
     D3D12_VIEWPORT viewport_{};

@@ -25,6 +25,8 @@ class TextureManager {
     };
 
   public:
+    ~TextureManager();
+
     /// <summary>
     /// 初期化処理
     /// </summary>

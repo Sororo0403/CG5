@@ -57,19 +57,23 @@ struct SkinCluster {
     uint32_t influenceCount = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE influenceSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE influenceSrvGpuHandle{};
+    uint32_t influenceSrvIndex = UINT_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
     WellForGPU *mappedPalette = nullptr;
     uint32_t paletteCount = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE paletteSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle{};
+    uint32_t paletteSrvIndex = UINT_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> skinnedVertexResource;
     D3D12_VERTEX_BUFFER_VIEW skinnedVertexBufferView{};
     D3D12_CPU_DESCRIPTOR_HANDLE inputVertexSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE inputVertexSrvGpuHandle{};
+    uint32_t inputVertexSrvIndex = UINT_MAX;
     D3D12_CPU_DESCRIPTOR_HANDLE skinnedVertexUavCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE skinnedVertexUavGpuHandle{};
+    uint32_t skinnedVertexUavIndex = UINT_MAX;
 };
 
 /// <summary>

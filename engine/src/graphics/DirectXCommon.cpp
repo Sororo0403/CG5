@@ -6,6 +6,16 @@
 
 using namespace DxUtils;
 
+DirectXCommon::~DirectXCommon() {
+    if (commandQueue_ && fence_ && fenceEvent_) {
+        WaitForGpu();
+    }
+    if (fenceEvent_) {
+        CloseHandle(fenceEvent_);
+        fenceEvent_ = nullptr;
+    }
+}
+
 void DirectXCommon::Initialize(HWND hwnd, int width, int height) {
     CreateFactory();
     CreateDevice();
@@ -21,9 +31,19 @@ void DirectXCommon::Initialize(HWND hwnd, int width, int height) {
 }
 
 void DirectXCommon::BeginFrame() {
-    ThrowIfFailed(commandAllocator_->Reset(),
+    if (frameFenceValues_[backBufferIndex_] != 0 &&
+        fence_->GetCompletedValue() < frameFenceValues_[backBufferIndex_]) {
+        ThrowIfFailed(
+            fence_->SetEventOnCompletion(frameFenceValues_[backBufferIndex_],
+                                         fenceEvent_),
+            "fence_->SetEventOnCompletion failed");
+        WaitForSingleObject(fenceEvent_, INFINITE);
+    }
+
+    ThrowIfFailed(commandAllocators_[backBufferIndex_]->Reset(),
                   "commandAllocator_->Reset failed");
-    ThrowIfFailed(commandList_->Reset(commandAllocator_.Get(), nullptr),
+    ThrowIfFailed(commandList_->Reset(commandAllocators_[backBufferIndex_].Get(),
+                                      nullptr),
                   "commandList_->Reset failed");
 
     commandList_->RSSetViewports(1, &viewport_);
@@ -57,15 +77,10 @@ void DirectXCommon::EndFrame() {
         ThrowIfFailed(presentResult, "swapChain_->Present failed");
     }
 
-    fenceValue_++;
-    ThrowIfFailed(commandQueue_->Signal(fence_.Get(), fenceValue_),
+    const UINT64 signalValue = nextFenceValue_++;
+    ThrowIfFailed(commandQueue_->Signal(fence_.Get(), signalValue),
                   "commandQueue_->Signal failed");
-
-    if (fence_->GetCompletedValue() < fenceValue_) {
-        ThrowIfFailed(fence_->SetEventOnCompletion(fenceValue_, fenceEvent_),
-                      "fence_->SetEventOnCompletion failed");
-        WaitForSingleObject(fenceEvent_, INFINITE);
-    }
+    frameFenceValues_[backBufferIndex_] = signalValue;
 
     backBufferIndex_ = swapChain_->GetCurrentBackBufferIndex();
 }
@@ -98,10 +113,10 @@ void DirectXCommon::Resize(int width, int height) {
 }
 
 void DirectXCommon::BeginUpload() {
-    ThrowIfFailed(commandAllocator_->Reset(),
-                  "commandAllocator_->Reset failed");
+    ThrowIfFailed(uploadCommandAllocator_->Reset(),
+                  "uploadCommandAllocator_->Reset failed");
 
-    ThrowIfFailed(commandList_->Reset(commandAllocator_.Get(), nullptr),
+    ThrowIfFailed(commandList_->Reset(uploadCommandAllocator_.Get(), nullptr),
                   "commandList_->Reset failed");
 }
 
@@ -115,14 +130,18 @@ void DirectXCommon::EndUpload() {
 }
 
 void DirectXCommon::WaitForGpu() {
-    fenceValue_++;
-    ThrowIfFailed(commandQueue_->Signal(fence_.Get(), fenceValue_),
+    const UINT64 signalValue = nextFenceValue_++;
+    ThrowIfFailed(commandQueue_->Signal(fence_.Get(), signalValue),
                   "commandQueue_->Signal failed");
 
-    if (fence_->GetCompletedValue() < fenceValue_) {
-        ThrowIfFailed(fence_->SetEventOnCompletion(fenceValue_, fenceEvent_),
+    if (fence_->GetCompletedValue() < signalValue) {
+        ThrowIfFailed(fence_->SetEventOnCompletion(signalValue, fenceEvent_),
                       "fence_->SetEventOnCompletion failed");
         WaitForSingleObject(fenceEvent_, INFINITE);
+    }
+
+    for (UINT i = 0; i < kSwapChainBufferCount; ++i) {
+        frameFenceValues_[i] = signalValue;
     }
 }
 
@@ -198,15 +217,22 @@ void DirectXCommon::CreateCommandQueue() {
 }
 
 void DirectXCommon::CreateCommandAllocator() {
-    ThrowIfFailed(
-        device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                        IID_PPV_ARGS(&commandAllocator_)),
-        "CreateCommandAllocator failed");
+    for (auto &allocator : commandAllocators_) {
+        ThrowIfFailed(
+            device_->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                            IID_PPV_ARGS(&allocator)),
+            "CreateCommandAllocator failed");
+    }
+
+    ThrowIfFailed(device_->CreateCommandAllocator(
+                      D3D12_COMMAND_LIST_TYPE_DIRECT,
+                      IID_PPV_ARGS(&uploadCommandAllocator_)),
+                  "CreateCommandAllocator(Upload) failed");
 }
 
 void DirectXCommon::CreateCommandList() {
     ThrowIfFailed(device_->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT,
-                                             commandAllocator_.Get(), nullptr,
+                                             commandAllocators_[0].Get(), nullptr,
                                              IID_PPV_ARGS(&commandList_)),
                   "CreateCommandList failed");
 

@@ -6,11 +6,20 @@
 
 using namespace DxUtils;
 
+RenderTexture::~RenderTexture() {
+    if (srvManager_ && srvIndex_ != UINT_MAX) {
+        srvManager_->Free(srvIndex_);
+        srvIndex_ = UINT_MAX;
+    }
+}
+
 void RenderTexture::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
                                int width, int height) {
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
-    srvIndex_ = srvManager_->Allocate();
+    if (srvIndex_ == UINT_MAX) {
+        srvIndex_ = srvManager_->Allocate();
+    }
     width_ = width;
     height_ = height;
 

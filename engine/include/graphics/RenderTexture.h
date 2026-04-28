@@ -11,6 +11,8 @@ class SrvManager;
 /// </summary>
 class RenderTexture {
   public:
+    ~RenderTexture();
+
     /// <summary>
     /// RenderTextureを生成する
     /// </summary>
@@ -49,7 +51,7 @@ class RenderTexture {
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
     UINT rtvDescriptorSize_ = 0;
-    UINT srvIndex_ = 0;
+    UINT srvIndex_ = UINT_MAX;
     int width_ = 0;
     int height_ = 0;
 };

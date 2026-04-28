@@ -28,8 +28,19 @@ constexpr std::array<uint32_t, 6> kPlaneIndices = {0, 1, 2, 2, 1, 3};
 
 } // namespace
 
+ModelManager::~ModelManager() {
+    for (Model &model : models_) {
+        modelRenderer_.ReleaseSkinClusters(model);
+    }
+}
+
 void ModelManager::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
                               TextureManager *textureManager) {
+    for (Model &model : models_) {
+        modelRenderer_.ReleaseSkinClusters(model);
+    }
+    models_.clear();
+
     dxCommon_ = dxCommon;
     textureManager_ = textureManager;
 

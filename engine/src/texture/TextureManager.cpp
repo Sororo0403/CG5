@@ -60,8 +60,22 @@ using namespace DirectX;
 using namespace DxUtils;
 using Microsoft::WRL::ComPtr;
 
+TextureManager::~TextureManager() {
+    if (srvManager_) {
+        for (const Entry &entry : textures_) {
+            srvManager_->Free(entry.srvIndex);
+        }
+    }
+}
+
 void TextureManager::Initialize(DirectXCommon *dxCommon,
                                 SrvManager *srvManager) {
+    if (srvManager_) {
+        for (const Entry &entry : textures_) {
+            srvManager_->Free(entry.srvIndex);
+        }
+    }
+
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
 

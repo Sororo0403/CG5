@@ -18,6 +18,8 @@ class TextureManager;
 /// </summary>
 class ModelManager {
   public:
+    ~ModelManager();
+
     /// <summary>
     /// ModelManagerの初期化
     /// </summary>

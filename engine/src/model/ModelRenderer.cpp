@@ -265,6 +265,7 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                         sizeof(VertexInfluence) * skinCluster.influenceCount);
 
             const UINT inputVertexSrvIndex = srvManager_->Allocate();
+            skinCluster.inputVertexSrvIndex = inputVertexSrvIndex;
             skinCluster.inputVertexSrvCpuHandle =
                 srvManager_->GetCpuHandle(inputVertexSrvIndex);
             skinCluster.inputVertexSrvGpuHandle =
@@ -284,6 +285,7 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                                              skinCluster.inputVertexSrvCpuHandle);
 
             const UINT influenceSrvIndex = srvManager_->Allocate();
+            skinCluster.influenceSrvIndex = influenceSrvIndex;
             skinCluster.influenceSrvCpuHandle =
                 srvManager_->GetCpuHandle(influenceSrvIndex);
             skinCluster.influenceSrvGpuHandle =
@@ -323,6 +325,7 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
             skinCluster.skinnedVertexBufferView.StrideInBytes = sizeof(Vertex);
 
             const UINT skinnedVertexUavIndex = srvManager_->Allocate();
+            skinCluster.skinnedVertexUavIndex = skinnedVertexUavIndex;
             skinCluster.skinnedVertexUavCpuHandle =
                 srvManager_->GetCpuHandle(skinnedVertexUavIndex);
             skinCluster.skinnedVertexUavGpuHandle =
@@ -407,6 +410,7 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
         }
 
         const UINT srvIndex = srvManager_->Allocate();
+        skinCluster.paletteSrvIndex = srvIndex;
         skinCluster.paletteSrvCpuHandle = srvManager_->GetCpuHandle(srvIndex);
         skinCluster.paletteSrvGpuHandle = srvManager_->GetGpuHandle(srvIndex);
 
@@ -426,6 +430,33 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
     }
 
     UpdateSkinClusters(model);
+}
+
+void ModelRenderer::ReleaseSkinClusters(Model &model) {
+    if (!srvManager_) {
+        return;
+    }
+
+    for (auto &subMesh : model.subMeshes) {
+        SkinCluster &skinCluster = subMesh.skinCluster;
+
+        if (skinCluster.inputVertexSrvIndex != UINT_MAX) {
+            srvManager_->Free(skinCluster.inputVertexSrvIndex);
+            skinCluster.inputVertexSrvIndex = UINT_MAX;
+        }
+        if (skinCluster.influenceSrvIndex != UINT_MAX) {
+            srvManager_->Free(skinCluster.influenceSrvIndex);
+            skinCluster.influenceSrvIndex = UINT_MAX;
+        }
+        if (skinCluster.skinnedVertexUavIndex != UINT_MAX) {
+            srvManager_->Free(skinCluster.skinnedVertexUavIndex);
+            skinCluster.skinnedVertexUavIndex = UINT_MAX;
+        }
+        if (skinCluster.paletteSrvIndex != UINT_MAX) {
+            srvManager_->Free(skinCluster.paletteSrvIndex);
+            skinCluster.paletteSrvIndex = UINT_MAX;
+        }
+    }
 }
 
 void ModelRenderer::UpdateSkinClusters(Model &model) {

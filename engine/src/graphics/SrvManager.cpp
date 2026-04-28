@@ -21,14 +21,51 @@ void SrvManager::Initialize(DirectXCommon *dxCommon, UINT maxSrvCount) {
 
     maxSrvCount_ = maxSrvCount;
     currentIndex_ = 0;
+    freeList_.clear();
+    allocated_.assign(maxSrvCount_, false);
 }
 
 UINT SrvManager::Allocate() {
+    if (!freeList_.empty()) {
+        const UINT index = freeList_.back();
+        freeList_.pop_back();
+        allocated_[index] = true;
+        return index;
+    }
+
     if (currentIndex_ >= maxSrvCount_) {
         throw std::runtime_error("SRV descriptor heap exhausted");
     }
 
+    allocated_[currentIndex_] = true;
     return currentIndex_++;
+}
+
+void SrvManager::Free(UINT index) {
+    if (index >= maxSrvCount_) {
+        throw std::out_of_range("SRV descriptor index out of range");
+    }
+    if (!allocated_[index]) {
+        throw std::runtime_error("SRV descriptor double free");
+    }
+
+    allocated_[index] = false;
+    freeList_.push_back(index);
+}
+
+void SrvManager::Free(D3D12_CPU_DESCRIPTOR_HANDLE handle) {
+    const D3D12_CPU_DESCRIPTOR_HANDLE start =
+        heap_->GetCPUDescriptorHandleForHeapStart();
+    if (handle.ptr < start.ptr || descriptorSize_ == 0) {
+        throw std::out_of_range("SRV descriptor handle out of range");
+    }
+
+    const SIZE_T offset = handle.ptr - start.ptr;
+    if (offset % descriptorSize_ != 0) {
+        throw std::out_of_range("SRV descriptor handle is not aligned");
+    }
+
+    Free(static_cast<UINT>(offset / descriptorSize_));
 }
 
 D3D12_CPU_DESCRIPTOR_HANDLE
