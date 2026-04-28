@@ -25,6 +25,7 @@ class GameScene : public BaseScene {
   private:
     void ResizeOffscreenIfNeeded();
     void UpdatePostEffectControls();
+    void ApplyDissolveMaterial();
     void DrawPostEffectControls();
     void DrawOffscreenScene();
 
@@ -33,7 +34,13 @@ class GameScene : public BaseScene {
     uint32_t modelId_ = 0;
     uint32_t skyboxModelId_ = 0;
     uint32_t environmentTextureId_ = 0;
+    uint32_t dissolveNoiseTextureId_ = 0;
     int renderWidth_ = 0;
     int renderHeight_ = 0;
     float time_ = 0.0f;
+    bool dissolveEnabled_ = true;
+    bool dissolveAutoAnimate_ = true;
+    float dissolveThreshold_ = 0.35f;
+    float dissolveEdgeWidth_ = 0.06f;
+    float dissolveEdgeColor_[4] = {1.0f, 0.32f, 0.0f, 1.0f};
 };

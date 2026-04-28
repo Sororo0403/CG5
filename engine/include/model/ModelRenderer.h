@@ -109,6 +109,13 @@ class ModelRenderer {
         hasEnvironmentTexture_ = true;
     }
     /// <summary>
+    /// ディゾルブ用ノイズテクスチャを設定する
+    /// </summary>
+    /// <param name="textureId">2DノイズテクスチャID</param>
+    void SetDissolveNoiseTexture(uint32_t textureId) {
+        dissolveNoiseTextureId_ = textureId;
+    }
+    /// <summary>
     /// 環境マップを無効化する
     /// </summary>
     void ClearEnvironmentTexture() { hasEnvironmentTexture_ = false; }
@@ -186,5 +193,6 @@ class ModelRenderer {
     ModelDrawEffect currentEffect_{};
     SceneLighting currentLighting_{};
     uint32_t environmentTextureId_ = 0;
+    uint32_t dissolveNoiseTextureId_ = 0;
     bool hasEnvironmentTexture_ = false;
 };

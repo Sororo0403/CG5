@@ -206,6 +206,8 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
             cmd->SetGraphicsRootDescriptorTable(
                 5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
         }
+        cmd->SetGraphicsRootDescriptorTable(
+            6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
 
         cmd->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmd->IASetIndexBuffer(&mesh.ibView);
@@ -499,7 +501,7 @@ void ModelRenderer::CreateConstantBuffer() {
 }
 
 void ModelRenderer::CreateRootSignature() {
-    CD3DX12_ROOT_PARAMETER params[6];
+    CD3DX12_ROOT_PARAMETER params[7];
 
     params[0].InitAsConstantBufferView(0);
     params[1].InitAsConstantBufferView(1);
@@ -516,6 +518,10 @@ void ModelRenderer::CreateRootSignature() {
     CD3DX12_DESCRIPTOR_RANGE environmentRange;
     environmentRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
     params[5].InitAsDescriptorTable(1, &environmentRange);
+
+    CD3DX12_DESCRIPTOR_RANGE dissolveNoiseRange;
+    dissolveNoiseRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    params[6].InitAsDescriptorTable(1, &dissolveNoiseRange);
 
     CD3DX12_STATIC_SAMPLER_DESC sampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
     sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;

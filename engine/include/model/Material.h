@@ -12,4 +12,9 @@ struct Material {
     float reflectionStrength = 0.18f;
     float reflectionFresnelStrength = 0.12f;
     float reflectionRoughness = 0.0f;
+    int32_t enableDissolve = 0;
+    float dissolveThreshold = 0.0f;
+    float dissolveEdgeWidth = 0.04f;
+    float padding0 = 0.0f;
+    DirectX::XMFLOAT4 dissolveEdgeColor = {1.0f, 0.35f, 0.05f, 1.0f};
 };

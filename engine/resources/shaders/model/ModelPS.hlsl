@@ -2,6 +2,7 @@
 
 Texture2D tex0 : register(t0);
 TextureCube<float4> gEnvironmentTexture : register(t2);
+Texture2D<float4> gDissolveNoiseTexture : register(t3);
 SamplerState samp0 : register(s0);
 
 cbuffer ObjectTransform : register(b0)
@@ -32,6 +33,11 @@ cbuffer Material : register(b2)
     float reflectionStrength;
     float reflectionFresnelStrength;
     float reflectionRoughness;
+    int enableDissolve;
+    float dissolveThreshold;
+    float dissolveEdgeWidth;
+    float materialPadding0;
+    float4 dissolveEdgeColor;
 };
 
 float4 main(ModelVSOutput input) : SV_TARGET
@@ -45,6 +51,18 @@ float4 main(ModelVSOutput input) : SV_TARGET
     }
 
     float4 finalColor = texColor * color;
+
+    float dissolveEdgeRate = 0.0f;
+    if (enableDissolve != 0)
+    {
+        float dissolveNoise = gDissolveNoiseTexture.Sample(samp0, uv).r;
+        float dissolveAmount = dissolveNoise - saturate(dissolveThreshold);
+        clip(dissolveAmount);
+
+        float edgeWidth = max(dissolveEdgeWidth, 0.0001f);
+        dissolveEdgeRate = 1.0f - smoothstep(0.0f, edgeWidth, dissolveAmount);
+    }
+
     float3 normal = normalize(input.worldNormal);
     float3 viewDir = normalize(cameraPos.xyz - input.worldPos);
 
@@ -113,6 +131,9 @@ float4 main(ModelVSOutput input) : SV_TARGET
     float environmentStrength =
         reflectionStrength + rim * reflectionFresnelStrength;
     finalColor.rgb += environmentColor * environmentStrength;
+    finalColor.rgb =
+        lerp(finalColor.rgb, dissolveEdgeColor.rgb,
+             dissolveEdgeRate * dissolveEdgeColor.a);
 
     float effectIntensity = effectParams.x;
     if (effectIntensity > 0.0001f)

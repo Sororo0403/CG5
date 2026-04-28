@@ -58,21 +58,47 @@ void GameScene::Initialize(const SceneContext &ctx) {
     skyboxModelId_ =
         ctx_->texture->Load(L"resources/rostock_laage_airport_4k.dds");
     environmentTextureId_ = skyboxModelId_;
+    dissolveNoiseTextureId_ = ctx_->texture->CreateNoiseTexture(256, 256);
     ctx_->dxCommon->EndUpload();
     ctx_->texture->ReleaseUploadBuffers();
 
     ctx_->skyboxRenderer->Initialize(ctx_->dxCommon, ctx_->srv, ctx_->texture);
     ctx_->modelRenderer->SetEnvironmentTexture(environmentTextureId_);
+    ctx_->modelRenderer->SetDissolveNoiseTexture(dissolveNoiseTextureId_);
+    ApplyDissolveMaterial();
 }
 
 void GameScene::Update() {
     time_ += ctx_->deltaTime;
     ctx_->model->UpdateAnimation(modelId_, ctx_->deltaTime);
+    if (dissolveAutoAnimate_) {
+        dissolveThreshold_ = 0.5f + 0.5f * std::sin(time_ * 0.8f);
+    }
+    ApplyDissolveMaterial();
     UpdatePostEffectControls();
 
     const XMVECTOR rotation =
         XMQuaternionRotationRollPitchYaw(0.0f, time_ * 0.35f, 0.0f);
     XMStoreFloat4(&modelTransform_.rotation, rotation);
+}
+
+void GameScene::ApplyDissolveMaterial() {
+    Model *model = ctx_->model ? ctx_->model->GetModel(modelId_) : nullptr;
+    if (!model) {
+        return;
+    }
+
+    for (const ModelSubMesh &subMesh : model->subMeshes) {
+        Material material = ctx_->model->GetMaterial(subMesh.materialId);
+        material.enableDissolve = dissolveEnabled_ ? 1 : 0;
+        material.dissolveThreshold = dissolveThreshold_;
+        material.dissolveEdgeWidth = dissolveEdgeWidth_;
+        material.dissolveEdgeColor = {dissolveEdgeColor_[0],
+                                      dissolveEdgeColor_[1],
+                                      dissolveEdgeColor_[2],
+                                      dissolveEdgeColor_[3]};
+        ctx_->model->SetMaterial(subMesh.materialId, material);
+    }
 }
 
 void GameScene::Draw() {
@@ -192,6 +218,14 @@ void GameScene::DrawPostEffectControls() {
         ImGui::SliderFloat("Radial Blur Strength", &radialBlurStrength, 0.0f,
                            1.0f);
         ImGui::SliderInt("Radial Blur Samples", &radialBlurSampleCount, 2, 32);
+        ImGui::Separator();
+        ImGui::Checkbox("Dissolve", &dissolveEnabled_);
+        ImGui::Checkbox("Dissolve Auto", &dissolveAutoAnimate_);
+        ImGui::SliderFloat("Dissolve Threshold", &dissolveThreshold_, 0.0f,
+                           1.0f);
+        ImGui::SliderFloat("Dissolve Edge Width", &dissolveEdgeWidth_, 0.001f,
+                           0.25f);
+        ImGui::ColorEdit4("Dissolve Edge Color", dissolveEdgeColor_);
     }
     ImGui::End();
 
@@ -248,6 +282,7 @@ void GameScene::DrawOffscreenScene() {
     ctx_->skyboxRenderer->Draw(skyboxModelId_, camera_);
 
     modelRenderer->PreDraw();
+    ApplyDissolveMaterial();
     modelRenderer->Draw(*model, modelTransform_, camera_, environmentTextureId_);
     modelRenderer->PostDraw();
 }
