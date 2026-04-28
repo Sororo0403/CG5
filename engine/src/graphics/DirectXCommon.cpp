@@ -1,6 +1,7 @@
 #include "DirectXCommon.h"
 #include "DxHelpers.h"
 #include "DxUtils.h"
+#include "SrvManager.h"
 #include <stdexcept>
 
 using namespace DxUtils;
@@ -93,6 +94,7 @@ void DirectXCommon::Resize(int width, int height) {
     CreateViewport(width, height);
     CreateScissor(width, height);
     CreateDepthStencil(width, height);
+    UpdateDepthStencilSrv();
 }
 
 void DirectXCommon::BeginUpload() {
@@ -124,23 +126,57 @@ void DirectXCommon::WaitForGpu() {
     }
 }
 
-void DirectXCommon::SetBackBufferRenderTarget(bool clear) {
+void DirectXCommon::SetBackBufferRenderTarget(bool clear, bool bindDepth) {
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
         rtvHeap_->GetCPUDescriptorHandleForHeapStart(),
         static_cast<INT>(backBufferIndex_),
         static_cast<INT>(rtvDescriptorSize_));
 
     auto dsvHandle = dsvHeap_->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE *dsvHandlePtr =
+        bindDepth ? &dsvHandle : nullptr;
 
     commandList_->RSSetViewports(1, &viewport_);
     commandList_->RSSetScissorRects(1, &scissorRect_);
-    commandList_->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    commandList_->OMSetRenderTargets(1, &rtvHandle, FALSE, dsvHandlePtr);
 
     if (clear) {
         commandList_->ClearRenderTargetView(rtvHandle, kClearColor, 0, nullptr);
-        commandList_->ClearDepthStencilView(
-            dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        if (bindDepth) {
+            commandList_->ClearDepthStencilView(
+                dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        }
     }
+}
+
+void DirectXCommon::CreateDepthStencilSrv(SrvManager *srvManager) {
+    srvManager_ = srvManager;
+    depthSrvIndex_ = srvManager_->Allocate();
+    depthSrvGpuHandle_ = srvManager_->GetGpuHandle(depthSrvIndex_);
+    UpdateDepthStencilSrv();
+}
+
+void DirectXCommon::TransitionDepthToShaderResource() {
+    if (!depthBuffer_ || depthState_ == D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE) {
+        return;
+    }
+
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        depthBuffer_.Get(), depthState_,
+        D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    commandList_->ResourceBarrier(1, &barrier);
+    depthState_ = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+}
+
+void DirectXCommon::TransitionDepthToWrite() {
+    if (!depthBuffer_ || depthState_ == D3D12_RESOURCE_STATE_DEPTH_WRITE) {
+        return;
+    }
+
+    auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
+        depthBuffer_.Get(), depthState_, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+    commandList_->ResourceBarrier(1, &barrier);
+    depthState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 }
 
 void DirectXCommon::CreateFactory() {
@@ -259,7 +295,7 @@ void DirectXCommon::CreateDepthStencil(int width, int height) {
     resDesc.Height = height;
     resDesc.DepthOrArraySize = 1;
     resDesc.MipLevels = 1;
-    resDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    resDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
     resDesc.SampleDesc.Count = 1;
     resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
@@ -276,9 +312,29 @@ void DirectXCommon::CreateDepthStencil(int width, int height) {
                       IID_PPV_ARGS(&depthBuffer_)),
                   "CreateCommittedResource(DepthStencil) failed");
 
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDescView{};
+    dsvDescView.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dsvDescView.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+
     device_->CreateDepthStencilView(
-        depthBuffer_.Get(), nullptr,
+        depthBuffer_.Get(), &dsvDescView,
         dsvHeap_->GetCPUDescriptorHandleForHeapStart());
+    depthState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+}
+
+void DirectXCommon::UpdateDepthStencilSrv() {
+    if (!srvManager_ || depthSrvIndex_ == UINT_MAX || !depthBuffer_) {
+        return;
+    }
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+
+    device_->CreateShaderResourceView(depthBuffer_.Get(), &srvDesc,
+                                      srvManager_->GetCpuHandle(depthSrvIndex_));
 }
 
 void DirectXCommon::CreateFence() {

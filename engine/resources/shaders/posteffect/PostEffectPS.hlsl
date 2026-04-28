@@ -1,9 +1,11 @@
 #include "PostEffect.hlsli"
 #include "ColorEffect.hlsli"
+#include "EdgeEffect.hlsli"
 #include "FilterEffect.hlsli"
 #include "VignettingEffect.hlsli"
 
 Texture2D renderTexture : register(t0);
+Texture2D depthTexture : register(t1);
 SamplerState textureSampler : register(s0);
 
 float4 main(PostEffectVSOutput input) : SV_TARGET
@@ -16,6 +18,9 @@ float4 main(PostEffectVSOutput input) : SV_TARGET
     {
         outputColor.rgb = ApplyVignettingEffect(outputColor.rgb, input.uv);
     }
+
+    outputColor = ApplyEdgeEffect(outputColor, renderTexture, depthTexture,
+                                  textureSampler, input.uv, edgeMode);
 
     return outputColor;
 }

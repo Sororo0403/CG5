@@ -420,6 +420,9 @@
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\ColorEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
     </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\EdgeEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
+    </None>
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\FilterEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
     </None>

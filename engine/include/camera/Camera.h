@@ -84,6 +84,14 @@ class Camera {
     /// </summary>
     /// <returns>現在のターゲット位置</returns>
     const DirectX::XMFLOAT3 &GetTarget() const { return target_; }
+    /// <summary>
+    /// Nearクリップ距離を取得する
+    /// </summary>
+    float GetNearZ() const { return nearZ_; }
+    /// <summary>
+    /// Farクリップ距離を取得する
+    /// </summary>
+    float GetFarZ() const { return farZ_; }
 
   private:
     DirectX::XMFLOAT3 position_{0.0f, 0.0f, -5.0f};

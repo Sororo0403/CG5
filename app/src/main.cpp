@@ -35,6 +35,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     // SrvManager
     SrvManager srvManager;
     srvManager.Initialize(&dxCommon, 512);
+    dxCommon.CreateDepthStencilSrv(&srvManager);
 
     // Input
     Input input;

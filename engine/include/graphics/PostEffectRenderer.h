@@ -25,6 +25,12 @@ class PostEffectRenderer {
         GaussianBlur7x7 = 4,
     };
 
+    enum class EdgeMode : int32_t {
+        None = 0,
+        Luminance = 1,
+        Depth = 2,
+    };
+
     /// <summary>
     /// 初期化処理
     /// </summary>
@@ -39,7 +45,8 @@ class PostEffectRenderer {
     /// <summary>
     /// 指定SRVを全画面へ描画する
     /// </summary>
-    void Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle);
+    void Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
+              D3D12_GPU_DESCRIPTOR_HANDLE depthHandle);
 
     /// <summary>
     /// 色変換エフェクトの種類を設定する
@@ -62,6 +69,43 @@ class PostEffectRenderer {
     FilterMode GetFilterMode() const { return filterMode_; }
 
     /// <summary>
+    /// エッジ抽出の種類を設定する
+    /// </summary>
+    void SetEdgeMode(EdgeMode mode);
+
+    /// <summary>
+    /// 現在のエッジ抽出の種類を取得する
+    /// </summary>
+    EdgeMode GetEdgeMode() const { return edgeMode_; }
+
+    /// <summary>
+    /// 輝度エッジの閾値を設定する
+    /// </summary>
+    void SetLuminanceEdgeThreshold(float threshold);
+
+    /// <summary>
+    /// 輝度エッジの閾値を取得する
+    /// </summary>
+    float GetLuminanceEdgeThreshold() const {
+        return luminanceEdgeThreshold_;
+    }
+
+    /// <summary>
+    /// 深度エッジの閾値を設定する
+    /// </summary>
+    void SetDepthEdgeThreshold(float threshold);
+
+    /// <summary>
+    /// 深度エッジの閾値を取得する
+    /// </summary>
+    float GetDepthEdgeThreshold() const { return depthEdgeThreshold_; }
+
+    /// <summary>
+    /// 深度復元に使うNear/Farを設定する
+    /// </summary>
+    void SetDepthParameters(float nearZ, float farZ);
+
+    /// <summary>
     /// ビネット効果の有効/無効を設定する
     /// </summary>
     void SetVignettingEnabled(bool enabled);
@@ -79,6 +123,13 @@ class PostEffectRenderer {
         int32_t padding0 = 0;
         float texelSize[2]{};
         float padding1[2]{};
+        int32_t edgeMode = 0;
+        float luminanceEdgeThreshold = 0.2f;
+        float depthEdgeThreshold = 0.02f;
+        float padding2 = 0.0f;
+        float nearZ = 0.1f;
+        float farZ = 100.0f;
+        float padding3[2]{};
     };
 
     void CreateRootSignature();
@@ -97,7 +148,12 @@ class PostEffectRenderer {
     D3D12_RECT scissorRect_{};
     ColorMode colorMode_ = ColorMode::None;
     FilterMode filterMode_ = FilterMode::None;
+    EdgeMode edgeMode_ = EdgeMode::None;
     bool enableVignetting_ = true;
+    float luminanceEdgeThreshold_ = 0.2f;
+    float depthEdgeThreshold_ = 0.02f;
+    float nearZ_ = 0.1f;
+    float farZ_ = 100.0f;
     int width_ = 1;
     int height_ = 1;
 };

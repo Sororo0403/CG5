@@ -15,6 +15,13 @@ cbuffer PostEffectConstants : register(b0)
     int padding0;
     float2 texelSize;
     float2 padding1;
+    int edgeMode;
+    float luminanceEdgeThreshold;
+    float depthEdgeThreshold;
+    float padding2;
+    float nearZ;
+    float farZ;
+    float2 padding3;
 };
 
 #endif // POST_EFFECT_HLSLI

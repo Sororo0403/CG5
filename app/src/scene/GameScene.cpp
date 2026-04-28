@@ -35,6 +35,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->postEffectRenderer->SetColorMode(PostEffectRenderer::ColorMode::None);
     ctx_->postEffectRenderer->SetFilterMode(
         PostEffectRenderer::FilterMode::None);
+    ctx_->postEffectRenderer->SetEdgeMode(PostEffectRenderer::EdgeMode::Depth);
     ctx_->postEffectRenderer->SetVignettingEnabled(true);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
@@ -43,6 +44,8 @@ void GameScene::Initialize(const SceneContext &ctx) {
     camera_.LookAt({0.0f, 0.85f, 0.0f});
     camera_.SetPerspectiveFovDeg(45.0f);
     camera_.UpdateMatrices();
+    ctx_->postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
+                                                 camera_.GetFarZ());
 
     modelTransform_.position = {0.0f, 0.0f, 0.0f};
     modelTransform_.scale = {1.0f, 1.0f, 1.0f};
@@ -81,8 +84,11 @@ void GameScene::Draw() {
     DrawOffscreenScene();
     ctx_->renderTexture->EndRender();
 
-    ctx_->dxCommon->SetBackBufferRenderTarget(false);
-    ctx_->postEffectRenderer->Draw(ctx_->renderTexture->GetGpuHandle());
+    ctx_->dxCommon->TransitionDepthToShaderResource();
+    ctx_->dxCommon->SetBackBufferRenderTarget(false, false);
+    ctx_->postEffectRenderer->Draw(ctx_->renderTexture->GetGpuHandle(),
+                                   ctx_->dxCommon->GetDepthStencilGpuHandle());
+    ctx_->dxCommon->TransitionDepthToWrite();
 }
 
 void GameScene::UpdatePostEffectControls() {
@@ -118,9 +124,17 @@ void GameScene::UpdatePostEffectControls() {
         } else if (ctx_->input->IsKeyTrigger(DIK_9)) {
             ctx_->postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::None);
+        } else if (ctx_->input->IsKeyTrigger(DIK_0)) {
+            ctx_->postEffectRenderer->SetEdgeMode(
+                PostEffectRenderer::EdgeMode::None);
+        } else if (ctx_->input->IsKeyTrigger(DIK_Q)) {
+            ctx_->postEffectRenderer->SetEdgeMode(
+                PostEffectRenderer::EdgeMode::Luminance);
+        } else if (ctx_->input->IsKeyTrigger(DIK_W)) {
+            ctx_->postEffectRenderer->SetEdgeMode(
+                PostEffectRenderer::EdgeMode::Depth);
         }
     }
-
 }
 
 void GameScene::DrawPostEffectControls() {
@@ -132,7 +146,12 @@ void GameScene::DrawPostEffectControls() {
     int colorMode = static_cast<int>(ctx_->postEffectRenderer->GetColorMode());
     int filterMode =
         static_cast<int>(ctx_->postEffectRenderer->GetFilterMode());
+    int edgeMode = static_cast<int>(ctx_->postEffectRenderer->GetEdgeMode());
     bool enableVignetting = ctx_->postEffectRenderer->IsVignettingEnabled();
+    float luminanceEdgeThreshold =
+        ctx_->postEffectRenderer->GetLuminanceEdgeThreshold();
+    float depthEdgeThreshold =
+        ctx_->postEffectRenderer->GetDepthEdgeThreshold();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
@@ -144,6 +163,14 @@ void GameScene::DrawPostEffectControls() {
         ImGui::RadioButton("5x5 Box Filter", &filterMode, 2);
         ImGui::RadioButton("3x3 Gaussian Filter", &filterMode, 3);
         ImGui::RadioButton("7x7 Gaussian Blur", &filterMode, 4);
+        ImGui::Separator();
+        ImGui::RadioButton("No Edge", &edgeMode, 0);
+        ImGui::RadioButton("Luminance Edge", &edgeMode, 1);
+        ImGui::RadioButton("Depth Edge", &edgeMode, 2);
+        ImGui::SliderFloat("Luminance Threshold", &luminanceEdgeThreshold,
+                           0.01f, 1.0f);
+        ImGui::SliderFloat("Depth Threshold", &depthEdgeThreshold, 0.001f,
+                           1.0f);
     }
     ImGui::End();
 
@@ -151,6 +178,11 @@ void GameScene::DrawPostEffectControls() {
         static_cast<PostEffectRenderer::ColorMode>(colorMode));
     ctx_->postEffectRenderer->SetFilterMode(
         static_cast<PostEffectRenderer::FilterMode>(filterMode));
+    ctx_->postEffectRenderer->SetEdgeMode(
+        static_cast<PostEffectRenderer::EdgeMode>(edgeMode));
+    ctx_->postEffectRenderer->SetLuminanceEdgeThreshold(
+        luminanceEdgeThreshold);
+    ctx_->postEffectRenderer->SetDepthEdgeThreshold(depthEdgeThreshold);
     ctx_->postEffectRenderer->SetVignettingEnabled(enableVignetting);
 #endif // _DEBUG
 }

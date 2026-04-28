@@ -4,6 +4,8 @@
 #include <dxgi1_6.h>
 #include <wrl.h>
 
+class SrvManager;
+
 /// <summary>
 /// Direct3D 12 のデバイスと描画フレーム管理を担う
 /// </summary>
@@ -31,7 +33,22 @@ class DirectXCommon {
     /// 現在のバックバッファを描画先に設定する
     /// </summary>
     /// <param name="clear">trueの場合、色と深度をクリアする</param>
-    void SetBackBufferRenderTarget(bool clear = false);
+    void SetBackBufferRenderTarget(bool clear = false, bool bindDepth = true);
+
+    /// <summary>
+    /// 深度バッファをシェーダーから読めるSRVとして登録する
+    /// </summary>
+    void CreateDepthStencilSrv(SrvManager *srvManager);
+
+    /// <summary>
+    /// 深度バッファをシェーダー読み取り状態へ遷移する
+    /// </summary>
+    void TransitionDepthToShaderResource();
+
+    /// <summary>
+    /// 深度バッファを深度書き込み状態へ遷移する
+    /// </summary>
+    void TransitionDepthToWrite();
 
     /// <summary>
     /// 描画ターゲットと深度バッファを新しいサイズに合わせて再生成する
@@ -83,6 +100,12 @@ class DirectXCommon {
     D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const {
         return dsvHeap_->GetCPUDescriptorHandleForHeapStart();
     }
+    /// <summary>
+    /// 深度SRVのGPUハンドルを取得する
+    /// </summary>
+    D3D12_GPU_DESCRIPTOR_HANDLE GetDepthStencilGpuHandle() const {
+        return depthSrvGpuHandle_;
+    }
 
   private:
     /// <summary>
@@ -125,6 +148,7 @@ class DirectXCommon {
     /// 深度ステンシルバッファを生成する
     /// </summary>
     void CreateDepthStencil(int width, int height);
+    void UpdateDepthStencilSrv();
     /// <summary>
     /// GPU同期用フェンスを生成する
     /// </summary>
@@ -155,4 +179,8 @@ class DirectXCommon {
 
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> dsvHeap_;
     Microsoft::WRL::ComPtr<ID3D12Resource> depthBuffer_;
+    SrvManager *srvManager_ = nullptr;
+    UINT depthSrvIndex_ = UINT_MAX;
+    D3D12_GPU_DESCRIPTOR_HANDLE depthSrvGpuHandle_{};
+    D3D12_RESOURCE_STATES depthState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
 };

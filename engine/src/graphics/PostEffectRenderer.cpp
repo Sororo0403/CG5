@@ -38,7 +38,8 @@ void PostEffectRenderer::Resize(int width, int height) {
     UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
+void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
+                              D3D12_GPU_DESCRIPTOR_HANDLE depthHandle) {
     auto commandList = dxCommon_->GetCommandList();
 
     ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
@@ -49,8 +50,9 @@ void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
     commandList->SetPipelineState(pipelineState_.Get());
     commandList->SetGraphicsRootSignature(rootSignature_.Get());
     commandList->SetGraphicsRootDescriptorTable(0, textureHandle);
+    commandList->SetGraphicsRootDescriptorTable(1, depthHandle);
     commandList->SetGraphicsRootConstantBufferView(
-        1, constBuffer_->GetGPUVirtualAddress());
+        2, constBuffer_->GetGPUVirtualAddress());
     commandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     commandList->DrawInstanced(3, 1, 0, 0);
 }
@@ -65,18 +67,44 @@ void PostEffectRenderer::SetFilterMode(FilterMode mode) {
     UpdateConstantBuffer();
 }
 
+void PostEffectRenderer::SetEdgeMode(EdgeMode mode) {
+    edgeMode_ = mode;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetLuminanceEdgeThreshold(float threshold) {
+    luminanceEdgeThreshold_ = threshold;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetDepthEdgeThreshold(float threshold) {
+    depthEdgeThreshold_ = threshold;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetDepthParameters(float nearZ, float farZ) {
+    nearZ_ = nearZ;
+    farZ_ = farZ;
+    UpdateConstantBuffer();
+}
+
 void PostEffectRenderer::SetVignettingEnabled(bool enabled) {
     enableVignetting_ = enabled;
     UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::CreateRootSignature() {
-    CD3DX12_DESCRIPTOR_RANGE range{};
-    range.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    CD3DX12_DESCRIPTOR_RANGE textureRange{};
+    textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    CD3DX12_DESCRIPTOR_RANGE depthRange{};
+    depthRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 1);
 
-    CD3DX12_ROOT_PARAMETER params[2]{};
-    params[0].InitAsDescriptorTable(1, &range, D3D12_SHADER_VISIBILITY_PIXEL);
-    params[1].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
+    CD3DX12_ROOT_PARAMETER params[3]{};
+    params[0].InitAsDescriptorTable(1, &textureRange,
+                                    D3D12_SHADER_VISIBILITY_PIXEL);
+    params[1].InitAsDescriptorTable(1, &depthRange,
+                                    D3D12_SHADER_VISIBILITY_PIXEL);
+    params[2].InitAsConstantBufferView(0, 0, D3D12_SHADER_VISIBILITY_PIXEL);
 
     CD3DX12_STATIC_SAMPLER_DESC sampler{};
     sampler.Init(0);
@@ -163,4 +191,9 @@ void PostEffectRenderer::UpdateConstantBuffer() {
     mappedConstBuffer_->filterMode = static_cast<int32_t>(filterMode_);
     mappedConstBuffer_->texelSize[0] = 1.0f / static_cast<float>(width_);
     mappedConstBuffer_->texelSize[1] = 1.0f / static_cast<float>(height_);
+    mappedConstBuffer_->edgeMode = static_cast<int32_t>(edgeMode_);
+    mappedConstBuffer_->luminanceEdgeThreshold = luminanceEdgeThreshold_;
+    mappedConstBuffer_->depthEdgeThreshold = depthEdgeThreshold_;
+    mappedConstBuffer_->nearZ = nearZ_;
+    mappedConstBuffer_->farZ = farZ_;
 }
