@@ -1,8 +1,12 @@
 #include "SoundManager.h"
-#include <cassert>
+#include "DxUtils.h"
+#include "ResourcePath.h"
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
+
+using namespace DxUtils;
 
 SoundManager::~SoundManager() {
     if (masterVoice_) {
@@ -13,11 +17,10 @@ SoundManager::~SoundManager() {
 }
 
 void SoundManager::Initialize() {
-    HRESULT hr = XAudio2Create(&xAudio2_, 0);
-    assert(SUCCEEDED(hr));
+    ThrowIfFailed(XAudio2Create(&xAudio2_, 0), "XAudio2Create failed");
 
-    hr = xAudio2_->CreateMasteringVoice(&masterVoice_);
-    assert(SUCCEEDED(hr));
+    ThrowIfFailed(xAudio2_->CreateMasteringVoice(&masterVoice_),
+                  "CreateMasteringVoice failed");
 }
 
 uint32_t SoundManager::Load(const std::wstring &path) {
@@ -31,18 +34,24 @@ uint32_t SoundManager::Load(const std::wstring &path) {
 }
 
 void SoundManager::Play(uint32_t soundId) {
+    if (!xAudio2_) {
+        throw std::runtime_error("SoundManager is not initialized");
+    }
     if (soundId >= sounds_.size()) {
         return;
     }
 
     const WavData &wav = sounds_[soundId].wav;
-    assert(!wav.buffer.empty());
+    if (wav.buffer.empty()) {
+        return;
+    }
 
     IXAudio2SourceVoice *voice = nullptr;
 
-    HRESULT hr = xAudio2_->CreateSourceVoice(
-        &voice, &wav.format, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &voiceCallback_);
-    assert(SUCCEEDED(hr));
+    ThrowIfFailed(xAudio2_->CreateSourceVoice(
+                      &voice, &wav.format, 0, XAUDIO2_DEFAULT_FREQ_RATIO,
+                      &voiceCallback_),
+                  "CreateSourceVoice failed");
 
     XAUDIO2_BUFFER buf{};
     buf.pAudioData = wav.buffer.data();
@@ -51,36 +60,64 @@ void SoundManager::Play(uint32_t soundId) {
 
     buf.pContext = voice;
 
-    hr = voice->SubmitSourceBuffer(&buf);
-    assert(SUCCEEDED(hr));
+    ThrowIfFailed(voice->SubmitSourceBuffer(&buf),
+                  "SubmitSourceBuffer failed");
 
-    hr = voice->Start();
-    assert(SUCCEEDED(hr));
+    ThrowIfFailed(voice->Start(), "SourceVoice Start failed");
 }
+
 WavData SoundManager::LoadWavPcm16(const std::wstring &path) {
-    std::ifstream f(std::filesystem::path(path), std::ios::binary);
-    assert(f && "Failed to open wav file");
+    const std::filesystem::path resolvedPath =
+        ResourcePath::FindExisting(std::filesystem::path(path));
+    ResourcePath::RequireFile(resolvedPath, "Failed to open wav file");
+
+    std::ifstream f(resolvedPath, std::ios::binary);
+    if (!f) {
+        throw std::runtime_error("Failed to open wav file: " +
+                                 resolvedPath.string());
+    }
+
+    auto readExact = [&f, &resolvedPath](char *data, std::streamsize size,
+                                         const char *what) {
+        f.read(data, size);
+        if (f.gcount() != size) {
+            throw std::runtime_error(std::string("Invalid wav file while reading ") +
+                                     what + ": " + resolvedPath.string());
+        }
+    };
 
     auto readU32 = [&f]() {
         uint32_t v{};
         f.read(reinterpret_cast<char *>(&v), 4);
+        if (f.gcount() != 4) {
+            throw std::runtime_error("Invalid wav file while reading u32");
+        }
         return v;
     };
     auto readU16 = [&f]() {
         uint16_t v{};
         f.read(reinterpret_cast<char *>(&v), 2);
+        if (f.gcount() != 2) {
+            throw std::runtime_error("Invalid wav file while reading u16");
+        }
         return v;
     };
 
     char riff[4]{};
-    f.read(riff, 4);
-    assert(std::memcmp(riff, "RIFF", 4) == 0);
+    readExact(riff, 4, "RIFF header");
+    if (std::memcmp(riff, "RIFF", 4) != 0) {
+        throw std::runtime_error("Invalid wav file: missing RIFF header: " +
+                                 resolvedPath.string());
+    }
 
     readU32();
 
     char wave[4]{};
-    f.read(wave, 4);
-    assert(std::memcmp(wave, "WAVE", 4) == 0);
+    readExact(wave, 4, "WAVE header");
+    if (std::memcmp(wave, "WAVE", 4) != 0) {
+        throw std::runtime_error("Invalid wav file: missing WAVE header: " +
+                                 resolvedPath.string());
+    }
 
     WavData out{};
     bool foundFmt = false;
@@ -104,9 +141,11 @@ WavData SoundManager::LoadWavPcm16(const std::wstring &path) {
             uint16_t nBlockAlign = readU16();
             uint16_t wBitsPerSample = readU16();
 
-            // PCM 16bit のみ対応
-            assert(wFormatTag == WAVE_FORMAT_PCM);
-            assert(wBitsPerSample == 16);
+            if (wFormatTag != WAVE_FORMAT_PCM || wBitsPerSample != 16) {
+                throw std::runtime_error(
+                    "Unsupported wav format. Only PCM 16-bit is supported: " +
+                    resolvedPath.string());
+            }
 
             out.format.wFormatTag = wFormatTag;
             out.format.nChannels = nChannels;
@@ -126,7 +165,8 @@ WavData SoundManager::LoadWavPcm16(const std::wstring &path) {
         } else if (std::memcmp(chunkId, "data", 4) == 0) {
             out.buffer.resize(chunkSize);
             if (chunkSize > 0) {
-                f.read(reinterpret_cast<char *>(out.buffer.data()), chunkSize);
+                readExact(reinterpret_cast<char *>(out.buffer.data()), chunkSize,
+                          "data chunk");
             }
             foundData = true;
         } else {
@@ -139,12 +179,16 @@ WavData SoundManager::LoadWavPcm16(const std::wstring &path) {
         }
     }
 
-    assert(foundFmt && foundData);
-    assert(!out.buffer.empty());
+    if (!foundFmt || !foundData || out.buffer.empty()) {
+        throw std::runtime_error("Invalid wav file: missing fmt/data chunk: " +
+                                 resolvedPath.string());
+    }
 
-    // 整合性チェック
-    assert(out.format.nBlockAlign ==
-           out.format.nChannels * (out.format.wBitsPerSample / 8));
+    if (out.format.nBlockAlign !=
+        out.format.nChannels * (out.format.wBitsPerSample / 8)) {
+        throw std::runtime_error("Invalid wav file: block alignment mismatch: " +
+                                 resolvedPath.string());
+    }
 
     return out;
 }

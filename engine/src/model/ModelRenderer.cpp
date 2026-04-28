@@ -200,12 +200,12 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
         const bool useEnvironmentTexture =
             hasPerDrawEnvironmentTexture || hasEnvironmentTexture_;
         const uint32_t boundEnvironmentTextureId =
-            hasPerDrawEnvironmentTexture ? environmentTextureId
-                                         : environmentTextureId_;
-        if (useEnvironmentTexture) {
-            cmd->SetGraphicsRootDescriptorTable(
-                5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
-        }
+            useEnvironmentTexture
+                ? (hasPerDrawEnvironmentTexture ? environmentTextureId
+                                                : environmentTextureId_)
+                : textureManager_->GetDefaultCubeTextureId();
+        cmd->SetGraphicsRootDescriptorTable(
+            5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
         cmd->SetGraphicsRootDescriptorTable(
             6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
 

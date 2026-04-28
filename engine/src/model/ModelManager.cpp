@@ -1,6 +1,7 @@
 #include "ModelManager.h"
 #include "DirectXCommon.h"
 #include "MaterialManager.h"
+#include "ResourcePath.h"
 #include "SrvManager.h"
 #include "TextureManager.h"
 #include "Vertex.h"
@@ -43,7 +44,8 @@ void ModelManager::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
 }
 
 uint32_t ModelManager::Load(const std::wstring &path) {
-    std::filesystem::path p = path;
+    std::filesystem::path p = ResourcePath::FindExisting(std::filesystem::path(path));
+    ResourcePath::RequireFile(p, "Model file not found");
     std::string pathStr = p.string();
 
     Model model = assimpLoader_.Load(pathStr);

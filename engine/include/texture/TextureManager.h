@@ -54,6 +54,12 @@ class TextureManager {
     /// <param name="height">テクスチャ高さ</param>
     /// <returns>生成されたテクスチャのID</returns>
     uint32_t CreateNoiseTexture(uint32_t width = 256, uint32_t height = 256);
+    /// <summary>
+    /// 1x1の単色キューブマップを生成する
+    /// </summary>
+    /// <param name="rgba">RGBA8色</param>
+    /// <returns>生成されたテクスチャのID</returns>
+    uint32_t CreateSolidCubeTexture(uint32_t rgba = 0xFFFFFFFFu);
 
     /// <summary>
     /// ロード時に使った一時UploadBufferを解放
@@ -84,6 +90,11 @@ class TextureManager {
     /// <param name="id">テクスチャID</param>
     /// <returns>テクスチャ高さ</returns>
     uint32_t GetHeight(uint32_t id) const;
+    /// <summary>
+    /// デフォルトの黒キューブマップテクスチャIDを取得する
+    /// </summary>
+    /// <returns>テクスチャID</returns>
+    uint32_t GetDefaultCubeTextureId() const { return defaultCubeTextureId_; }
 
   private:
     /// <summary>
@@ -103,4 +114,5 @@ class TextureManager {
     std::vector<Entry> textures_;
     std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> uploadBuffers_;
     std::unordered_map<std::wstring, uint32_t> filePathToTextureId_;
+    uint32_t defaultCubeTextureId_ = 0;
 };

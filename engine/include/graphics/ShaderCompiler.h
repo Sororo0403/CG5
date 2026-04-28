@@ -1,7 +1,7 @@
 #pragma once
 #include "DxUtils.h"
+#include "ResourcePath.h"
 #include <d3dcompiler.h>
-#include <filesystem>
 #include <string>
 #include <wrl.h>
 
@@ -13,44 +13,7 @@ namespace ShaderCompiler {
 /// <param name="path">探索対象の相対または絶対パス</param>
 /// <returns>解決済みのシェーダーパス</returns>
 inline std::wstring ResolveShaderPath(const std::wstring &path) {
-    namespace fs = std::filesystem;
-
-    fs::path candidate(path);
-    if (fs::exists(candidate)) {
-        return candidate.wstring();
-    }
-
-    fs::path cwd = fs::current_path();
-    if (fs::exists(cwd / candidate)) {
-        return (cwd / candidate).wstring();
-    }
-
-    for (fs::path dir = cwd; !dir.empty(); dir = dir.parent_path()) {
-        if (fs::exists(dir / candidate)) {
-            return (dir / candidate).wstring();
-        }
-
-        std::error_code ec;
-        for (const auto &entry : fs::directory_iterator(dir, ec)) {
-            if (ec) {
-                break;
-            }
-            if (!entry.is_directory()) {
-                continue;
-            }
-
-            fs::path childCandidate = entry.path() / candidate;
-            if (fs::exists(childCandidate)) {
-                return childCandidate.wstring();
-            }
-        }
-
-        if (dir == dir.root_path()) {
-            break;
-        }
-    }
-
-    return path;
+    return ResourcePath::FindExistingWString(path);
 }
 
 /// <summary>

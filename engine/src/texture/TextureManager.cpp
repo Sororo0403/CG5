@@ -2,6 +2,7 @@
 #include "DirectXCommon.h"
 #include "DxHelpers.h"
 #include "DxUtils.h"
+#include "ResourcePath.h"
 #include "SrvManager.h"
 #include "Texture.h"
 #include <algorithm>
@@ -14,26 +15,8 @@
 #include <system_error>
 #include <vector>
 
-static std::filesystem::path CanonicalizePath(const std::filesystem::path &path) {
-    std::error_code ec;
-    const std::filesystem::path canonical =
-        std::filesystem::weakly_canonical(path, ec);
-    if (!ec) {
-        return canonical;
-    }
-
-    return path.lexically_normal();
-}
-
 static std::filesystem::path ResolveTexturePath(const std::wstring &path) {
-    const std::filesystem::path input(path);
-    const std::filesystem::path normalized = input.lexically_normal();
-    if (normalized.is_absolute()) {
-        return CanonicalizePath(normalized);
-    }
-
-    const std::filesystem::path absolute = std::filesystem::absolute(normalized);
-    return CanonicalizePath(absolute);
+    return ResourcePath::FindExisting(std::filesystem::path(path));
 }
 
 static std::wstring NormalizePathKey(const std::filesystem::path &path) {
@@ -105,6 +88,7 @@ void TextureManager::Initialize(DirectXCommon *dxCommon,
     metadata.dimension = TEX_DIMENSION_TEXTURE2D;
 
     CreateTexture(&image, 1, metadata);
+    defaultCubeTextureId_ = CreateSolidCubeTexture(0xFF000000u);
 }
 
 uint32_t TextureManager::Load(const std::wstring &filePath) {
@@ -206,6 +190,36 @@ uint32_t TextureManager::CreateNoiseTexture(uint32_t width, uint32_t height) {
     metadata.dimension = TEX_DIMENSION_TEXTURE2D;
 
     return CreateTexture(&image, 1, metadata);
+}
+
+uint32_t TextureManager::CreateSolidCubeTexture(uint32_t rgba) {
+    std::array<uint32_t, 6> pixels{};
+    pixels.fill(rgba);
+
+    std::array<Image, 6> images{};
+    for (Image &image : images) {
+        image.width = 1;
+        image.height = 1;
+        image.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+        image.rowPitch = sizeof(uint32_t);
+        image.slicePitch = sizeof(uint32_t);
+    }
+
+    for (size_t index = 0; index < images.size(); ++index) {
+        images[index].pixels = reinterpret_cast<uint8_t *>(&pixels[index]);
+    }
+
+    TexMetadata metadata{};
+    metadata.width = 1;
+    metadata.height = 1;
+    metadata.depth = 1;
+    metadata.arraySize = static_cast<size_t>(images.size());
+    metadata.mipLevels = 1;
+    metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    metadata.dimension = TEX_DIMENSION_TEXTURE2D;
+    metadata.miscFlags = TEX_MISC_TEXTURECUBE;
+
+    return CreateTexture(images.data(), images.size(), metadata);
 }
 
 uint32_t TextureManager::CreateTexture(const Image *images, size_t imageCount,
