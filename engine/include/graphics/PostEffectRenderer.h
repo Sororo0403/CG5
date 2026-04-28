@@ -31,6 +31,12 @@ class PostEffectRenderer {
         Depth = 2,
     };
 
+    enum class RandomMode : int32_t {
+        None = 0,
+        GrayscaleNoise = 1,
+        OverlayNoise = 2,
+    };
+
     /// <summary>
     /// 初期化処理
     /// </summary>
@@ -145,6 +151,41 @@ class PostEffectRenderer {
     /// </summary>
     int32_t GetRadialBlurSampleCount() const { return radialBlurSampleCount_; }
 
+    /// <summary>
+    /// 疑似乱数ノイズの表示方法を設定する
+    /// </summary>
+    void SetRandomMode(RandomMode mode);
+
+    /// <summary>
+    /// 疑似乱数ノイズの表示方法を取得する
+    /// </summary>
+    RandomMode GetRandomMode() const { return randomMode_; }
+
+    /// <summary>
+    /// ノイズを重ねる強さを設定する
+    /// </summary>
+    void SetRandomStrength(float strength);
+
+    /// <summary>
+    /// ノイズを重ねる強さを取得する
+    /// </summary>
+    float GetRandomStrength() const { return randomStrength_; }
+
+    /// <summary>
+    /// ノイズの粒の細かさを設定する
+    /// </summary>
+    void SetRandomScale(float scale);
+
+    /// <summary>
+    /// ノイズの粒の細かさを取得する
+    /// </summary>
+    float GetRandomScale() const { return randomScale_; }
+
+    /// <summary>
+    /// ノイズ生成に使う時間を設定する
+    /// </summary>
+    void SetRandomTime(float time);
+
   private:
     struct EffectConstBuffer {
         int32_t colorMode = 0;
@@ -163,6 +204,10 @@ class PostEffectRenderer {
         float radialBlurCenter[2]{0.5f, 0.5f};
         float radialBlurStrength = 0.0f;
         int32_t radialBlurSampleCount = 10;
+        int32_t randomMode = 0;
+        float randomStrength = 0.0f;
+        float randomScale = 240.0f;
+        float randomTime = 0.0f;
     };
 
     void CreateRootSignature();
@@ -190,6 +235,10 @@ class PostEffectRenderer {
     float radialBlurCenter_[2]{0.5f, 0.5f};
     float radialBlurStrength_ = 0.0f;
     int32_t radialBlurSampleCount_ = 10;
+    RandomMode randomMode_ = RandomMode::None;
+    float randomStrength_ = 0.0f;
+    float randomScale_ = 240.0f;
+    float randomTime_ = 0.0f;
     int width_ = 1;
     int height_ = 1;
 };

@@ -110,6 +110,26 @@ void PostEffectRenderer::SetRadialBlurSampleCount(int32_t sampleCount) {
     UpdateConstantBuffer();
 }
 
+void PostEffectRenderer::SetRandomMode(RandomMode mode) {
+    randomMode_ = mode;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRandomStrength(float strength) {
+    randomStrength_ = std::clamp(strength, 0.0f, 1.0f);
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRandomScale(float scale) {
+    randomScale_ = std::clamp(scale, 1.0f, 4096.0f);
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRandomTime(float time) {
+    randomTime_ = time;
+    UpdateConstantBuffer();
+}
+
 void PostEffectRenderer::CreateRootSignature() {
     CD3DX12_DESCRIPTOR_RANGE textureRange{};
     textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
@@ -217,4 +237,8 @@ void PostEffectRenderer::UpdateConstantBuffer() {
     mappedConstBuffer_->radialBlurCenter[1] = radialBlurCenter_[1];
     mappedConstBuffer_->radialBlurStrength = radialBlurStrength_;
     mappedConstBuffer_->radialBlurSampleCount = radialBlurSampleCount_;
+    mappedConstBuffer_->randomMode = static_cast<int32_t>(randomMode_);
+    mappedConstBuffer_->randomStrength = randomStrength_;
+    mappedConstBuffer_->randomScale = randomScale_;
+    mappedConstBuffer_->randomTime = randomTime_;
 }

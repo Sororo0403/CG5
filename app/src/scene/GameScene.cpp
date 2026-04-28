@@ -40,6 +40,10 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->postEffectRenderer->SetRadialBlurCenter(0.5f, 0.5f);
     ctx_->postEffectRenderer->SetRadialBlurStrength(0.18f);
     ctx_->postEffectRenderer->SetRadialBlurSampleCount(12);
+    ctx_->postEffectRenderer->SetRandomMode(
+        PostEffectRenderer::RandomMode::OverlayNoise);
+    ctx_->postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
+    ctx_->postEffectRenderer->SetRandomScale(randomNoiseScale_);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -70,6 +74,13 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
 void GameScene::Update() {
     time_ += ctx_->deltaTime;
+    if (randomNoiseAnimate_) {
+        randomNoiseTime_ += ctx_->deltaTime;
+    }
+    if (ctx_->postEffectRenderer) {
+        ctx_->postEffectRenderer->SetRandomTime(randomNoiseTime_);
+    }
+
     ctx_->model->UpdateAnimation(modelId_, ctx_->deltaTime);
     if (dissolveAutoAnimate_) {
         dissolveThreshold_ = 0.5f + 0.5f * std::sin(time_ * 0.8f);
@@ -167,6 +178,15 @@ void GameScene::UpdatePostEffectControls() {
                 ctx_->postEffectRenderer->GetRadialBlurStrength();
             ctx_->postEffectRenderer->SetRadialBlurStrength(
                 strength > 0.0f ? 0.0f : 0.18f);
+        } else if (ctx_->input->IsKeyTrigger(DIK_T)) {
+            const int mode =
+                (static_cast<int>(ctx_->postEffectRenderer->GetRandomMode()) +
+                 1) %
+                3;
+            ctx_->postEffectRenderer->SetRandomMode(
+                static_cast<PostEffectRenderer::RandomMode>(mode));
+        } else if (ctx_->input->IsKeyTrigger(DIK_Y)) {
+            randomNoiseAnimate_ = !randomNoiseAnimate_;
         }
     }
 }
@@ -193,6 +213,10 @@ void GameScene::DrawPostEffectControls() {
         ctx_->postEffectRenderer->GetRadialBlurStrength();
     int radialBlurSampleCount =
         ctx_->postEffectRenderer->GetRadialBlurSampleCount();
+    int randomMode =
+        static_cast<int>(ctx_->postEffectRenderer->GetRandomMode());
+    float randomStrength = ctx_->postEffectRenderer->GetRandomStrength();
+    float randomScale = ctx_->postEffectRenderer->GetRandomScale();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
@@ -219,6 +243,13 @@ void GameScene::DrawPostEffectControls() {
                            1.0f);
         ImGui::SliderInt("Radial Blur Samples", &radialBlurSampleCount, 2, 32);
         ImGui::Separator();
+        ImGui::RadioButton("No Random", &randomMode, 0);
+        ImGui::RadioButton("Grayscale Random", &randomMode, 1);
+        ImGui::RadioButton("Overlay Random", &randomMode, 2);
+        ImGui::Checkbox("Random Animate", &randomNoiseAnimate_);
+        ImGui::SliderFloat("Random Strength", &randomStrength, 0.0f, 1.0f);
+        ImGui::SliderFloat("Random Scale", &randomScale, 1.0f, 1024.0f);
+        ImGui::Separator();
         ImGui::Checkbox("Dissolve", &dissolveEnabled_);
         ImGui::Checkbox("Dissolve Auto", &dissolveAutoAnimate_);
         ImGui::SliderFloat("Dissolve Threshold", &dissolveThreshold_, 0.0f,
@@ -243,6 +274,12 @@ void GameScene::DrawPostEffectControls() {
                                                   radialBlurCenterEdit[1]);
     ctx_->postEffectRenderer->SetRadialBlurStrength(radialBlurStrength);
     ctx_->postEffectRenderer->SetRadialBlurSampleCount(radialBlurSampleCount);
+    randomNoiseStrength_ = randomStrength;
+    randomNoiseScale_ = randomScale;
+    ctx_->postEffectRenderer->SetRandomMode(
+        static_cast<PostEffectRenderer::RandomMode>(randomMode));
+    ctx_->postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
+    ctx_->postEffectRenderer->SetRandomScale(randomNoiseScale_);
 #endif // _DEBUG
 }
 

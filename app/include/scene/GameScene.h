@@ -38,6 +38,10 @@ class GameScene : public BaseScene {
     int renderWidth_ = 0;
     int renderHeight_ = 0;
     float time_ = 0.0f;
+    bool randomNoiseAnimate_ = true;
+    float randomNoiseTime_ = 0.0f;
+    float randomNoiseStrength_ = 0.12f;
+    float randomNoiseScale_ = 360.0f;
     bool dissolveEnabled_ = true;
     bool dissolveAutoAnimate_ = true;
     float dissolveThreshold_ = 0.35f;

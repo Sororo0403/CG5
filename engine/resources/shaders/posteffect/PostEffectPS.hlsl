@@ -3,6 +3,7 @@
 #include "EdgeEffect.hlsli"
 #include "FilterEffect.hlsli"
 #include "RadialBlurEffect.hlsli"
+#include "RandomEffect.hlsli"
 #include "VignettingEffect.hlsli"
 
 Texture2D renderTexture : register(t0);
@@ -24,6 +25,7 @@ float4 main(PostEffectVSOutput input) : SV_TARGET
 
     outputColor = ApplyEdgeEffect(outputColor, renderTexture, depthTexture,
                                   textureSampler, input.uv, edgeMode);
+    outputColor = ApplyRandomEffect(outputColor, input.uv);
 
     return outputColor;
 }
