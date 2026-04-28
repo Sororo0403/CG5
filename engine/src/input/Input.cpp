@@ -53,8 +53,9 @@ void Input::UpdateKeyboard() {
     if (FAILED(hr)) {
         hr = keyboard_->Acquire();
 
-        if (SUCCEEDED(hr)) {
-            keyboard_->GetDeviceState(256, keyNow_.data());
+        if (FAILED(hr) ||
+            FAILED(keyboard_->GetDeviceState(256, keyNow_.data()))) {
+            keyNow_.fill(0);
         }
     }
 }
@@ -67,8 +68,9 @@ void Input::UpdateMouse() {
     if (FAILED(hr)) {
         hr = mouse_->Acquire();
 
-        if (SUCCEEDED(hr)) {
-            mouse_->GetDeviceState(sizeof(DIMOUSESTATE), &mouseState_);
+        if (FAILED(hr) ||
+            FAILED(mouse_->GetDeviceState(sizeof(DIMOUSESTATE), &mouseState_))) {
+            mouseState_ = {};
         }
     }
 }

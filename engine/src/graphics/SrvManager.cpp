@@ -7,6 +7,13 @@
 using namespace DxUtils;
 
 void SrvManager::Initialize(DirectXCommon *dxCommon, UINT maxSrvCount) {
+    if (!dxCommon) {
+        throw std::invalid_argument("SrvManager::Initialize requires dxCommon");
+    }
+    if (maxSrvCount == 0) {
+        throw std::invalid_argument("SrvManager requires at least one descriptor");
+    }
+
     D3D12_DESCRIPTOR_HEAP_DESC desc{};
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = maxSrvCount;

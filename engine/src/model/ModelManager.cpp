@@ -11,6 +11,7 @@
 #include <cmath>
 #include <filesystem>
 #include <numbers>
+#include <stdexcept>
 #include <vector>
 
 using namespace DirectX;
@@ -36,6 +37,11 @@ ModelManager::~ModelManager() {
 
 void ModelManager::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
                               TextureManager *textureManager) {
+    if (!dxCommon || !srvManager || !textureManager) {
+        throw std::invalid_argument(
+            "ModelManager::Initialize requires valid managers");
+    }
+
     for (Model &model : models_) {
         modelRenderer_.ReleaseSkinClusters(model);
     }

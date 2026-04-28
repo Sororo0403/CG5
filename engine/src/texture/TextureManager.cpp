@@ -70,6 +70,11 @@ TextureManager::~TextureManager() {
 
 void TextureManager::Initialize(DirectXCommon *dxCommon,
                                 SrvManager *srvManager) {
+    if (!dxCommon || !srvManager) {
+        throw std::invalid_argument(
+            "TextureManager::Initialize requires valid managers");
+    }
+
     if (srvManager_) {
         for (const Entry &entry : textures_) {
             srvManager_->Free(entry.srvIndex);
@@ -139,6 +144,11 @@ uint32_t TextureManager::Load(const std::wstring &filePath) {
 }
 
 uint32_t TextureManager::LoadFromMemory(const uint8_t *data, size_t size) {
+    if (!data || size == 0) {
+        throw std::invalid_argument(
+            "TextureManager::LoadFromMemory requires image data");
+    }
+
     ScratchImage scratch;
     TexMetadata metadata{};
 
@@ -238,6 +248,18 @@ uint32_t TextureManager::CreateSolidCubeTexture(uint32_t rgba) {
 
 uint32_t TextureManager::CreateTexture(const Image *images, size_t imageCount,
                                        const TexMetadata &metadata) {
+    if (!dxCommon_ || !srvManager_) {
+        throw std::runtime_error("TextureManager is not initialized");
+    }
+    if (!images || imageCount == 0) {
+        throw std::invalid_argument(
+            "TextureManager::CreateTexture requires image data");
+    }
+    if (metadata.width == 0 || metadata.height == 0 ||
+        metadata.arraySize == 0 || metadata.mipLevels == 0) {
+        throw std::invalid_argument("Texture metadata has an invalid size");
+    }
+
     Texture texture;
 
     auto texDesc = CD3DX12_RESOURCE_DESC::Tex2D(

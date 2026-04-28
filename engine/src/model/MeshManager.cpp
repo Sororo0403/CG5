@@ -2,21 +2,46 @@
 #include "DirectXCommon.h"
 #include "DxHelpers.h"
 #include "DxUtils.h"
+#include <cstring>
+#include <limits>
+#include <stdexcept>
 
 using namespace DxUtils;
 using Microsoft::WRL::ComPtr;
 
-void MeshManager::Initialize(DirectXCommon *dxCommon) { dxCommon_ = dxCommon; }
+void MeshManager::Initialize(DirectXCommon *dxCommon) {
+    if (!dxCommon) {
+        throw std::invalid_argument("MeshManager::Initialize requires dxCommon");
+    }
+
+    dxCommon_ = dxCommon;
+    meshes_.clear();
+}
 
 uint32_t MeshManager::CreateMesh(const void *vertexData, uint32_t vertexStride,
                                  uint32_t vertexCount,
                                  const uint32_t *indexData,
                                  uint32_t indexCount) {
+    if (!dxCommon_) {
+        throw std::runtime_error("MeshManager is not initialized");
+    }
+    if (!vertexData || vertexStride == 0 || vertexCount == 0) {
+        throw std::invalid_argument("MeshManager::CreateMesh requires vertices");
+    }
+    if (!indexData || indexCount == 0) {
+        throw std::invalid_argument("MeshManager::CreateMesh requires indices");
+    }
+
     Mesh mesh{};
     mesh.indexCount = indexCount;
     mesh.vertexStride = vertexStride;
 
-    UINT vbSize = vertexStride * vertexCount;
+    const uint64_t vbSize64 =
+        static_cast<uint64_t>(vertexStride) * static_cast<uint64_t>(vertexCount);
+    if (vbSize64 > (std::numeric_limits<UINT>::max)()) {
+        throw std::overflow_error("Vertex buffer is too large");
+    }
+    const UINT vbSize = static_cast<UINT>(vbSize64);
 
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
     auto vbDesc = CD3DX12_RESOURCE_DESC::Buffer(vbSize);
@@ -28,10 +53,9 @@ uint32_t MeshManager::CreateMesh(const void *vertexData, uint32_t vertexStride,
                   "Create VertexBuffer failed");
 
     void *vbMapped = nullptr;
-    mesh.vertexBuffer->Map(0, nullptr, &vbMapped);
-    if (vbSize > 0 && vertexData) {
-        memcpy(vbMapped, vertexData, vbSize);
-    }
+    ThrowIfFailed(mesh.vertexBuffer->Map(0, nullptr, &vbMapped),
+                  "Map VertexBuffer failed");
+    std::memcpy(vbMapped, vertexData, vbSize);
     mesh.vertexBuffer->Unmap(0, nullptr);
 
     mesh.vbView.BufferLocation = mesh.vertexBuffer->GetGPUVirtualAddress();
@@ -39,7 +63,13 @@ uint32_t MeshManager::CreateMesh(const void *vertexData, uint32_t vertexStride,
     mesh.vbView.SizeInBytes = vbSize;
     mesh.vbView.StrideInBytes = vertexStride;
 
-    UINT ibSize = sizeof(uint32_t) * indexCount;
+    const uint64_t ibSize64 =
+        static_cast<uint64_t>(sizeof(uint32_t)) *
+        static_cast<uint64_t>(indexCount);
+    if (ibSize64 > (std::numeric_limits<UINT>::max)()) {
+        throw std::overflow_error("Index buffer is too large");
+    }
+    const UINT ibSize = static_cast<UINT>(ibSize64);
 
     auto ibDesc = CD3DX12_RESOURCE_DESC::Buffer(ibSize);
 
@@ -50,10 +80,9 @@ uint32_t MeshManager::CreateMesh(const void *vertexData, uint32_t vertexStride,
                   "Create IndexBuffer failed");
 
     void *ibMapped = nullptr;
-    mesh.indexBuffer->Map(0, nullptr, &ibMapped);
-    if (ibSize > 0 && indexData) {
-        memcpy(ibMapped, indexData, ibSize);
-    }
+    ThrowIfFailed(mesh.indexBuffer->Map(0, nullptr, &ibMapped),
+                  "Map IndexBuffer failed");
+    std::memcpy(ibMapped, indexData, ibSize);
     mesh.indexBuffer->Unmap(0, nullptr);
 
     mesh.ibView.BufferLocation = mesh.indexBuffer->GetGPUVirtualAddress();

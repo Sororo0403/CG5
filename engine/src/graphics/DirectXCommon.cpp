@@ -169,8 +169,20 @@ void DirectXCommon::SetBackBufferRenderTarget(bool clear, bool bindDepth) {
 }
 
 void DirectXCommon::CreateDepthStencilSrv(SrvManager *srvManager) {
+    if (!srvManager) {
+        throw std::invalid_argument(
+            "DirectXCommon::CreateDepthStencilSrv requires srvManager");
+    }
+    if (srvManager_ && srvManager_ != srvManager &&
+        depthSrvIndex_ != UINT_MAX) {
+        srvManager_->Free(depthSrvIndex_);
+        depthSrvIndex_ = UINT_MAX;
+    }
+
     srvManager_ = srvManager;
-    depthSrvIndex_ = srvManager_->Allocate();
+    if (depthSrvIndex_ == UINT_MAX) {
+        depthSrvIndex_ = srvManager_->Allocate();
+    }
     depthSrvGpuHandle_ = srvManager_->GetGpuHandle(depthSrvIndex_);
     UpdateDepthStencilSrv();
 }

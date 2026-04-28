@@ -3,6 +3,7 @@
 #include "DxHelpers.h"
 #include "DxUtils.h"
 #include "SrvManager.h"
+#include <stdexcept>
 
 using namespace DxUtils;
 
@@ -15,6 +16,20 @@ RenderTexture::~RenderTexture() {
 
 void RenderTexture::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
                                int width, int height) {
+    if (!dxCommon || !srvManager) {
+        throw std::invalid_argument(
+            "RenderTexture::Initialize requires valid managers");
+    }
+    if (width <= 0 || height <= 0) {
+        throw std::invalid_argument(
+            "RenderTexture::Initialize requires a positive size");
+    }
+
+    if (srvManager_ && srvManager_ != srvManager && srvIndex_ != UINT_MAX) {
+        srvManager_->Free(srvIndex_);
+        srvIndex_ = UINT_MAX;
+    }
+
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
     if (srvIndex_ == UINT_MAX) {
