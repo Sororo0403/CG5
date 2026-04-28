@@ -11,7 +11,10 @@ cbuffer PostEffectConstants : register(b0)
 {
     int colorMode;
     int enableVignetting;
-    float2 padding;
+    int filterMode;
+    int padding0;
+    float2 texelSize;
+    float2 padding1;
 };
 
 #endif // POST_EFFECT_HLSLI

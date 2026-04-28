@@ -20,17 +20,22 @@ void PostEffectRenderer::Initialize(DirectXCommon *dxCommon,
 }
 
 void PostEffectRenderer::Resize(int width, int height) {
+    width_ = width > 0 ? width : 1;
+    height_ = height > 0 ? height : 1;
+
     viewport_.TopLeftX = 0.0f;
     viewport_.TopLeftY = 0.0f;
-    viewport_.Width = static_cast<float>(width);
-    viewport_.Height = static_cast<float>(height);
+    viewport_.Width = static_cast<float>(width_);
+    viewport_.Height = static_cast<float>(height_);
     viewport_.MinDepth = 0.0f;
     viewport_.MaxDepth = 1.0f;
 
     scissorRect_.left = 0;
     scissorRect_.top = 0;
-    scissorRect_.right = width;
-    scissorRect_.bottom = height;
+    scissorRect_.right = width_;
+    scissorRect_.bottom = height_;
+
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
@@ -52,6 +57,11 @@ void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle) {
 
 void PostEffectRenderer::SetColorMode(ColorMode mode) {
     colorMode_ = mode;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetFilterMode(FilterMode mode) {
+    filterMode_ = mode;
     UpdateConstantBuffer();
 }
 
@@ -150,4 +160,7 @@ void PostEffectRenderer::UpdateConstantBuffer() {
 
     mappedConstBuffer_->colorMode = static_cast<int32_t>(colorMode_);
     mappedConstBuffer_->enableVignetting = enableVignetting_ ? 1 : 0;
+    mappedConstBuffer_->filterMode = static_cast<int32_t>(filterMode_);
+    mappedConstBuffer_->texelSize[0] = 1.0f / static_cast<float>(width_);
+    mappedConstBuffer_->texelSize[1] = 1.0f / static_cast<float>(height_);
 }

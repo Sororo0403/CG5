@@ -33,6 +33,8 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->postEffectRenderer->Initialize(ctx_->dxCommon, ctx_->srv,
                                          renderWidth_, renderHeight_);
     ctx_->postEffectRenderer->SetColorMode(PostEffectRenderer::ColorMode::None);
+    ctx_->postEffectRenderer->SetFilterMode(
+        PostEffectRenderer::FilterMode::None);
     ctx_->postEffectRenderer->SetVignettingEnabled(true);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
@@ -101,6 +103,15 @@ void GameScene::UpdatePostEffectControls() {
         } else if (ctx_->input->IsKeyTrigger(DIK_4)) {
             ctx_->postEffectRenderer->SetVignettingEnabled(
                 !ctx_->postEffectRenderer->IsVignettingEnabled());
+        } else if (ctx_->input->IsKeyTrigger(DIK_5)) {
+            ctx_->postEffectRenderer->SetFilterMode(
+                PostEffectRenderer::FilterMode::Box3x3);
+        } else if (ctx_->input->IsKeyTrigger(DIK_6)) {
+            ctx_->postEffectRenderer->SetFilterMode(
+                PostEffectRenderer::FilterMode::Box5x5);
+        } else if (ctx_->input->IsKeyTrigger(DIK_7)) {
+            ctx_->postEffectRenderer->SetFilterMode(
+                PostEffectRenderer::FilterMode::None);
         }
     }
 
@@ -113,17 +124,25 @@ void GameScene::DrawPostEffectControls() {
     }
 
     int colorMode = static_cast<int>(ctx_->postEffectRenderer->GetColorMode());
+    int filterMode =
+        static_cast<int>(ctx_->postEffectRenderer->GetFilterMode());
     bool enableVignetting = ctx_->postEffectRenderer->IsVignettingEnabled();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
         ImGui::RadioButton("Sepia", &colorMode, 2);
         ImGui::Checkbox("Vignetting", &enableVignetting);
+        ImGui::Separator();
+        ImGui::RadioButton("No Filter", &filterMode, 0);
+        ImGui::RadioButton("3x3 Box Filter", &filterMode, 1);
+        ImGui::RadioButton("5x5 Box Filter", &filterMode, 2);
     }
     ImGui::End();
 
     ctx_->postEffectRenderer->SetColorMode(
         static_cast<PostEffectRenderer::ColorMode>(colorMode));
+    ctx_->postEffectRenderer->SetFilterMode(
+        static_cast<PostEffectRenderer::FilterMode>(filterMode));
     ctx_->postEffectRenderer->SetVignettingEnabled(enableVignetting);
 #endif // _DEBUG
 }

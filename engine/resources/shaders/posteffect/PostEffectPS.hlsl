@@ -3,9 +3,35 @@
 Texture2D renderTexture : register(t0);
 SamplerState textureSampler : register(s0);
 
+float4 SampleBoxFilter(PostEffectVSOutput input, int radius, float weight)
+{
+    float4 color = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    for (int y = -radius; y <= radius; ++y)
+    {
+        for (int x = -radius; x <= radius; ++x)
+        {
+            const float2 offset = float2(x, y) * texelSize;
+            color +=
+                renderTexture.Sample(textureSampler, input.uv + offset) * weight;
+        }
+    }
+
+    return color;
+}
+
 float4 main(PostEffectVSOutput input) : SV_TARGET
 {
     float4 outputColor = renderTexture.Sample(textureSampler, input.uv);
+
+    if (filterMode == 1)
+    {
+        outputColor = SampleBoxFilter(input, 1, 1.0f / 9.0f);
+    }
+    else if (filterMode == 2)
+    {
+        outputColor = SampleBoxFilter(input, 2, 1.0f / 25.0f);
+    }
 
     if (colorMode == 1)
     {
