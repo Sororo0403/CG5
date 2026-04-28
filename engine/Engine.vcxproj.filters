@@ -429,6 +429,9 @@
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
     </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\RadialBlurEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
+    </None>
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\VignettingEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
     </None>

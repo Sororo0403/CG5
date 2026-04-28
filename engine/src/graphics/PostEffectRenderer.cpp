@@ -4,6 +4,7 @@
 #include "DxUtils.h"
 #include "ShaderCompiler.h"
 #include "SrvManager.h"
+#include <algorithm>
 
 using namespace DxUtils;
 
@@ -90,6 +91,22 @@ void PostEffectRenderer::SetDepthParameters(float nearZ, float farZ) {
 
 void PostEffectRenderer::SetVignettingEnabled(bool enabled) {
     enableVignetting_ = enabled;
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRadialBlurCenter(float x, float y) {
+    radialBlurCenter_[0] = std::clamp(x, 0.0f, 1.0f);
+    radialBlurCenter_[1] = std::clamp(y, 0.0f, 1.0f);
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRadialBlurStrength(float strength) {
+    radialBlurStrength_ = std::clamp(strength, 0.0f, 1.0f);
+    UpdateConstantBuffer();
+}
+
+void PostEffectRenderer::SetRadialBlurSampleCount(int32_t sampleCount) {
+    radialBlurSampleCount_ = std::clamp(sampleCount, 2, 32);
     UpdateConstantBuffer();
 }
 
@@ -196,4 +213,8 @@ void PostEffectRenderer::UpdateConstantBuffer() {
     mappedConstBuffer_->depthEdgeThreshold = depthEdgeThreshold_;
     mappedConstBuffer_->nearZ = nearZ_;
     mappedConstBuffer_->farZ = farZ_;
+    mappedConstBuffer_->radialBlurCenter[0] = radialBlurCenter_[0];
+    mappedConstBuffer_->radialBlurCenter[1] = radialBlurCenter_[1];
+    mappedConstBuffer_->radialBlurStrength = radialBlurStrength_;
+    mappedConstBuffer_->radialBlurSampleCount = radialBlurSampleCount_;
 }

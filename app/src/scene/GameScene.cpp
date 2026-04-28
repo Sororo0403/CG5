@@ -37,6 +37,9 @@ void GameScene::Initialize(const SceneContext &ctx) {
         PostEffectRenderer::FilterMode::None);
     ctx_->postEffectRenderer->SetEdgeMode(PostEffectRenderer::EdgeMode::Depth);
     ctx_->postEffectRenderer->SetVignettingEnabled(true);
+    ctx_->postEffectRenderer->SetRadialBlurCenter(0.5f, 0.5f);
+    ctx_->postEffectRenderer->SetRadialBlurStrength(0.18f);
+    ctx_->postEffectRenderer->SetRadialBlurSampleCount(12);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -133,6 +136,11 @@ void GameScene::UpdatePostEffectControls() {
         } else if (ctx_->input->IsKeyTrigger(DIK_W)) {
             ctx_->postEffectRenderer->SetEdgeMode(
                 PostEffectRenderer::EdgeMode::Depth);
+        } else if (ctx_->input->IsKeyTrigger(DIK_R)) {
+            const float strength =
+                ctx_->postEffectRenderer->GetRadialBlurStrength();
+            ctx_->postEffectRenderer->SetRadialBlurStrength(
+                strength > 0.0f ? 0.0f : 0.18f);
         }
     }
 }
@@ -152,6 +160,13 @@ void GameScene::DrawPostEffectControls() {
         ctx_->postEffectRenderer->GetLuminanceEdgeThreshold();
     float depthEdgeThreshold =
         ctx_->postEffectRenderer->GetDepthEdgeThreshold();
+    const float *radialBlurCenter =
+        ctx_->postEffectRenderer->GetRadialBlurCenter();
+    float radialBlurCenterEdit[2] = {radialBlurCenter[0], radialBlurCenter[1]};
+    float radialBlurStrength =
+        ctx_->postEffectRenderer->GetRadialBlurStrength();
+    int radialBlurSampleCount =
+        ctx_->postEffectRenderer->GetRadialBlurSampleCount();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
@@ -171,6 +186,12 @@ void GameScene::DrawPostEffectControls() {
                            0.01f, 1.0f);
         ImGui::SliderFloat("Depth Threshold", &depthEdgeThreshold, 0.001f,
                            1.0f);
+        ImGui::Separator();
+        ImGui::SliderFloat2("Radial Blur Center", radialBlurCenterEdit, 0.0f,
+                            1.0f);
+        ImGui::SliderFloat("Radial Blur Strength", &radialBlurStrength, 0.0f,
+                           1.0f);
+        ImGui::SliderInt("Radial Blur Samples", &radialBlurSampleCount, 2, 32);
     }
     ImGui::End();
 
@@ -184,6 +205,10 @@ void GameScene::DrawPostEffectControls() {
         luminanceEdgeThreshold);
     ctx_->postEffectRenderer->SetDepthEdgeThreshold(depthEdgeThreshold);
     ctx_->postEffectRenderer->SetVignettingEnabled(enableVignetting);
+    ctx_->postEffectRenderer->SetRadialBlurCenter(radialBlurCenterEdit[0],
+                                                  radialBlurCenterEdit[1]);
+    ctx_->postEffectRenderer->SetRadialBlurStrength(radialBlurStrength);
+    ctx_->postEffectRenderer->SetRadialBlurSampleCount(radialBlurSampleCount);
 #endif // _DEBUG
 }
 

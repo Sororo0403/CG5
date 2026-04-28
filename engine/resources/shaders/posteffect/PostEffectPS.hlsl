@@ -2,6 +2,7 @@
 #include "ColorEffect.hlsli"
 #include "EdgeEffect.hlsli"
 #include "FilterEffect.hlsli"
+#include "RadialBlurEffect.hlsli"
 #include "VignettingEffect.hlsli"
 
 Texture2D renderTexture : register(t0);
@@ -12,6 +13,8 @@ float4 main(PostEffectVSOutput input) : SV_TARGET
 {
     float4 outputColor =
         ApplyFilterEffect(renderTexture, textureSampler, input.uv, filterMode);
+    outputColor = ApplyRadialBlurEffect(renderTexture, textureSampler, input.uv,
+                                        outputColor);
 
     outputColor.rgb = ApplyColorEffect(outputColor.rgb, colorMode);
     if (enableVignetting != 0)

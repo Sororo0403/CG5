@@ -115,6 +115,36 @@ class PostEffectRenderer {
     /// </summary>
     bool IsVignettingEnabled() const { return enableVignetting_; }
 
+    /// <summary>
+    /// ラジアルブラーの中心座標を設定する
+    /// </summary>
+    void SetRadialBlurCenter(float x, float y);
+
+    /// <summary>
+    /// ラジアルブラーの中心座標を取得する
+    /// </summary>
+    const float *GetRadialBlurCenter() const { return radialBlurCenter_; }
+
+    /// <summary>
+    /// ラジアルブラーの強さを設定する
+    /// </summary>
+    void SetRadialBlurStrength(float strength);
+
+    /// <summary>
+    /// ラジアルブラーの強さを取得する
+    /// </summary>
+    float GetRadialBlurStrength() const { return radialBlurStrength_; }
+
+    /// <summary>
+    /// ラジアルブラーのサンプル数を設定する
+    /// </summary>
+    void SetRadialBlurSampleCount(int32_t sampleCount);
+
+    /// <summary>
+    /// ラジアルブラーのサンプル数を取得する
+    /// </summary>
+    int32_t GetRadialBlurSampleCount() const { return radialBlurSampleCount_; }
+
   private:
     struct EffectConstBuffer {
         int32_t colorMode = 0;
@@ -130,6 +160,9 @@ class PostEffectRenderer {
         float nearZ = 0.1f;
         float farZ = 100.0f;
         float padding3[2]{};
+        float radialBlurCenter[2]{0.5f, 0.5f};
+        float radialBlurStrength = 0.0f;
+        int32_t radialBlurSampleCount = 10;
     };
 
     void CreateRootSignature();
@@ -154,6 +187,9 @@ class PostEffectRenderer {
     float depthEdgeThreshold_ = 0.02f;
     float nearZ_ = 0.1f;
     float farZ_ = 100.0f;
+    float radialBlurCenter_[2]{0.5f, 0.5f};
+    float radialBlurStrength_ = 0.0f;
+    int32_t radialBlurSampleCount_ = 10;
     int width_ = 1;
     int height_ = 1;
 };

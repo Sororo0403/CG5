@@ -22,6 +22,9 @@ cbuffer PostEffectConstants : register(b0)
     float nearZ;
     float farZ;
     float2 padding3;
+    float2 radialBlurCenter;
+    float radialBlurStrength;
+    int radialBlurSampleCount;
 };
 
 #endif // POST_EFFECT_HLSLI
