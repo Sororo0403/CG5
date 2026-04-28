@@ -29,6 +29,7 @@ class GameScene : public BaseScene {
     void UpdateLighting();
     void ApplyDissolveMaterial();
     void DrawPostEffectControls();
+    void DrawGBufferScene();
     void DrawOffscreenScene();
 
     Camera camera_;
@@ -50,4 +51,6 @@ class GameScene : public BaseScene {
     float dissolveEdgeWidth_ = 0.06f;
     float dissolveEdgeColor_[4] = {1.0f, 0.32f, 0.0f, 1.0f};
     bool pointLightAnimate_ = true;
+    bool useDeferredRendering_ = true;
+    int gBufferDebugView_ = 0;
 };

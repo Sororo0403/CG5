@@ -2,6 +2,7 @@
 #include "DirectXCommon.h"
 #include "DxHelpers.h"
 #include "DxUtils.h"
+#include "GBuffer.h"
 #include "MaterialManager.h"
 #include "MeshManager.h"
 #include "ShaderCompiler.h"
@@ -9,7 +10,6 @@
 #include "TextureManager.h"
 #include "Vertex.h"
 #include <algorithm>
-#include <array>
 #include <cstring>
 
 using namespace DirectX;
@@ -43,22 +43,10 @@ struct PerObjectConstBufferData {
 };
 
 struct SceneConstBufferData {
-    struct PointLightData {
-        XMFLOAT4 positionRange;
-        XMFLOAT4 colorIntensity;
-    };
-
     XMFLOAT4 cameraPos;
     XMFLOAT4 effectColor;
     XMFLOAT4 effectParams;
-    XMFLOAT4 keyLightDirection;
-    XMFLOAT4 keyLightColor;
-    XMFLOAT4 fillLightDirection;
-    XMFLOAT4 fillLightColor;
-    XMFLOAT4 ambientColor;
-    PointLightData pointLights[kMaxForwardPointLights];
-    XMFLOAT4 pointLightParams;
-    XMFLOAT4 lightingParams;
+    ForwardLightingData lighting;
 };
 
 void ModelRenderer::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
@@ -147,34 +135,7 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
             currentEffect_.noiseAmount,
             currentEffect_.time,
         };
-        sceneDst->keyLightDirection = {
-            currentLighting_.keyLightDirection.x,
-            currentLighting_.keyLightDirection.y,
-            currentLighting_.keyLightDirection.z,
-            0.0f,
-        };
-        sceneDst->keyLightColor = currentLighting_.keyLightColor;
-        sceneDst->fillLightDirection = {
-            currentLighting_.fillLightDirection.x,
-            currentLighting_.fillLightDirection.y,
-            currentLighting_.fillLightDirection.z,
-            0.0f,
-        };
-        sceneDst->fillLightColor = currentLighting_.fillLightColor;
-        sceneDst->ambientColor = currentLighting_.ambientColor;
-        const uint32_t pointLightCount = std::min<uint32_t>(
-            currentLighting_.pointLightCount,
-            static_cast<uint32_t>(currentLighting_.pointLights.size()));
-        for (uint32_t lightIndex = 0;
-             lightIndex < currentLighting_.pointLights.size(); ++lightIndex) {
-            sceneDst->pointLights[lightIndex].positionRange =
-                currentLighting_.pointLights[lightIndex].positionRange;
-            sceneDst->pointLights[lightIndex].colorIntensity =
-                currentLighting_.pointLights[lightIndex].colorIntensity;
-        }
-        sceneDst->pointLightParams = {
-            static_cast<float>(pointLightCount), 0.0f, 0.0f, 0.0f};
-        sceneDst->lightingParams = currentLighting_.lightingParams;
+        sceneDst->lighting = currentLighting_;
 
         D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
             objectConstBuffer_->GetGPUVirtualAddress() +
@@ -225,6 +186,116 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
                 : textureManager_->GetDefaultCubeTextureId();
         cmd->SetGraphicsRootDescriptorTable(
             5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
+        cmd->SetGraphicsRootDescriptorTable(
+            6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
+
+        cmd->IASetVertexBuffers(0, 1, &vertexBufferView);
+        cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
+
+        drawIndex_++;
+    };
+
+    if (!model.subMeshes.empty()) {
+        for (const auto &subMesh : model.subMeshes) {
+            drawSubMesh(subMesh);
+            if (drawIndex_ >= kMaxDraws) {
+                break;
+            }
+        }
+    }
+}
+
+void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
+                                const Camera &camera) {
+    if (drawIndex_ >= kMaxDraws) {
+#ifdef _DEBUG
+        if (!drawLimitWarningIssued_) {
+            OutputDebugStringA("[ModelRenderer] kMaxDraws exceeded; GBuffer draw skipped\n");
+            drawLimitWarningIssued_ = true;
+        }
+#endif
+        return;
+    }
+
+    auto cmd = dxCommon_->GetCommandList();
+
+    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+
+    XMMATRIX world =
+        XMMatrixScaling(transform.scale.x, transform.scale.y,
+                        transform.scale.z) *
+        XMMatrixRotationQuaternion(q) *
+        XMMatrixTranslation(transform.position.x, transform.position.y,
+                            transform.position.z);
+
+    if (model.hasRootAnimation) {
+        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
+    }
+
+    XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
+
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+        if (drawIndex_ >= kMaxDraws) {
+#ifdef _DEBUG
+            if (!drawLimitWarningIssued_) {
+                OutputDebugStringA(
+                    "[ModelRenderer] kMaxDraws exceeded; GBuffer submesh draw skipped\n");
+                drawLimitWarningIssued_ = true;
+            }
+#endif
+            return;
+        }
+
+        auto *objectDst = reinterpret_cast<PerObjectConstBufferData *>(
+            mappedObjectCB_ + objectCbStride_ * drawIndex_);
+        auto *sceneDst = reinterpret_cast<SceneConstBufferData *>(
+            mappedSceneCB_ + sceneCbStride_ * drawIndex_);
+        XMStoreFloat4x4(&objectDst->matWVP, XMMatrixTranspose(wvp));
+        XMStoreFloat4x4(&objectDst->matWorld, XMMatrixTranspose(world));
+        sceneDst->cameraPos = {camera.GetPosition().x, camera.GetPosition().y,
+                               camera.GetPosition().z, 1.0f};
+        sceneDst->effectColor = currentEffect_.color;
+        sceneDst->effectParams = {
+            currentEffect_.enabled ? currentEffect_.intensity : 0.0f,
+            currentEffect_.fresnelPower,
+            currentEffect_.noiseAmount,
+            currentEffect_.time,
+        };
+        sceneDst->lighting = currentLighting_;
+
+        D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+            objectConstBuffer_->GetGPUVirtualAddress() +
+            objectCbStride_ * drawIndex_;
+        D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr =
+            sceneConstBuffer_->GetGPUVirtualAddress() +
+            sceneCbStride_ * drawIndex_;
+
+        DispatchSkinning(subMesh);
+
+        const Material &material =
+            materialManager_->GetMaterial(subMesh.materialId);
+        if (material.color.w < 1.0f || currentEffect_.enabled) {
+            return;
+        }
+
+        const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
+        const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
+            subMesh.skinCluster.skinnedVertexResource
+                ? subMesh.skinCluster.skinnedVertexBufferView
+                : mesh.vbView;
+
+        cmd->SetPipelineState(gBufferPSO_.Get());
+        cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(1, sceneCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(
+            2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
+        cmd->SetGraphicsRootDescriptorTable(
+            3, textureManager_->GetGpuHandle(subMesh.textureId));
+        cmd->SetGraphicsRootDescriptorTable(4,
+                                            subMesh.skinCluster.paletteSrvGpuHandle);
+        cmd->SetGraphicsRootDescriptorTable(
+            5, textureManager_->GetGpuHandle(textureManager_->GetDefaultCubeTextureId()));
         cmd->SetGraphicsRootDescriptorTable(
             6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
 
@@ -723,6 +794,36 @@ void ModelRenderer::CreatePipelineState() {
     ThrowIfFailed(device->CreateGraphicsPipelineState(
                       &pso, IID_PPV_ARGS(&additiveNoCullPSO_)),
                   "CreateGraphicsPipelineState(AdditiveNoCull) failed");
+
+    auto gBufferPs = ShaderCompiler::Compile(
+        L"engine/resources/shaders/model/ModelGBufferPS.hlsl", "main",
+        "ps_5_0");
+
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC gBufferPso = pso;
+    gBufferPso.PS = {gBufferPs->GetBufferPointer(),
+                     gBufferPs->GetBufferSize()};
+    gBufferPso.NumRenderTargets = 3;
+    gBufferPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    gBufferPso.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    gBufferPso.RTVFormats[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
+    for (UINT renderTargetIndex = 3; renderTargetIndex < 8;
+         ++renderTargetIndex) {
+        gBufferPso.RTVFormats[renderTargetIndex] = DXGI_FORMAT_UNKNOWN;
+    }
+    gBufferPso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    D3D12_BLEND_DESC gBufferBlend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+    for (UINT renderTargetIndex = 0; renderTargetIndex < 3;
+         ++renderTargetIndex) {
+        gBufferBlend.RenderTarget[renderTargetIndex].BlendEnable = FALSE;
+        gBufferBlend.RenderTarget[renderTargetIndex].RenderTargetWriteMask =
+            D3D12_COLOR_WRITE_ENABLE_ALL;
+    }
+    gBufferPso.BlendState = gBufferBlend;
+    gBufferPso.DepthStencilState = opaqueDepth;
+
+    ThrowIfFailed(device->CreateGraphicsPipelineState(
+                      &gBufferPso, IID_PPV_ARGS(&gBufferPSO_)),
+                  "CreateGraphicsPipelineState(GBuffer) failed");
 }
 
 void ModelRenderer::CreateSkinningPipelineState() {

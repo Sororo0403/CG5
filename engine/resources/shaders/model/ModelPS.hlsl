@@ -1,11 +1,10 @@
 #include "Model.hlsli"
+#include "../light/Lighting.hlsli"
 
 Texture2D tex0 : register(t0);
 TextureCube<float4> gEnvironmentTexture : register(t2);
 Texture2D<float4> gDissolveNoiseTexture : register(t3);
 SamplerState samp0 : register(s0);
-
-static const int kMaxPointLights = 8;
 
 cbuffer ObjectTransform : register(b0)
 {

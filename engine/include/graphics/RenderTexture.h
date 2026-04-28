@@ -28,6 +28,8 @@ class RenderTexture {
     /// RenderTextureへの描画を開始する
     /// </summary>
     void BeginRender(const DirectX::XMFLOAT4 &clearColor);
+    void BeginRender(const DirectX::XMFLOAT4 &clearColor, bool bindDepth,
+                     bool clearDepth);
 
     /// <summary>
     /// RenderTextureへの描画を終了し、シェーダーから読める状態にする

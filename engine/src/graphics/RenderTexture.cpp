@@ -55,6 +55,11 @@ void RenderTexture::Resize(int width, int height) {
 }
 
 void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor) {
+    BeginRender(clearColor, true, true);
+}
+
+void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor,
+                                bool bindDepth, bool clearDepth) {
     auto commandList = dxCommon_->GetCommandList();
 
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -78,16 +83,20 @@ void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor) {
 
     auto rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
     auto dsvHandle = dxCommon_->GetDepthStencilView();
+    D3D12_CPU_DESCRIPTOR_HANDLE *dsvHandlePtr =
+        bindDepth ? &dsvHandle : nullptr;
 
     commandList->RSSetViewports(1, &viewport);
     commandList->RSSetScissorRects(1, &scissorRect);
-    commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
+    commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, dsvHandlePtr);
 
     const float clear[4] = {clearColor.x, clearColor.y, clearColor.z,
                             clearColor.w};
     commandList->ClearRenderTargetView(rtvHandle, clear, 0, nullptr);
-    commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f,
-                                       0, 0, nullptr);
+    if (bindDepth && clearDepth) {
+        commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
+                                           1.0f, 0, 0, nullptr);
+    }
 }
 
 void RenderTexture::EndRender() {

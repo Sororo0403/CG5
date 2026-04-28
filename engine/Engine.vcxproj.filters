@@ -123,6 +123,12 @@
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp">
       <Filter>src\graphics</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\DeferredRenderer.cpp">
+      <Filter>src\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\GBuffer.cpp">
+      <Filter>src\graphics</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp">
       <Filter>src\graphics</Filter>
     </ClCompile>
@@ -228,6 +234,12 @@
       <Filter>include\core</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\DeferredRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\GBuffer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\PostEffectRenderer.h">
@@ -376,6 +388,12 @@
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\model\ModelPS.hlsl">
       <Filter>resources\shaders\model</Filter>
     </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\deferred\DeferredLightingPS.hlsl">
+      <Filter>resources\shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\model\ModelGBufferPS.hlsl">
+      <Filter>resources\shaders\model</Filter>
+    </FxCompile>
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\debug\SkeletonDebugPS.hlsl">
       <Filter>resources\shaders\debug</Filter>
     </FxCompile>
@@ -419,6 +437,9 @@
   <ItemGroup>
     <None Include="$(SolutionDir)engine\resources\shaders\model\Model.hlsli">
       <Filter>resources\shaders\model</Filter>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\light\Lighting.hlsli">
+      <Filter>resources\shaders</Filter>
     </None>
     <None Include="$(SolutionDir)engine\resources\shaders\sprite\Sprite.hlsli">
       <Filter>resources\shaders\sprite</Filter>

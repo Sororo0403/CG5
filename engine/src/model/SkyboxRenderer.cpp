@@ -54,12 +54,21 @@ void SkyboxRenderer::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
 }
 
 void SkyboxRenderer::Draw(uint32_t textureId, const Camera &camera) {
+    DrawInternal(textureId, camera, pipelineState_.Get());
+}
+
+void SkyboxRenderer::DrawNoDepth(uint32_t textureId, const Camera &camera) {
+    DrawInternal(textureId, camera, noDepthPipelineState_.Get());
+}
+
+void SkyboxRenderer::DrawInternal(uint32_t textureId, const Camera &camera,
+                                  ID3D12PipelineState *pipelineState) {
     auto *cmd = dxCommon_->GetCommandList();
 
     ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
     cmd->SetDescriptorHeaps(1, heaps);
 
-    cmd->SetPipelineState(pipelineState_.Get());
+    cmd->SetPipelineState(pipelineState);
     cmd->SetGraphicsRootSignature(rootSignature_.Get());
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     cmd->IASetVertexBuffers(0, 1, &vbView_);
@@ -164,6 +173,15 @@ void SkyboxRenderer::CreatePipelineState() {
     ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
                       &desc, IID_PPV_ARGS(&pipelineState_)),
                   "CreateGraphicsPipelineState(Skybox) failed");
+
+    depth.DepthEnable = FALSE;
+    depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+    desc.DepthStencilState = depth;
+    desc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+
+    ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
+                      &desc, IID_PPV_ARGS(&noDepthPipelineState_)),
+                  "CreateGraphicsPipelineState(SkyboxNoDepth) failed");
 }
 
 void SkyboxRenderer::CreateMesh() {

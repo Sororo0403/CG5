@@ -12,6 +12,8 @@ class DirectXCommon;
 class SrvManager;
 class PostEffectRenderer;
 class RenderTexture;
+class DeferredRenderer;
+class GBuffer;
 class SkyboxRenderer;
 class LightManager;
 
@@ -37,6 +39,8 @@ struct RendererServices {
     ModelRenderer *model = nullptr;
     SpriteRenderer *sprite = nullptr;
     RenderTexture *renderTexture = nullptr;
+    GBuffer *gBuffer = nullptr;
+    DeferredRenderer *deferredRenderer = nullptr;
     PostEffectRenderer *postEffectRenderer = nullptr;
     SkyboxRenderer *skyboxRenderer = nullptr;
     LightManager *light = nullptr;

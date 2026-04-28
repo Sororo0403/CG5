@@ -1,6 +1,8 @@
 #include "GameScene.h"
 #include "Camera.h"
+#include "DeferredRenderer.h"
 #include "DirectXCommon.h"
+#include "GBuffer.h"
 #include "Input.h"
 #include "LightManager.h"
 #include "ModelManager.h"
@@ -21,7 +23,8 @@ using namespace DirectX;
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
 
-    if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer ||
+    if (!ctx_->renderer.renderTexture || !ctx_->renderer.gBuffer ||
+        !ctx_->renderer.deferredRenderer || !ctx_->renderer.postEffectRenderer ||
         !ctx_->renderer.skyboxRenderer) {
         return;
     }
@@ -31,6 +34,10 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     ctx_->renderer.renderTexture->Initialize(ctx_->core.dxCommon, ctx_->core.srv,
                                              renderWidth_, renderHeight_);
+    ctx_->renderer.gBuffer->Initialize(ctx_->core.dxCommon, ctx_->core.srv,
+                                       renderWidth_, renderHeight_);
+    ctx_->renderer.deferredRenderer->Initialize(
+        ctx_->core.dxCommon, ctx_->core.srv, renderWidth_, renderHeight_);
     ctx_->renderer.postEffectRenderer->Initialize(
         ctx_->core.dxCommon, ctx_->core.srv, renderWidth_, renderHeight_);
     ctx_->renderer.postEffectRenderer->SetColorMode(
@@ -157,15 +164,52 @@ void GameScene::Draw() {
         return;
     }
 
-    ctx_->renderer.renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
-    DrawOffscreenScene();
-    ctx_->renderer.renderTexture->EndRender();
+    DrawGBufferScene();
 
-    ctx_->core.dxCommon->TransitionDepthToShaderResource();
+    if (useDeferredRendering_ && ctx_->renderer.deferredRenderer &&
+        ctx_->renderer.light) {
+        ctx_->renderer.renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f},
+                                                  false, false);
+        if (ctx_->renderer.skyboxRenderer) {
+            ctx_->renderer.skyboxRenderer->DrawNoDepth(skyboxModelId_, camera_);
+        }
+        ctx_->core.dxCommon->TransitionDepthToShaderResource();
+        ctx_->renderer.deferredRenderer->Draw(
+            *ctx_->renderer.gBuffer,
+            ctx_->core.dxCommon->GetDepthStencilGpuHandle(), camera_,
+            ctx_->renderer.light->GetSceneLighting());
+        ctx_->renderer.renderTexture->EndRender();
+    } else {
+        ctx_->renderer.renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
+        DrawOffscreenScene();
+        ctx_->renderer.renderTexture->EndRender();
+        ctx_->core.dxCommon->TransitionDepthToShaderResource();
+    }
+
+    D3D12_GPU_DESCRIPTOR_HANDLE displayHandle =
+        ctx_->renderer.renderTexture->GetGpuHandle();
+    if (ctx_->renderer.gBuffer) {
+        switch (gBufferDebugView_) {
+        case 1:
+            displayHandle =
+                ctx_->renderer.gBuffer->GetGpuHandle(GBuffer::Target::Albedo);
+            break;
+        case 2:
+            displayHandle =
+                ctx_->renderer.gBuffer->GetGpuHandle(GBuffer::Target::Normal);
+            break;
+        case 3:
+            displayHandle =
+                ctx_->renderer.gBuffer->GetGpuHandle(GBuffer::Target::Material);
+            break;
+        default:
+            break;
+        }
+    }
+
     ctx_->core.dxCommon->SetBackBufferRenderTarget(false, false);
     ctx_->renderer.postEffectRenderer->Draw(
-        ctx_->renderer.renderTexture->GetGpuHandle(),
-        ctx_->core.dxCommon->GetDepthStencilGpuHandle());
+        displayHandle, ctx_->core.dxCommon->GetDepthStencilGpuHandle());
     ctx_->core.dxCommon->TransitionDepthToWrite();
 }
 
@@ -300,6 +344,12 @@ void GameScene::DrawPostEffectControls() {
         ImGui::SliderFloat("Dissolve Edge Width", &dissolveEdgeWidth_, 0.001f,
                            0.25f);
         ImGui::ColorEdit4("Dissolve Edge Color", dissolveEdgeColor_);
+        ImGui::Separator();
+        ImGui::Checkbox("Deferred Rendering", &useDeferredRendering_);
+        const char *debugViews[] = {"Final", "GBuffer Albedo", "GBuffer Normal",
+                                    "GBuffer Material"};
+        ImGui::Combo("Debug View", &gBufferDebugView_, debugViews,
+                     _countof(debugViews));
     }
     ImGui::End();
 
@@ -366,6 +416,30 @@ void GameScene::DrawPostEffectControls() {
 #endif // _DEBUG
 }
 
+void GameScene::DrawGBufferScene() {
+    if (!ctx_->renderer.gBuffer || !ctx_->renderer.model) {
+        return;
+    }
+
+    const Model *model = ctx_->assets.model->GetModel(modelId_);
+    if (!model) {
+        return;
+    }
+
+    ctx_->renderer.gBuffer->BeginGeometryPass();
+
+    ModelRenderer *modelRenderer = ctx_->renderer.model;
+    modelRenderer->PreDraw();
+    ApplyDissolveMaterial();
+    if (ctx_->renderer.light) {
+        modelRenderer->SetSceneLighting(ctx_->renderer.light->GetSceneLighting());
+    }
+    modelRenderer->DrawGBuffer(*model, modelTransform_, camera_);
+    modelRenderer->PostDraw();
+
+    ctx_->renderer.gBuffer->EndGeometryPass();
+}
+
 void GameScene::OnResize(int width, int height) {
     if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer) {
         return;
@@ -379,6 +453,12 @@ void GameScene::OnResize(int width, int height) {
     renderWidth_ = width;
     renderHeight_ = height;
     ctx_->renderer.renderTexture->Resize(renderWidth_, renderHeight_);
+    if (ctx_->renderer.gBuffer) {
+        ctx_->renderer.gBuffer->Resize(renderWidth_, renderHeight_);
+    }
+    if (ctx_->renderer.deferredRenderer) {
+        ctx_->renderer.deferredRenderer->Resize(renderWidth_, renderHeight_);
+    }
     ctx_->renderer.postEffectRenderer->Resize(renderWidth_, renderHeight_);
     camera_.SetAspect(static_cast<float>(renderWidth_) /
                       static_cast<float>(renderHeight_));

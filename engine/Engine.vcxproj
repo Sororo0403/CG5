@@ -84,6 +84,8 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\DeferredRenderer.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\GBuffer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\RenderTexture.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\SkyboxRenderer.cpp" />
@@ -143,6 +145,8 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxHelpers.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxUtils.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\DeferredRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\GBuffer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\PostEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\RenderTexture.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\SkyboxRenderer.h" />
@@ -172,6 +176,18 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\model\ModelPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\deferred\DeferredLightingPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\model\ModelGBufferPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -250,6 +266,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SolutionDir)engine\resources\shaders\model\Model.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\light\Lighting.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>

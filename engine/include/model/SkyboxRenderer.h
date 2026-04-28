@@ -29,6 +29,7 @@ class SkyboxRenderer {
     /// <param name="textureId">描画に使用するキューブマップのテクスチャID</param>
     /// <param name="camera">描画に使用するカメラ</param>
     void Draw(uint32_t textureId, const Camera &camera);
+    void DrawNoDepth(uint32_t textureId, const Camera &camera);
 
   private:
     /// <summary>
@@ -50,6 +51,8 @@ class SkyboxRenderer {
     /// 定数バッファを生成する
     /// </summary>
     void CreateConstantBuffer();
+    void DrawInternal(uint32_t textureId, const Camera &camera,
+                      ID3D12PipelineState *pipelineState);
 
   private:
     struct ConstBufferData {
@@ -62,6 +65,7 @@ class SkyboxRenderer {
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> noDepthPipelineState_;
     Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer_;
     Microsoft::WRL::ComPtr<ID3D12Resource> indexBuffer_;
     Microsoft::WRL::ComPtr<ID3D12Resource> constBuffer_;

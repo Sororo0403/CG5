@@ -1,4 +1,6 @@
 #include "DirectXCommon.h"
+#include "DeferredRenderer.h"
+#include "GBuffer.h"
 #include "GameScene.h"
 #include "Input.h"
 #include "LightManager.h"
@@ -36,7 +38,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ShaderCompiler::ValidateFiles({
         L"engine/resources/shaders/model/ModelVS.hlsl",
         L"engine/resources/shaders/model/ModelPS.hlsl",
+        L"engine/resources/shaders/model/ModelGBufferPS.hlsl",
         L"engine/resources/shaders/model/SkinningCS.hlsl",
+        L"engine/resources/shaders/deferred/DeferredLightingPS.hlsl",
         L"engine/resources/shaders/sprite/SpriteVS.hlsl",
         L"engine/resources/shaders/sprite/SpritePS.hlsl",
         L"engine/resources/shaders/skybox/SkyboxVS.hlsl",
@@ -98,9 +102,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.renderer.light = &lightManager;
 
     RenderTexture renderTexture;
+    GBuffer gBuffer;
+    DeferredRenderer deferredRenderer;
     PostEffectRenderer postEffectRenderer;
     SkyboxRenderer skyboxRenderer;
     sceneCtx.renderer.renderTexture = &renderTexture;
+    sceneCtx.renderer.gBuffer = &gBuffer;
+    sceneCtx.renderer.deferredRenderer = &deferredRenderer;
     sceneCtx.renderer.postEffectRenderer = &postEffectRenderer;
     sceneCtx.renderer.skyboxRenderer = &skyboxRenderer;
 

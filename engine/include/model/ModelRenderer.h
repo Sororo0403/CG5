@@ -58,6 +58,12 @@ class ModelRenderer {
               uint32_t environmentTextureId = UINT32_MAX);
 
     /// <summary>
+    /// GBufferのgeometry passへモデルを書き込む
+    /// </summary>
+    void DrawGBuffer(const Model &model, const Transform &transform,
+                     const Camera &camera);
+
+    /// <summary>
     /// 現在フレームの描画エフェクトを設定する
     /// </summary>
     /// <param name="effect">適用するエフェクト</param>
@@ -71,7 +77,7 @@ class ModelRenderer {
     /// </summary>
     /// <param name="lighting">適用するライティング定数</param>
     void SetSceneLighting(const SceneLighting &lighting) {
-        currentLighting_ = lighting;
+        currentLighting_ = LightManager::CreateForwardLightingData(lighting);
     }
     /// <summary>
     /// 環境マップに使うキューブマップテクスチャを設定する
@@ -159,6 +165,7 @@ class ModelRenderer {
     Microsoft::WRL::ComPtr<ID3D12PipelineState> transparentPSO_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> additivePSO_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> additiveNoCullPSO_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> gBufferPSO_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> skinningPSO_;
     Microsoft::WRL::ComPtr<ID3D12Resource> objectConstBuffer_;
     Microsoft::WRL::ComPtr<ID3D12Resource> sceneConstBuffer_;
@@ -170,7 +177,8 @@ class ModelRenderer {
     uint8_t *mappedObjectCB_ = nullptr;
     uint8_t *mappedSceneCB_ = nullptr;
     ModelDrawEffect currentEffect_{};
-    SceneLighting currentLighting_{};
+    ForwardLightingData currentLighting_ =
+        LightManager::CreateForwardLightingData(SceneLighting{});
     uint32_t environmentTextureId_ = 0;
     uint32_t dissolveNoiseTextureId_ = 0;
     bool hasEnvironmentTexture_ = false;

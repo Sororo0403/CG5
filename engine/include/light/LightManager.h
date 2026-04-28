@@ -32,10 +32,29 @@ struct SceneLighting {
     DirectX::XMFLOAT4 lightingParams = {48.0f, 0.30f, 2.8f, 0.22f};
 };
 
+struct ForwardPointLightData {
+    DirectX::XMFLOAT4 positionRange;
+    DirectX::XMFLOAT4 colorIntensity;
+};
+
+struct ForwardLightingData {
+    DirectX::XMFLOAT4 keyLightDirection;
+    DirectX::XMFLOAT4 keyLightColor;
+    DirectX::XMFLOAT4 fillLightDirection;
+    DirectX::XMFLOAT4 fillLightColor;
+    DirectX::XMFLOAT4 ambientColor;
+    std::array<ForwardPointLightData, kMaxForwardPointLights> pointLights{};
+    DirectX::XMFLOAT4 pointLightParams;
+    DirectX::XMFLOAT4 lightingParams;
+};
+
 class LightManager {
   public:
     const SceneLighting &GetSceneLighting() const { return lighting_; }
     SceneLighting &GetMutableSceneLighting() { return lighting_; }
+    ForwardLightingData CreateForwardLightingData() const;
+    static ForwardLightingData CreateForwardLightingData(
+        const SceneLighting &lighting);
 
     void SetSceneLighting(const SceneLighting &lighting);
     void SetPointLightCount(uint32_t count);
