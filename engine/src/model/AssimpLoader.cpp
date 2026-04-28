@@ -11,7 +11,8 @@ void AssimpLoader::Initialize(TextureManager *textureManager,
     meshLoader_.Initialize(textureManager, meshManager, materialManager);
 }
 
-Model AssimpLoader::Load(const std::string &path) {
+Model AssimpLoader::Load(const DirectXCommon::UploadContext &uploadContext,
+                         const std::string &path) {
     if (!meshLoader_.IsInitialized()) {
         throw std::runtime_error("AssimpLoader is not initialized");
     }
@@ -30,7 +31,7 @@ Model AssimpLoader::Load(const std::string &path) {
     }
 
     Model model{};
-    meshLoader_.LoadMeshes(scene, path, model);
+    meshLoader_.LoadMeshes(uploadContext, scene, path, model);
     animationLoader_.LoadAnimations(scene, model);
 
     model.finalBoneMatrices.resize(model.bones.size());

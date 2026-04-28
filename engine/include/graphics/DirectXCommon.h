@@ -11,6 +11,27 @@ class SrvManager;
 /// </summary>
 class DirectXCommon {
   public:
+    class UploadContext {
+      public:
+        UploadContext() = default;
+        UploadContext(const UploadContext &) = delete;
+        UploadContext &operator=(const UploadContext &) = delete;
+        UploadContext(UploadContext &&other) noexcept;
+        UploadContext &operator=(UploadContext &&other) noexcept;
+        ~UploadContext();
+
+        void Finish();
+        bool IsActive() const { return owner_ != nullptr; }
+        DirectXCommon *GetOwner() const { return owner_; }
+        ID3D12GraphicsCommandList *GetCommandList() const;
+
+      private:
+        friend class DirectXCommon;
+        explicit UploadContext(DirectXCommon *owner) : owner_(owner) {}
+
+        DirectXCommon *owner_ = nullptr;
+    };
+
     ~DirectXCommon();
 
     /// <summary>
@@ -43,6 +64,11 @@ class DirectXCommon {
     void CreateDepthStencilSrv(SrvManager *srvManager);
 
     /// <summary>
+    /// 深度バッファ用SRVを解放する
+    /// </summary>
+    void ReleaseDepthStencilSrv();
+
+    /// <summary>
     /// 深度バッファをシェーダー読み取り状態へ遷移する
     /// </summary>
     void TransitionDepthToShaderResource();
@@ -63,6 +89,11 @@ class DirectXCommon {
     /// アップロード開始処理
     /// </summary>
     void BeginUpload();
+
+    /// <summary>
+    /// アップロード用コマンドリストを開き、スコープ終了時に閉じる
+    /// </summary>
+    [[nodiscard]] UploadContext BeginUploadContext();
 
     /// <summary>
     /// アップデート終了処理
@@ -91,6 +122,7 @@ class DirectXCommon {
     ID3D12GraphicsCommandList *GetCommandList() const {
         return commandList_.Get();
     }
+    bool IsUploadInProgress() const { return uploadInProgress_; }
     /// <summary>
     /// スワップチェーンのバッファ数を取得する
     /// </summary>
@@ -188,4 +220,5 @@ class DirectXCommon {
     UINT depthSrvIndex_ = UINT_MAX;
     D3D12_GPU_DESCRIPTOR_HANDLE depthSrvGpuHandle_{};
     D3D12_RESOURCE_STATES depthState_ = D3D12_RESOURCE_STATE_DEPTH_WRITE;
+    bool uploadInProgress_ = false;
 };

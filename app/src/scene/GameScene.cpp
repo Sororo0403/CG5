@@ -20,30 +20,32 @@ using namespace DirectX;
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
 
-    if (!ctx_->renderTexture || !ctx_->postEffectRenderer ||
-        !ctx_->skyboxRenderer) {
+    if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer ||
+        !ctx_->renderer.skyboxRenderer) {
         return;
     }
 
-    renderWidth_ = ctx_->winApp->GetWidth();
-    renderHeight_ = ctx_->winApp->GetHeight();
+    renderWidth_ = ctx_->frame.width;
+    renderHeight_ = ctx_->frame.height;
 
-    ctx_->renderTexture->Initialize(ctx_->dxCommon, ctx_->srv, renderWidth_,
-                                    renderHeight_);
-    ctx_->postEffectRenderer->Initialize(ctx_->dxCommon, ctx_->srv,
-                                         renderWidth_, renderHeight_);
-    ctx_->postEffectRenderer->SetColorMode(PostEffectRenderer::ColorMode::None);
-    ctx_->postEffectRenderer->SetFilterMode(
+    ctx_->renderer.renderTexture->Initialize(ctx_->core.dxCommon, ctx_->core.srv,
+                                             renderWidth_, renderHeight_);
+    ctx_->renderer.postEffectRenderer->Initialize(
+        ctx_->core.dxCommon, ctx_->core.srv, renderWidth_, renderHeight_);
+    ctx_->renderer.postEffectRenderer->SetColorMode(
+        PostEffectRenderer::ColorMode::None);
+    ctx_->renderer.postEffectRenderer->SetFilterMode(
         PostEffectRenderer::FilterMode::None);
-    ctx_->postEffectRenderer->SetEdgeMode(PostEffectRenderer::EdgeMode::Depth);
-    ctx_->postEffectRenderer->SetVignettingEnabled(true);
-    ctx_->postEffectRenderer->SetRadialBlurCenter(0.5f, 0.5f);
-    ctx_->postEffectRenderer->SetRadialBlurStrength(0.18f);
-    ctx_->postEffectRenderer->SetRadialBlurSampleCount(12);
-    ctx_->postEffectRenderer->SetRandomMode(
+    ctx_->renderer.postEffectRenderer->SetEdgeMode(
+        PostEffectRenderer::EdgeMode::Depth);
+    ctx_->renderer.postEffectRenderer->SetVignettingEnabled(true);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurCenter(0.5f, 0.5f);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurStrength(0.18f);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurSampleCount(12);
+    ctx_->renderer.postEffectRenderer->SetRandomMode(
         PostEffectRenderer::RandomMode::OverlayNoise);
-    ctx_->postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
-    ctx_->postEffectRenderer->SetRandomScale(randomNoiseScale_);
+    ctx_->renderer.postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
+    ctx_->renderer.postEffectRenderer->SetRandomScale(randomNoiseScale_);
 
     camera_.Initialize(static_cast<float>(renderWidth_) /
                        static_cast<float>(renderHeight_));
@@ -51,37 +53,40 @@ void GameScene::Initialize(const SceneContext &ctx) {
     camera_.LookAt({0.0f, 0.85f, 0.0f});
     camera_.SetPerspectiveFovDeg(45.0f);
     camera_.UpdateMatrices();
-    ctx_->postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
-                                                 camera_.GetFarZ());
+    ctx_->renderer.postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
+                                                          camera_.GetFarZ());
 
     modelTransform_.position = {0.0f, 0.0f, 0.0f};
     modelTransform_.scale = {1.0f, 1.0f, 1.0f};
 
-    ctx_->dxCommon->BeginUpload();
-    modelId_ = ctx_->model->Load(L"resources/model/sneakWalk.gltf");
-    skyboxModelId_ =
-        ctx_->texture->Load(L"resources/rostock_laage_airport_4k.dds");
+    auto uploadContext = ctx_->core.dxCommon->BeginUploadContext();
+    modelId_ = ctx_->assets.model->Load(uploadContext,
+                                        L"resources/model/sneakWalk.gltf");
+    skyboxModelId_ = ctx_->assets.texture->Load(
+        uploadContext, L"resources/rostock_laage_airport_4k.dds");
     environmentTextureId_ = skyboxModelId_;
-    dissolveNoiseTextureId_ = ctx_->texture->CreateNoiseTexture(256, 256);
-    ctx_->dxCommon->EndUpload();
-    ctx_->texture->ReleaseUploadBuffers();
+    dissolveNoiseTextureId_ =
+        ctx_->assets.texture->CreateNoiseTexture(uploadContext, 256, 256);
+    uploadContext.Finish();
+    ctx_->assets.texture->ReleaseUploadBuffers();
 
-    ctx_->skyboxRenderer->Initialize(ctx_->dxCommon, ctx_->srv, ctx_->texture);
-    ctx_->modelRenderer->SetEnvironmentTexture(environmentTextureId_);
-    ctx_->modelRenderer->SetDissolveNoiseTexture(dissolveNoiseTextureId_);
+    ctx_->renderer.skyboxRenderer->Initialize(
+        ctx_->core.dxCommon, ctx_->core.srv, ctx_->assets.texture);
+    ctx_->renderer.model->SetEnvironmentTexture(environmentTextureId_);
+    ctx_->renderer.model->SetDissolveNoiseTexture(dissolveNoiseTextureId_);
     ApplyDissolveMaterial();
 }
 
 void GameScene::Update() {
-    time_ += ctx_->deltaTime;
+    time_ += ctx_->frame.deltaTime;
     if (randomNoiseAnimate_) {
-        randomNoiseTime_ += ctx_->deltaTime;
+        randomNoiseTime_ += ctx_->frame.deltaTime;
     }
-    if (ctx_->postEffectRenderer) {
-        ctx_->postEffectRenderer->SetRandomTime(randomNoiseTime_);
+    if (ctx_->renderer.postEffectRenderer) {
+        ctx_->renderer.postEffectRenderer->SetRandomTime(randomNoiseTime_);
     }
 
-    ctx_->model->UpdateAnimation(modelId_, ctx_->deltaTime);
+    ctx_->assets.model->UpdateAnimation(modelId_, ctx_->frame.deltaTime);
     if (dissolveAutoAnimate_) {
         dissolveThreshold_ = 0.5f + 0.5f * std::sin(time_ * 0.8f);
     }
@@ -94,13 +99,14 @@ void GameScene::Update() {
 }
 
 void GameScene::ApplyDissolveMaterial() {
-    Model *model = ctx_->model ? ctx_->model->GetModel(modelId_) : nullptr;
+    Model *model =
+        ctx_->assets.model ? ctx_->assets.model->GetModel(modelId_) : nullptr;
     if (!model) {
         return;
     }
 
     for (const ModelSubMesh &subMesh : model->subMeshes) {
-        Material material = ctx_->model->GetMaterial(subMesh.materialId);
+        Material material = ctx_->assets.model->GetMaterial(subMesh.materialId);
         material.enableDissolve = dissolveEnabled_ ? 1 : 0;
         material.dissolveThreshold = dissolveThreshold_;
         material.dissolveEdgeWidth = dissolveEdgeWidth_;
@@ -108,84 +114,85 @@ void GameScene::ApplyDissolveMaterial() {
                                       dissolveEdgeColor_[1],
                                       dissolveEdgeColor_[2],
                                       dissolveEdgeColor_[3]};
-        ctx_->model->SetMaterial(subMesh.materialId, material);
+        ctx_->assets.model->SetMaterial(subMesh.materialId, material);
     }
 }
 
 void GameScene::Draw() {
-    ResizeOffscreenIfNeeded();
     DrawPostEffectControls();
 
-    if (!ctx_->renderTexture || !ctx_->postEffectRenderer) {
+    if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer) {
         return;
     }
 
-    ctx_->renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
+    ctx_->renderer.renderTexture->BeginRender({0.02f, 0.04f, 0.08f, 1.0f});
     DrawOffscreenScene();
-    ctx_->renderTexture->EndRender();
+    ctx_->renderer.renderTexture->EndRender();
 
-    ctx_->dxCommon->TransitionDepthToShaderResource();
-    ctx_->dxCommon->SetBackBufferRenderTarget(false, false);
-    ctx_->postEffectRenderer->Draw(ctx_->renderTexture->GetGpuHandle(),
-                                   ctx_->dxCommon->GetDepthStencilGpuHandle());
-    ctx_->dxCommon->TransitionDepthToWrite();
+    ctx_->core.dxCommon->TransitionDepthToShaderResource();
+    ctx_->core.dxCommon->SetBackBufferRenderTarget(false, false);
+    ctx_->renderer.postEffectRenderer->Draw(
+        ctx_->renderer.renderTexture->GetGpuHandle(),
+        ctx_->core.dxCommon->GetDepthStencilGpuHandle());
+    ctx_->core.dxCommon->TransitionDepthToWrite();
 }
 
 void GameScene::UpdatePostEffectControls() {
-    if (!ctx_->postEffectRenderer) {
+    if (!ctx_->renderer.postEffectRenderer) {
         return;
     }
 
-    if (ctx_->input) {
-        if (ctx_->input->IsKeyTrigger(DIK_1)) {
-            ctx_->postEffectRenderer->SetColorMode(
+    if (ctx_->core.input) {
+        if (ctx_->core.input->IsKeyTrigger(DIK_1)) {
+            ctx_->renderer.postEffectRenderer->SetColorMode(
                 PostEffectRenderer::ColorMode::None);
-        } else if (ctx_->input->IsKeyTrigger(DIK_2)) {
-            ctx_->postEffectRenderer->SetColorMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_2)) {
+            ctx_->renderer.postEffectRenderer->SetColorMode(
                 PostEffectRenderer::ColorMode::Grayscale);
-        } else if (ctx_->input->IsKeyTrigger(DIK_3)) {
-            ctx_->postEffectRenderer->SetColorMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_3)) {
+            ctx_->renderer.postEffectRenderer->SetColorMode(
                 PostEffectRenderer::ColorMode::Sepia);
-        } else if (ctx_->input->IsKeyTrigger(DIK_4)) {
-            ctx_->postEffectRenderer->SetVignettingEnabled(
-                !ctx_->postEffectRenderer->IsVignettingEnabled());
-        } else if (ctx_->input->IsKeyTrigger(DIK_5)) {
-            ctx_->postEffectRenderer->SetFilterMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_4)) {
+            ctx_->renderer.postEffectRenderer->SetVignettingEnabled(
+                !ctx_->renderer.postEffectRenderer->IsVignettingEnabled());
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_5)) {
+            ctx_->renderer.postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::Box3x3);
-        } else if (ctx_->input->IsKeyTrigger(DIK_6)) {
-            ctx_->postEffectRenderer->SetFilterMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_6)) {
+            ctx_->renderer.postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::Box5x5);
-        } else if (ctx_->input->IsKeyTrigger(DIK_7)) {
-            ctx_->postEffectRenderer->SetFilterMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_7)) {
+            ctx_->renderer.postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::Gaussian3x3);
-        } else if (ctx_->input->IsKeyTrigger(DIK_8)) {
-            ctx_->postEffectRenderer->SetFilterMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_8)) {
+            ctx_->renderer.postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::GaussianBlur7x7);
-        } else if (ctx_->input->IsKeyTrigger(DIK_9)) {
-            ctx_->postEffectRenderer->SetFilterMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_9)) {
+            ctx_->renderer.postEffectRenderer->SetFilterMode(
                 PostEffectRenderer::FilterMode::None);
-        } else if (ctx_->input->IsKeyTrigger(DIK_0)) {
-            ctx_->postEffectRenderer->SetEdgeMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_0)) {
+            ctx_->renderer.postEffectRenderer->SetEdgeMode(
                 PostEffectRenderer::EdgeMode::None);
-        } else if (ctx_->input->IsKeyTrigger(DIK_Q)) {
-            ctx_->postEffectRenderer->SetEdgeMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_Q)) {
+            ctx_->renderer.postEffectRenderer->SetEdgeMode(
                 PostEffectRenderer::EdgeMode::Luminance);
-        } else if (ctx_->input->IsKeyTrigger(DIK_W)) {
-            ctx_->postEffectRenderer->SetEdgeMode(
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_W)) {
+            ctx_->renderer.postEffectRenderer->SetEdgeMode(
                 PostEffectRenderer::EdgeMode::Depth);
-        } else if (ctx_->input->IsKeyTrigger(DIK_R)) {
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_R)) {
             const float strength =
-                ctx_->postEffectRenderer->GetRadialBlurStrength();
-            ctx_->postEffectRenderer->SetRadialBlurStrength(
+                ctx_->renderer.postEffectRenderer->GetRadialBlurStrength();
+            ctx_->renderer.postEffectRenderer->SetRadialBlurStrength(
                 strength > 0.0f ? 0.0f : 0.18f);
-        } else if (ctx_->input->IsKeyTrigger(DIK_T)) {
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_T)) {
             const int mode =
-                (static_cast<int>(ctx_->postEffectRenderer->GetRandomMode()) +
+                (static_cast<int>(
+                     ctx_->renderer.postEffectRenderer->GetRandomMode()) +
                  1) %
                 3;
-            ctx_->postEffectRenderer->SetRandomMode(
+            ctx_->renderer.postEffectRenderer->SetRandomMode(
                 static_cast<PostEffectRenderer::RandomMode>(mode));
-        } else if (ctx_->input->IsKeyTrigger(DIK_Y)) {
+        } else if (ctx_->core.input->IsKeyTrigger(DIK_Y)) {
             randomNoiseAnimate_ = !randomNoiseAnimate_;
         }
     }
@@ -193,30 +200,34 @@ void GameScene::UpdatePostEffectControls() {
 
 void GameScene::DrawPostEffectControls() {
 #ifdef _DEBUG
-    if (!ctx_->postEffectRenderer) {
+    if (!ctx_->renderer.postEffectRenderer) {
         return;
     }
 
-    int colorMode = static_cast<int>(ctx_->postEffectRenderer->GetColorMode());
+    int colorMode =
+        static_cast<int>(ctx_->renderer.postEffectRenderer->GetColorMode());
     int filterMode =
-        static_cast<int>(ctx_->postEffectRenderer->GetFilterMode());
-    int edgeMode = static_cast<int>(ctx_->postEffectRenderer->GetEdgeMode());
-    bool enableVignetting = ctx_->postEffectRenderer->IsVignettingEnabled();
+        static_cast<int>(ctx_->renderer.postEffectRenderer->GetFilterMode());
+    int edgeMode =
+        static_cast<int>(ctx_->renderer.postEffectRenderer->GetEdgeMode());
+    bool enableVignetting =
+        ctx_->renderer.postEffectRenderer->IsVignettingEnabled();
     float luminanceEdgeThreshold =
-        ctx_->postEffectRenderer->GetLuminanceEdgeThreshold();
+        ctx_->renderer.postEffectRenderer->GetLuminanceEdgeThreshold();
     float depthEdgeThreshold =
-        ctx_->postEffectRenderer->GetDepthEdgeThreshold();
+        ctx_->renderer.postEffectRenderer->GetDepthEdgeThreshold();
     const float *radialBlurCenter =
-        ctx_->postEffectRenderer->GetRadialBlurCenter();
+        ctx_->renderer.postEffectRenderer->GetRadialBlurCenter();
     float radialBlurCenterEdit[2] = {radialBlurCenter[0], radialBlurCenter[1]};
     float radialBlurStrength =
-        ctx_->postEffectRenderer->GetRadialBlurStrength();
+        ctx_->renderer.postEffectRenderer->GetRadialBlurStrength();
     int radialBlurSampleCount =
-        ctx_->postEffectRenderer->GetRadialBlurSampleCount();
+        ctx_->renderer.postEffectRenderer->GetRadialBlurSampleCount();
     int randomMode =
-        static_cast<int>(ctx_->postEffectRenderer->GetRandomMode());
-    float randomStrength = ctx_->postEffectRenderer->GetRandomStrength();
-    float randomScale = ctx_->postEffectRenderer->GetRandomScale();
+        static_cast<int>(ctx_->renderer.postEffectRenderer->GetRandomMode());
+    float randomStrength =
+        ctx_->renderer.postEffectRenderer->GetRandomStrength();
+    float randomScale = ctx_->renderer.postEffectRenderer->GetRandomScale();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
@@ -260,36 +271,34 @@ void GameScene::DrawPostEffectControls() {
     }
     ImGui::End();
 
-    ctx_->postEffectRenderer->SetColorMode(
+    ctx_->renderer.postEffectRenderer->SetColorMode(
         static_cast<PostEffectRenderer::ColorMode>(colorMode));
-    ctx_->postEffectRenderer->SetFilterMode(
+    ctx_->renderer.postEffectRenderer->SetFilterMode(
         static_cast<PostEffectRenderer::FilterMode>(filterMode));
-    ctx_->postEffectRenderer->SetEdgeMode(
+    ctx_->renderer.postEffectRenderer->SetEdgeMode(
         static_cast<PostEffectRenderer::EdgeMode>(edgeMode));
-    ctx_->postEffectRenderer->SetLuminanceEdgeThreshold(
+    ctx_->renderer.postEffectRenderer->SetLuminanceEdgeThreshold(
         luminanceEdgeThreshold);
-    ctx_->postEffectRenderer->SetDepthEdgeThreshold(depthEdgeThreshold);
-    ctx_->postEffectRenderer->SetVignettingEnabled(enableVignetting);
-    ctx_->postEffectRenderer->SetRadialBlurCenter(radialBlurCenterEdit[0],
-                                                  radialBlurCenterEdit[1]);
-    ctx_->postEffectRenderer->SetRadialBlurStrength(radialBlurStrength);
-    ctx_->postEffectRenderer->SetRadialBlurSampleCount(radialBlurSampleCount);
+    ctx_->renderer.postEffectRenderer->SetDepthEdgeThreshold(depthEdgeThreshold);
+    ctx_->renderer.postEffectRenderer->SetVignettingEnabled(enableVignetting);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurCenter(
+        radialBlurCenterEdit[0], radialBlurCenterEdit[1]);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurStrength(radialBlurStrength);
+    ctx_->renderer.postEffectRenderer->SetRadialBlurSampleCount(
+        radialBlurSampleCount);
     randomNoiseStrength_ = randomStrength;
     randomNoiseScale_ = randomScale;
-    ctx_->postEffectRenderer->SetRandomMode(
+    ctx_->renderer.postEffectRenderer->SetRandomMode(
         static_cast<PostEffectRenderer::RandomMode>(randomMode));
-    ctx_->postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
-    ctx_->postEffectRenderer->SetRandomScale(randomNoiseScale_);
+    ctx_->renderer.postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
+    ctx_->renderer.postEffectRenderer->SetRandomScale(randomNoiseScale_);
 #endif // _DEBUG
 }
 
-void GameScene::ResizeOffscreenIfNeeded() {
-    if (!ctx_->renderTexture || !ctx_->postEffectRenderer) {
+void GameScene::OnResize(int width, int height) {
+    if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer) {
         return;
     }
-
-    const int width = ctx_->winApp->GetWidth();
-    const int height = ctx_->winApp->GetHeight();
 
     if (width <= 0 || height <= 0 ||
         (width == renderWidth_ && height == renderHeight_)) {
@@ -298,25 +307,25 @@ void GameScene::ResizeOffscreenIfNeeded() {
 
     renderWidth_ = width;
     renderHeight_ = height;
-    ctx_->renderTexture->Resize(renderWidth_, renderHeight_);
-    ctx_->postEffectRenderer->Resize(renderWidth_, renderHeight_);
+    ctx_->renderer.renderTexture->Resize(renderWidth_, renderHeight_);
+    ctx_->renderer.postEffectRenderer->Resize(renderWidth_, renderHeight_);
     camera_.SetAspect(static_cast<float>(renderWidth_) /
                       static_cast<float>(renderHeight_));
     camera_.UpdateMatrices();
 }
 
 void GameScene::DrawOffscreenScene() {
-    if (!ctx_->skyboxRenderer) {
+    if (!ctx_->renderer.skyboxRenderer) {
         return;
     }
 
-    ModelRenderer *modelRenderer = ctx_->modelRenderer;
-    const Model *model = ctx_->model->GetModel(modelId_);
+    ModelRenderer *modelRenderer = ctx_->renderer.model;
+    const Model *model = ctx_->assets.model->GetModel(modelId_);
     if (!model) {
         return;
     }
 
-    ctx_->skyboxRenderer->Draw(skyboxModelId_, camera_);
+    ctx_->renderer.skyboxRenderer->Draw(skyboxModelId_, camera_);
 
     modelRenderer->PreDraw();
     ApplyDissolveMaterial();

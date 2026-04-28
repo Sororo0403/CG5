@@ -1,4 +1,5 @@
 #pragma once
+#include "DirectXCommon.h"
 #include "Model.h"
 #include <assimp/scene.h>
 #include <string>
@@ -32,7 +33,8 @@ class AssimpMeshLoader {
     /// <param name="scene">Assimpのシーンデータ</param>
     /// <param name="path">読み込み元モデルファイルパス</param>
     /// <param name="model">書き込み先モデル</param>
-    void LoadMeshes(const aiScene *scene, const std::string &path,
+    void LoadMeshes(const DirectXCommon::UploadContext &uploadContext,
+                    const aiScene *scene, const std::string &path,
                     Model &model) const;
 
   private:

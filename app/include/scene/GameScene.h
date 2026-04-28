@@ -22,8 +22,9 @@ class GameScene : public BaseScene {
     /// </summary>
     void Draw() override;
 
+    void OnResize(int width, int height) override;
+
   private:
-    void ResizeOffscreenIfNeeded();
     void UpdatePostEffectControls();
     void ApplyDissolveMaterial();
     void DrawPostEffectControls();

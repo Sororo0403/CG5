@@ -191,6 +191,7 @@ class ModelRenderer {
     Microsoft::WRL::ComPtr<ID3D12Resource> sceneConstBuffer_;
 
     uint32_t drawIndex_ = 0;
+    bool drawLimitWarningIssued_ = false;
     uint32_t objectCbStride_ = 0;
     uint32_t sceneCbStride_ = 0;
     uint8_t *mappedObjectCB_ = nullptr;

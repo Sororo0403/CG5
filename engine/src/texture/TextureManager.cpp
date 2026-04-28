@@ -69,7 +69,8 @@ TextureManager::~TextureManager() {
 }
 
 void TextureManager::Initialize(DirectXCommon *dxCommon,
-                                SrvManager *srvManager) {
+                                SrvManager *srvManager,
+                                const DirectXCommon::UploadContext &uploadContext) {
     if (!dxCommon || !srvManager) {
         throw std::invalid_argument(
             "TextureManager::Initialize requires valid managers");
@@ -106,11 +107,12 @@ void TextureManager::Initialize(DirectXCommon *dxCommon,
     metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM;
     metadata.dimension = TEX_DIMENSION_TEXTURE2D;
 
-    CreateTexture(&image, 1, metadata);
-    defaultCubeTextureId_ = CreateSolidCubeTexture(0xFF000000u);
+    CreateTexture(uploadContext, &image, 1, metadata);
+    defaultCubeTextureId_ = CreateSolidCubeTexture(uploadContext, 0xFF000000u);
 }
 
-uint32_t TextureManager::Load(const std::wstring &filePath) {
+uint32_t TextureManager::Load(const DirectXCommon::UploadContext &uploadContext,
+                              const std::wstring &filePath) {
     const std::filesystem::path resolvedPath = ResolveTexturePath(filePath);
     const std::wstring pathKey = NormalizePathKey(resolvedPath);
 
@@ -137,13 +139,16 @@ uint32_t TextureManager::Load(const std::wstring &filePath) {
     }
 
     uint32_t id =
-        CreateTexture(scratch.GetImages(), scratch.GetImageCount(), metadata);
+        CreateTexture(uploadContext, scratch.GetImages(), scratch.GetImageCount(),
+                      metadata);
     filePathToTextureId_[pathKey] = id;
 
     return id;
 }
 
-uint32_t TextureManager::LoadFromMemory(const uint8_t *data, size_t size) {
+uint32_t TextureManager::LoadFromMemory(
+    const DirectXCommon::UploadContext &uploadContext, const uint8_t *data,
+    size_t size) {
     if (!data || size == 0) {
         throw std::invalid_argument(
             "TextureManager::LoadFromMemory requires image data");
@@ -157,12 +162,15 @@ uint32_t TextureManager::LoadFromMemory(const uint8_t *data, size_t size) {
         "LoadFromWICMemory failed");
 
     uint32_t id =
-        CreateTexture(scratch.GetImages(), scratch.GetImageCount(), metadata);
+        CreateTexture(uploadContext, scratch.GetImages(), scratch.GetImageCount(),
+                      metadata);
 
     return id;
 }
 
-uint32_t TextureManager::CreateNoiseTexture(uint32_t width, uint32_t height) {
+uint32_t TextureManager::CreateNoiseTexture(
+    const DirectXCommon::UploadContext &uploadContext, uint32_t width,
+    uint32_t height) {
     width = (std::max)(width, 1u);
     height = (std::max)(height, 1u);
 
@@ -213,10 +221,11 @@ uint32_t TextureManager::CreateNoiseTexture(uint32_t width, uint32_t height) {
     metadata.format = DXGI_FORMAT_R8G8B8A8_UNORM;
     metadata.dimension = TEX_DIMENSION_TEXTURE2D;
 
-    return CreateTexture(&image, 1, metadata);
+    return CreateTexture(uploadContext, &image, 1, metadata);
 }
 
-uint32_t TextureManager::CreateSolidCubeTexture(uint32_t rgba) {
+uint32_t TextureManager::CreateSolidCubeTexture(
+    const DirectXCommon::UploadContext &uploadContext, uint32_t rgba) {
     std::array<uint32_t, 6> pixels{};
     pixels.fill(rgba);
 
@@ -243,10 +252,12 @@ uint32_t TextureManager::CreateSolidCubeTexture(uint32_t rgba) {
     metadata.dimension = TEX_DIMENSION_TEXTURE2D;
     metadata.miscFlags = TEX_MISC_TEXTURECUBE;
 
-    return CreateTexture(images.data(), images.size(), metadata);
+    return CreateTexture(uploadContext, images.data(), images.size(), metadata);
 }
 
-uint32_t TextureManager::CreateTexture(const Image *images, size_t imageCount,
+uint32_t TextureManager::CreateTexture(
+                                       const DirectXCommon::UploadContext &uploadContext,
+                                       const Image *images, size_t imageCount,
                                        const TexMetadata &metadata) {
     if (!dxCommon_ || !srvManager_) {
         throw std::runtime_error("TextureManager is not initialized");
@@ -254,6 +265,10 @@ uint32_t TextureManager::CreateTexture(const Image *images, size_t imageCount,
     if (!images || imageCount == 0) {
         throw std::invalid_argument(
             "TextureManager::CreateTexture requires image data");
+    }
+    if (!uploadContext.IsActive() || uploadContext.GetOwner() != dxCommon_) {
+        throw std::runtime_error(
+            "TextureManager::CreateTexture requires an active upload context");
     }
     if (metadata.width == 0 || metadata.height == 0 ||
         metadata.arraySize == 0 || metadata.mipLevels == 0) {

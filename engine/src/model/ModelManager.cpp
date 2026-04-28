@@ -8,6 +8,7 @@
 #include <DirectXMath.h>
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <filesystem>
 #include <numbers>
@@ -60,12 +61,13 @@ void ModelManager::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
     skeletonDebugRenderer_.Initialize(dxCommon_);
 }
 
-uint32_t ModelManager::Load(const std::wstring &path) {
+uint32_t ModelManager::Load(const DirectXCommon::UploadContext &uploadContext,
+                            const std::wstring &path) {
     std::filesystem::path p = ResourcePath::FindExisting(std::filesystem::path(path));
     ResourcePath::RequireFile(p, "Model file not found");
     std::string pathStr = p.string();
 
-    Model model = assimpLoader_.Load(pathStr);
+    Model model = assimpLoader_.Load(uploadContext, pathStr);
     modelRenderer_.CreateSkinClusters(model);
 
     if (!model.animations.empty()) {
@@ -283,8 +285,24 @@ uint32_t ModelManager::CreateCylinder(uint32_t textureId,
     return static_cast<uint32_t>(models_.size() - 1);
 }
 
+bool ModelManager::IsValidModelId(uint32_t modelId, const char *caller) const {
+    if (modelId < models_.size()) {
+        return true;
+    }
+
+#ifdef _DEBUG
+    OutputDebugStringA("[ModelManager] Invalid modelId in ");
+    OutputDebugStringA(caller ? caller : "unknown caller");
+    OutputDebugStringA("\n");
+    assert(false && "Invalid ModelManager modelId");
+#else
+    (void)caller;
+#endif
+    return false;
+}
+
 void ModelManager::UpdateAnimation(uint32_t modelId, float deltaTime) {
-    if (modelId >= models_.size()) {
+    if (!IsValidModelId(modelId, "UpdateAnimation")) {
         return;
     }
 
@@ -294,7 +312,7 @@ void ModelManager::UpdateAnimation(uint32_t modelId, float deltaTime) {
 
 void ModelManager::PlayAnimation(uint32_t modelId,
                                  const std::string &animationName, bool loop) {
-    if (modelId >= models_.size()) {
+    if (!IsValidModelId(modelId, "PlayAnimation")) {
         return;
     }
 
@@ -302,7 +320,7 @@ void ModelManager::PlayAnimation(uint32_t modelId,
 }
 
 bool ModelManager::IsAnimationFinished(uint32_t modelId) const {
-    if (modelId >= models_.size()) {
+    if (!IsValidModelId(modelId, "IsAnimationFinished")) {
         return false;
     }
 
@@ -310,7 +328,7 @@ bool ModelManager::IsAnimationFinished(uint32_t modelId) const {
 }
 
 Model *ModelManager::GetModel(uint32_t modelId) {
-    if (modelId >= models_.size()) {
+    if (!IsValidModelId(modelId, "GetModel")) {
         return nullptr;
     }
 
@@ -318,7 +336,7 @@ Model *ModelManager::GetModel(uint32_t modelId) {
 }
 
 const Model *ModelManager::GetModel(uint32_t modelId) const {
-    if (modelId >= models_.size()) {
+    if (!IsValidModelId(modelId, "GetModel const")) {
         return nullptr;
     }
 

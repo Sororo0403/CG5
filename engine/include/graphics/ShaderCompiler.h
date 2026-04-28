@@ -2,6 +2,7 @@
 #include "DxUtils.h"
 #include "ResourcePath.h"
 #include <d3dcompiler.h>
+#include <initializer_list>
 #include <string>
 #include <wrl.h>
 
@@ -14,6 +15,18 @@ namespace ShaderCompiler {
 /// <returns>解決済みのシェーダーパス</returns>
 inline std::wstring ResolveShaderPath(const std::wstring &path) {
     return ResourcePath::FindExistingWString(path);
+}
+
+inline void ValidateFile(const std::wstring &path) {
+    const std::filesystem::path resolvedPath =
+        ResourcePath::FindExisting(std::filesystem::path(path));
+    ResourcePath::RequireFile(resolvedPath, "Shader file not found");
+}
+
+inline void ValidateFiles(std::initializer_list<std::wstring> paths) {
+    for (const std::wstring &path : paths) {
+        ValidateFile(path);
+    }
 }
 
 /// <summary>

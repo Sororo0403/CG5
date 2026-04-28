@@ -31,6 +31,11 @@ class SceneManager {
     /// </summary>
     void Draw();
 
+    /// <summary>
+    /// 現在のシーンへサイズ変更を通知する
+    /// </summary>
+    void Resize(int width, int height);
+
   private:
     std::unique_ptr<BaseScene> currentScene_;
     const SceneContext *ctx_ = nullptr;

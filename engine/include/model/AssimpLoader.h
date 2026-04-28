@@ -1,6 +1,7 @@
 #pragma once
 #include "AssimpAnimationLoader.h"
 #include "AssimpMeshLoader.h"
+#include "DirectXCommon.h"
 #include "Model.h"
 #include <string>
 
@@ -27,7 +28,8 @@ class AssimpLoader {
     /// </summary>
     /// <param name="path">読み込むモデルのファイルパス</param>
     /// <returns>モデル構造体</returns>
-    Model Load(const std::string &path);
+    Model Load(const DirectXCommon::UploadContext &uploadContext,
+               const std::string &path);
 
   private:
     AssimpMeshLoader meshLoader_{};

@@ -1,11 +1,11 @@
 #pragma once
+#include "DirectXCommon.h"
 #include "Sprite.h"
 #include "SpriteRenderer.h"
 #include <cstdint>
 #include <string>
 #include <vector>
 
-class DirectXCommon;
 class SrvManager;
 class TextureManager;
 
@@ -30,7 +30,8 @@ class SpriteManager {
     /// </summary>
     /// <param name="filePath">作成するスプライトのファイルパス</param>
     /// <returns>スプライトid</returns>
-    uint32_t Create(const std::wstring &filePath);
+    uint32_t Create(const DirectXCommon::UploadContext &uploadContext,
+                    const std::wstring &filePath);
 
     /// <summary>
     /// スプライトを取得する

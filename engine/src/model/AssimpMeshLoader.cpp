@@ -35,7 +35,9 @@ bool AssimpMeshLoader::IsInitialized() const {
     return textureManager_ && meshManager_ && materialManager_;
 }
 
-void AssimpMeshLoader::LoadMeshes(const aiScene *scene, const std::string &path,
+void AssimpMeshLoader::LoadMeshes(
+                                  const DirectXCommon::UploadContext &uploadContext,
+                                  const aiScene *scene, const std::string &path,
                                   Model &model) const {
     if (!IsInitialized()) {
         throw std::runtime_error("AssimpMeshLoader is not initialized");
@@ -170,6 +172,7 @@ void AssimpMeshLoader::LoadMeshes(const aiScene *scene, const std::string &path,
 
                     if (tex->mHeight == 0) {
                         textureId = textureManager_->LoadFromMemory(
+                            uploadContext,
                             reinterpret_cast<const uint8_t *>(tex->pcData),
                             tex->mWidth);
                         return true;
@@ -180,7 +183,8 @@ void AssimpMeshLoader::LoadMeshes(const aiScene *scene, const std::string &path,
 
                 std::filesystem::path modelPath(path);
                 auto fullPath = modelPath.parent_path() / texName;
-                textureId = textureManager_->Load(fullPath.wstring());
+                textureId = textureManager_->Load(uploadContext,
+                                                  fullPath.wstring());
                 return true;
             };
 

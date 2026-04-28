@@ -29,3 +29,9 @@ void SceneManager::Draw() {
         currentScene_->Draw();
     }
 }
+
+void SceneManager::Resize(int width, int height) {
+    if (currentScene_) {
+        currentScene_->OnResize(width, height);
+    }
+}

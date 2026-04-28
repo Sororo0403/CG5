@@ -1,4 +1,5 @@
 #pragma once
+#include "DirectXCommon.h"
 #include "Texture.h"
 #include <DirectXTex.h>
 #include <cstdint>
@@ -8,7 +9,6 @@
 #include <vector>
 #include <wrl.h>
 
-class DirectXCommon;
 class SrvManager;
 
 /// <summary>
@@ -32,14 +32,16 @@ class TextureManager {
     /// </summary>
     /// <param name="dxCommon">DirectXCommonインスタンス</param>
     /// <param name="srvManager">SrvManagerインスタンス</param>
-    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager);
+    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
+                    const DirectXCommon::UploadContext &uploadContext);
 
     /// <summary>
     /// ファイルからテクスチャをロードしてidを返す
     /// </summary>
     /// <param name="filePath">ロードするテクスチャのファイルパス</param>
     /// <returns>テクスチャid</returns>
-    uint32_t Load(const std::wstring &filePath);
+    uint32_t Load(const DirectXCommon::UploadContext &uploadContext,
+                  const std::wstring &filePath);
 
     /// <summary>
     /// メモリからテクスチャをロードしてidを返す
@@ -47,7 +49,8 @@ class TextureManager {
     /// <param name="data">画像データの先頭アドレス</param>
     /// <param name="size">画像データのバイトサイズ</param>
     /// <returns>生成されたテクスチャのID</returns>
-    uint32_t LoadFromMemory(const uint8_t *data, size_t size);
+    uint32_t LoadFromMemory(const DirectXCommon::UploadContext &uploadContext,
+                            const uint8_t *data, size_t size);
 
     /// <summary>
     /// ディゾルブなどに使うグレースケールノイズテクスチャを生成する
@@ -55,13 +58,16 @@ class TextureManager {
     /// <param name="width">テクスチャ幅</param>
     /// <param name="height">テクスチャ高さ</param>
     /// <returns>生成されたテクスチャのID</returns>
-    uint32_t CreateNoiseTexture(uint32_t width = 256, uint32_t height = 256);
+    uint32_t CreateNoiseTexture(const DirectXCommon::UploadContext &uploadContext,
+                                uint32_t width = 256, uint32_t height = 256);
     /// <summary>
     /// 1x1の単色キューブマップを生成する
     /// </summary>
     /// <param name="rgba">RGBA8色</param>
     /// <returns>生成されたテクスチャのID</returns>
-    uint32_t CreateSolidCubeTexture(uint32_t rgba = 0xFFFFFFFFu);
+    uint32_t CreateSolidCubeTexture(
+        const DirectXCommon::UploadContext &uploadContext,
+        uint32_t rgba = 0xFFFFFFFFu);
 
     /// <summary>
     /// ロード時に使った一時UploadBufferを解放
@@ -106,7 +112,8 @@ class TextureManager {
     /// <param name="imageCount">画像枚数</param>
     /// <param name="metadata">テクスチャメタデータ</param>
     /// <returns>生成されたテクスチャID</returns>
-    uint32_t CreateTexture(const DirectX::Image *images, size_t imageCount,
+    uint32_t CreateTexture(const DirectXCommon::UploadContext &uploadContext,
+                           const DirectX::Image *images, size_t imageCount,
                            const DirectX::TexMetadata &metadata);
 
   private:

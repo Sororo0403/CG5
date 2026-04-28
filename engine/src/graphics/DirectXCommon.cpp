@@ -3,8 +3,40 @@
 #include "DxUtils.h"
 #include "SrvManager.h"
 #include <stdexcept>
+#include <utility>
 
 using namespace DxUtils;
+
+DirectXCommon::UploadContext::UploadContext(UploadContext &&other) noexcept
+    : owner_(std::exchange(other.owner_, nullptr)) {}
+
+DirectXCommon::UploadContext &
+DirectXCommon::UploadContext::operator=(UploadContext &&other) noexcept {
+    if (this != &other) {
+        Finish();
+        owner_ = std::exchange(other.owner_, nullptr);
+    }
+    return *this;
+}
+
+DirectXCommon::UploadContext::~UploadContext() {
+    try {
+        Finish();
+    } catch (...) {
+    }
+}
+
+void DirectXCommon::UploadContext::Finish() {
+    if (owner_) {
+        DirectXCommon *owner = std::exchange(owner_, nullptr);
+        owner->EndUpload();
+    }
+}
+
+ID3D12GraphicsCommandList *
+DirectXCommon::UploadContext::GetCommandList() const {
+    return owner_ ? owner_->GetCommandList() : nullptr;
+}
 
 DirectXCommon::~DirectXCommon() {
     if (commandQueue_ && fence_ && fenceEvent_) {
@@ -113,20 +145,33 @@ void DirectXCommon::Resize(int width, int height) {
 }
 
 void DirectXCommon::BeginUpload() {
+    if (uploadInProgress_) {
+        throw std::runtime_error("DirectXCommon::BeginUpload is already active");
+    }
     ThrowIfFailed(uploadCommandAllocator_->Reset(),
                   "uploadCommandAllocator_->Reset failed");
 
     ThrowIfFailed(commandList_->Reset(uploadCommandAllocator_.Get(), nullptr),
                   "commandList_->Reset failed");
+    uploadInProgress_ = true;
+}
+
+DirectXCommon::UploadContext DirectXCommon::BeginUploadContext() {
+    BeginUpload();
+    return UploadContext(this);
 }
 
 void DirectXCommon::EndUpload() {
+    if (!uploadInProgress_) {
+        throw std::runtime_error("DirectXCommon::EndUpload without BeginUpload");
+    }
     ThrowIfFailed(commandList_->Close(), "commandList_->Close failed");
 
     ID3D12CommandList *lists[] = {commandList_.Get()};
     commandQueue_->ExecuteCommandLists(1, lists);
 
     WaitForGpu();
+    uploadInProgress_ = false;
 }
 
 void DirectXCommon::WaitForGpu() {
@@ -185,6 +230,16 @@ void DirectXCommon::CreateDepthStencilSrv(SrvManager *srvManager) {
     }
     depthSrvGpuHandle_ = srvManager_->GetGpuHandle(depthSrvIndex_);
     UpdateDepthStencilSrv();
+}
+
+void DirectXCommon::ReleaseDepthStencilSrv() {
+    if (srvManager_ && depthSrvIndex_ != UINT_MAX) {
+        srvManager_->Free(depthSrvIndex_);
+    }
+
+    srvManager_ = nullptr;
+    depthSrvIndex_ = UINT_MAX;
+    depthSrvGpuHandle_ = {};
 }
 
 void DirectXCommon::TransitionDepthToShaderResource() {

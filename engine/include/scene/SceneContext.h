@@ -18,24 +18,42 @@ class SkyboxRenderer;
 class ImguiManager;
 #endif // _DEBUG
 
+struct CoreServices {
+    Input *input = nullptr;
+    WinApp *winApp = nullptr;
+    SoundManager *sound = nullptr;
+    DirectXCommon *dxCommon = nullptr;
+    SrvManager *srv = nullptr;
+};
+
+struct AssetServices {
+    ModelManager *model = nullptr;
+    SpriteManager *sprite = nullptr;
+    TextureManager *texture = nullptr;
+};
+
+struct RendererServices {
+    ModelRenderer *model = nullptr;
+    SpriteRenderer *sprite = nullptr;
+    RenderTexture *renderTexture = nullptr;
+    PostEffectRenderer *postEffectRenderer = nullptr;
+    SkyboxRenderer *skyboxRenderer = nullptr;
+};
+
+struct FrameState {
+    float deltaTime = 0.0f;
+    int width = 0;
+    int height = 0;
+};
+
 /// <summary>
 /// シーンが参照する各種システムへのアクセスポイントをまとめる
 /// </summary>
 struct SceneContext {
-    Input *input = nullptr;
-    WinApp *winApp = nullptr;
-    SoundManager *sound = nullptr;
-    ModelManager *model = nullptr;
-    SpriteManager *sprite = nullptr;
-    ModelRenderer *modelRenderer = nullptr;
-    SpriteRenderer *spriteRenderer = nullptr;
-    TextureManager *texture = nullptr;
-    DirectXCommon *dxCommon = nullptr;
-    SrvManager *srv = nullptr;
-    RenderTexture *renderTexture = nullptr;
-    PostEffectRenderer *postEffectRenderer = nullptr;
-    SkyboxRenderer *skyboxRenderer = nullptr;
-    float deltaTime = 0.0f;
+    CoreServices core;
+    AssetServices assets;
+    RendererServices renderer;
+    FrameState frame;
 
 #ifdef _DEBUG
     ImguiManager *imgui = nullptr;

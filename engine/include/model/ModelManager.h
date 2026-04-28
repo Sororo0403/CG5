@@ -34,7 +34,8 @@ class ModelManager {
     /// </summary>
     /// <param name="path">モデルファイルのパス</param>
     /// <returns>モデルID</returns>
-    uint32_t Load(const std::wstring &path);
+    uint32_t Load(const DirectXCommon::UploadContext &uploadContext,
+                  const std::wstring &path);
 
     /// <summary>
     /// XY平面のPrimitiveを生成する
@@ -139,6 +140,8 @@ class ModelManager {
     const ModelRenderer *GetRenderer() const { return &modelRenderer_; }
 
   private:
+    bool IsValidModelId(uint32_t modelId, const char *caller) const;
+
     DirectXCommon *dxCommon_ = nullptr;
     TextureManager *textureManager_ = nullptr;
 

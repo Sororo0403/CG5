@@ -13,9 +13,10 @@ void SpriteManager::Initialize(DirectXCommon *dxCommon,
                                height);
 }
 
-uint32_t SpriteManager::Create(const std::wstring &filePath) {
+uint32_t SpriteManager::Create(const DirectXCommon::UploadContext &uploadContext,
+                               const std::wstring &filePath) {
     // テクスチャ取得
-    uint32_t texId = textureManager_->Load(filePath);
+    uint32_t texId = textureManager_->Load(uploadContext, filePath);
 
     Sprite sprite{};
     sprite.textureId = texId;

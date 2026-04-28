@@ -30,6 +30,14 @@ class BaseScene {
     virtual void Draw() = 0;
 
     /// <summary>
+    /// 描画領域のサイズ変更通知
+    /// </summary>
+    virtual void OnResize(int width, int height) {
+        (void)width;
+        (void)height;
+    }
+
+    /// <summary>
     /// シーンマネージャーを設定する
     /// </summary>
     /// <param name="sceneManager">関連付けるシーンマネージャー</param>

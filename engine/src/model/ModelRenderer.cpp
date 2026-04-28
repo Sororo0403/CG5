@@ -93,6 +93,12 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
                          const Camera &camera,
                          uint32_t environmentTextureId) {
     if (drawIndex_ >= kMaxDraws) {
+#ifdef _DEBUG
+        if (!drawLimitWarningIssued_) {
+            OutputDebugStringA("[ModelRenderer] kMaxDraws exceeded; draw skipped\n");
+            drawLimitWarningIssued_ = true;
+        }
+#endif
         return;
     }
 
@@ -115,6 +121,13 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
 
     auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
         if (drawIndex_ >= kMaxDraws) {
+#ifdef _DEBUG
+            if (!drawLimitWarningIssued_) {
+                OutputDebugStringA(
+                    "[ModelRenderer] kMaxDraws exceeded; submesh draw skipped\n");
+                drawLimitWarningIssued_ = true;
+            }
+#endif
             return;
         }
 

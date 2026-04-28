@@ -7,6 +7,7 @@
 #include "RenderTexture.h"
 #include "SceneContext.h"
 #include "SceneManager.h"
+#include "ShaderCompiler.h"
 #include "SoundManager.h"
 #include "SpriteManager.h"
 #include "SpriteRenderer.h"
@@ -31,6 +32,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     // DirectX
     DirectXCommon dxCommon;
     dxCommon.Initialize(winApp.GetHwnd(), width, height);
+    ShaderCompiler::ValidateFiles({
+        L"engine/resources/shaders/model/ModelVS.hlsl",
+        L"engine/resources/shaders/model/ModelPS.hlsl",
+        L"engine/resources/shaders/model/SkinningCS.hlsl",
+        L"engine/resources/shaders/sprite/SpriteVS.hlsl",
+        L"engine/resources/shaders/sprite/SpritePS.hlsl",
+        L"engine/resources/shaders/skybox/SkyboxVS.hlsl",
+        L"engine/resources/shaders/skybox/SkyboxPS.hlsl",
+        L"engine/resources/shaders/posteffect/PostEffectVS.hlsl",
+        L"engine/resources/shaders/posteffect/PostEffectPS.hlsl",
+        L"engine/resources/shaders/particle/GPUParticleVS.hlsl",
+        L"engine/resources/shaders/particle/GPUParticlePS.hlsl",
+        L"engine/resources/shaders/particle/GPUParticleUpdateCS.hlsl",
+        L"engine/resources/shaders/debug/SkeletonDebugVS.hlsl",
+        L"engine/resources/shaders/debug/SkeletonDebugPS.hlsl",
+    });
 
     // SrvManager
     SrvManager srvManager;
@@ -45,11 +62,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     SoundManager soundManager;
     soundManager.Initialize();
 
-    dxCommon.BeginUpload();
+    auto startupUpload = dxCommon.BeginUploadContext();
 
     // TextureManager
     TextureManager textureManager;
-    textureManager.Initialize(&dxCommon, &srvManager);
+    textureManager.Initialize(&dxCommon, &srvManager, startupUpload);
 
     // ModelManager
     ModelManager modelManager;
@@ -60,30 +77,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     spriteManager.Initialize(&dxCommon, &textureManager, &srvManager, width,
                              height);
 
-    dxCommon.EndUpload();
+    startupUpload.Finish();
 
     textureManager.ReleaseUploadBuffers();
 
     SceneContext sceneCtx{};
-    sceneCtx.input = &input;
-    sceneCtx.winApp = &winApp;
-    sceneCtx.sound = &soundManager;
-    sceneCtx.model = &modelManager;
-    sceneCtx.sprite = &spriteManager;
-    sceneCtx.modelRenderer = modelManager.GetRenderer();
-    sceneCtx.spriteRenderer = spriteManager.GetRenderer();
-    sceneCtx.texture = &textureManager;
-    sceneCtx.dxCommon = &dxCommon;
-    sceneCtx.srv = &srvManager;
+    sceneCtx.core.input = &input;
+    sceneCtx.core.winApp = &winApp;
+    sceneCtx.core.sound = &soundManager;
+    sceneCtx.core.dxCommon = &dxCommon;
+    sceneCtx.core.srv = &srvManager;
+    sceneCtx.assets.model = &modelManager;
+    sceneCtx.assets.sprite = &spriteManager;
+    sceneCtx.assets.texture = &textureManager;
+    sceneCtx.renderer.model = modelManager.GetRenderer();
+    sceneCtx.renderer.sprite = spriteManager.GetRenderer();
 
     RenderTexture renderTexture;
     PostEffectRenderer postEffectRenderer;
     SkyboxRenderer skyboxRenderer;
-    sceneCtx.renderTexture = &renderTexture;
-    sceneCtx.postEffectRenderer = &postEffectRenderer;
-    sceneCtx.skyboxRenderer = &skyboxRenderer;
+    sceneCtx.renderer.renderTexture = &renderTexture;
+    sceneCtx.renderer.postEffectRenderer = &postEffectRenderer;
+    sceneCtx.renderer.skyboxRenderer = &skyboxRenderer;
 
-    sceneCtx.deltaTime = 0.0f;
+    sceneCtx.frame.deltaTime = 0.0f;
+    sceneCtx.frame.width = width;
+    sceneCtx.frame.height = height;
 
 #ifdef _DEBUG
     ImguiManager imguiManager;
@@ -114,6 +133,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             if (width > 0 && height > 0) {
                 dxCommon.Resize(width, height);
                 spriteManager.Resize(width, height);
+                sceneCtx.frame.width = width;
+                sceneCtx.frame.height = height;
+                sceneManager.Resize(width, height);
             }
         }
 
@@ -127,7 +149,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
         prevTime = currentTime;
 
-        sceneCtx.deltaTime = deltaTime;
+        sceneCtx.frame.deltaTime = deltaTime;
 
         // 入力更新
         input.Update(deltaTime);
@@ -148,6 +170,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
         dxCommon.EndFrame();
     }
+
+    dxCommon.ReleaseDepthStencilSrv();
 
     return 0;
 }
