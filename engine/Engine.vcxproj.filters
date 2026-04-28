@@ -417,7 +417,16 @@
     <None Include="$(SolutionDir)engine\resources\shaders\particle\GPUParticle.hlsli">
       <Filter>resources\shaders\particle</Filter>
     </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\ColorEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\FilterEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
+    </None>
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffect.hlsli">
+      <Filter>resources\shaders\posteffect</Filter>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\posteffect\VignettingEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
     </None>
   </ItemGroup>
