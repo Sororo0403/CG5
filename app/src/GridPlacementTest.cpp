@@ -319,23 +319,24 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
         BuildObjects();
     }
     if (input->IsKeyTrigger(DIK_F5)) {
-        if (map_.SaveToJson(stagePath_)) {
-            ++saveCount_;
-        }
+        SaveStage();
     }
     if (input->IsKeyTrigger(DIK_F9)) {
-        if (map_.LoadFromJson(stagePath_)) {
-            ++loadCount_;
-            placementTileSize_ = map_.GetTileSize();
-            BuildObjects();
-            ResetPlayerToSpawn();
-        }
+        LoadStage();
     }
 }
 
 void GridPlacementTest::UpdateObjectTuning() {
     placementTileSize_ = (std::max)(0.25f, placementTileSize_);
     map_.SetTileSize(placementTileSize_);
+    if (placementTileSize_ == lastAppliedTileSize_ &&
+        floorScale_ == lastAppliedFloorScale_ &&
+        wallScale_ == lastAppliedWallScale_ &&
+        wallHeight_ == lastAppliedWallHeight_ &&
+        markerScale_ == lastAppliedMarkerScale_) {
+        return;
+    }
+
     const float tileSize = map_.GetTileSize();
 
     for (PlacementObject &object : objects_) {
@@ -358,6 +359,12 @@ void GridPlacementTest::UpdateObjectTuning() {
                                       tileSize * markerScale_};
         }
     }
+
+    lastAppliedTileSize_ = placementTileSize_;
+    lastAppliedFloorScale_ = floorScale_;
+    lastAppliedWallScale_ = wallScale_;
+    lastAppliedWallHeight_ = wallHeight_;
+    lastAppliedMarkerScale_ = markerScale_;
 }
 
 void GridPlacementTest::DrawGBuffer(const SceneContext &ctx,
@@ -478,6 +485,64 @@ void GridPlacementTest::RegisterInspectorObjects(const Camera &camera) {
 #else
     (void)camera;
 #endif // _DEBUG
+}
+
+PlacementObject *GridPlacementTest::GetPlacementObject(size_t index) {
+    if (index >= objects_.size()) {
+        return nullptr;
+    }
+    return &objects_[index];
+}
+
+const PlacementObject *GridPlacementTest::GetPlacementObject(size_t index) const {
+    if (index >= objects_.size()) {
+        return nullptr;
+    }
+    return &objects_[index];
+}
+
+void GridPlacementTest::SetSelectedIndex(int index) {
+    if (objects_.empty()) {
+        selectedIndex_ = 0;
+        return;
+    }
+    selectedIndex_ = (std::clamp)(index, 0, static_cast<int>(objects_.size()) - 1);
+}
+
+bool GridPlacementTest::SaveStage() {
+    if (map_.SaveToJson(stagePath_)) {
+        ++saveCount_;
+        return true;
+    }
+    return false;
+}
+
+bool GridPlacementTest::LoadStage() {
+    if (!map_.LoadFromJson(stagePath_)) {
+        return false;
+    }
+
+    ++loadCount_;
+    placementTileSize_ = map_.GetTileSize();
+    BuildObjects();
+    ResetPlayerToSpawn();
+    lastAppliedTileSize_ = placementTileSize_;
+    lastAppliedFloorScale_ = floorScale_;
+    lastAppliedWallScale_ = wallScale_;
+    lastAppliedWallHeight_ = wallHeight_;
+    lastAppliedMarkerScale_ = markerScale_;
+    return true;
+}
+
+void GridPlacementTest::OnEditorObjectChanged(size_t index) {
+    PlacementObject *object = GetPlacementObject(index);
+    if (!object) {
+        return;
+    }
+
+    if (object->kind == PlacementObjectKind::PlayerStart) {
+        playerSpawn_ = object->transform.position;
+    }
 }
 
 void GridPlacementTest::ResetPlayerToSpawn() {

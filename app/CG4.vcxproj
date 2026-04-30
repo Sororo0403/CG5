@@ -123,12 +123,16 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" (
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="$(SolutionDir)app\src\editor\EditorLayer.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)app\src\GridPlacementTest.cpp" />
     <ClCompile Include="$(SolutionDir)app\src\PlacementMap.cpp" />
     <ClCompile Include="$(SolutionDir)app\src\scene\GameScene.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="$(SolutionDir)app\include\editor\EditorLayer.h" />
     <ClInclude Include="$(SolutionDir)app\include\GridPlacementTest.h" />
     <ClInclude Include="$(SolutionDir)app\include\PlacementMap.h" />
     <ClInclude Include="$(SolutionDir)app\include\scene\GameScene.h" />

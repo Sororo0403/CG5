@@ -39,7 +39,16 @@ class GridPlacementTest {
 
     const PlacementMap &GetMap() const { return map_; }
     size_t GetObjectCount() const { return objects_.size(); }
+    PlacementObject *GetPlacementObject(size_t index);
+    const PlacementObject *GetPlacementObject(size_t index) const;
+    int GetSelectedIndex() const { return selectedIndex_; }
+    void SetSelectedIndex(int index);
+    bool SaveStage();
+    bool LoadStage();
+    const std::string &GetStagePath() const { return stagePath_; }
     const DirectX::XMFLOAT3 &GetCameraTarget() const { return cameraTarget_; }
+    void OnEditorObjectChanged(size_t index);
+    static const char *GetKindName(PlacementObjectKind kind);
 
   private:
     void CreateModels(const SceneContext &ctx);
@@ -58,7 +67,6 @@ class GridPlacementTest {
     void ResetPlayerToSpawn();
     bool IsBlocked(float worldX, float worldZ) const;
     void SelectObject(int offset);
-    static const char *GetKindName(PlacementObjectKind kind);
     static char GetBrushTile(int brush);
     static DirectX::XMFLOAT4 MakeQuaternion(float pitch, float yaw, float roll);
 
@@ -94,4 +102,9 @@ class GridPlacementTest {
     int saveCount_ = 0;
     int loadCount_ = 0;
     std::string stagePath_ = "resources/levels/game_stage.json";
+    float lastAppliedTileSize_ = 1.0f;
+    float lastAppliedFloorScale_ = 1.0f;
+    float lastAppliedWallScale_ = 0.82f;
+    float lastAppliedWallHeight_ = 0.9f;
+    float lastAppliedMarkerScale_ = 0.5f;
 };

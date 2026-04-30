@@ -2,6 +2,9 @@
 #include "BaseScene.h"
 #include "Camera.h"
 #include "GridPlacementTest.h"
+#ifdef _DEBUG
+#include "editor/EditorLayer.h"
+#endif // _DEBUG
 #include <cstdint>
 
 class GameScene : public BaseScene {
@@ -32,6 +35,9 @@ class GameScene : public BaseScene {
 
     Camera camera_;
     GridPlacementTest gridPlacementTest_;
+#ifdef _DEBUG
+    EditorLayer editorLayer_;
+#endif // _DEBUG
     uint32_t skyboxModelId_ = 0;
     uint32_t environmentTextureId_ = 0;
     int renderWidth_ = 0;

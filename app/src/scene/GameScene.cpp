@@ -98,7 +98,14 @@ void GameScene::Update() {
     }
 #endif // _DEBUG
 
+#ifdef _DEBUG
+    if (EngineRuntime::GetInstance().IsTuningMode() ||
+        !editorLayer_.IsPaused()) {
+        gridPlacementTest_.Update(*ctx_, camera_);
+    }
+#else
     gridPlacementTest_.Update(*ctx_, camera_);
+#endif // _DEBUG
     ApplyTuning();
     if (ctx_->renderer.postEffectRenderer) {
         ctx_->renderer.postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
@@ -140,8 +147,7 @@ void GameScene::Draw() {
     ctx_->core.dxCommon->TransitionDepthToWrite();
 
 #ifdef _DEBUG
-    DebugUIRegistry::GetInstance().Draw();
-    Inspector::GetInstance().Draw();
+    editorLayer_.Draw(gridPlacementTest_);
 #endif // _DEBUG
 }
 
