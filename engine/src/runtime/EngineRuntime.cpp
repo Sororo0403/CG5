@@ -6,22 +6,31 @@ EngineRuntime &EngineRuntime::GetInstance() {
 }
 
 void EngineRuntime::ToggleMode() {
-    SetMode(IsPlayMode() ? EngineRuntimeMode::Tuning : EngineRuntimeMode::Play);
+    SetMode(IsGameplayMode() ? EngineRuntimeMode::Editor
+                             : EngineRuntimeMode::Gameplay);
 }
 
 void EngineRuntime::SetMode(EngineRuntimeMode mode) {
     settings_.mode = mode;
-    settings_.showDebugUI = mode == EngineRuntimeMode::Tuning;
+    settings_.showDebugUI = mode == EngineRuntimeMode::Editor;
 }
 
 EngineRuntimeMode EngineRuntime::GetMode() const { return settings_.mode; }
 
 bool EngineRuntime::IsPlayMode() const {
-    return settings_.mode == EngineRuntimeMode::Play;
+    return IsGameplayMode();
 }
 
 bool EngineRuntime::IsTuningMode() const {
-    return settings_.mode == EngineRuntimeMode::Tuning;
+    return IsEditorMode();
+}
+
+bool EngineRuntime::IsGameplayMode() const {
+    return settings_.mode == EngineRuntimeMode::Gameplay;
+}
+
+bool EngineRuntime::IsEditorMode() const {
+    return settings_.mode == EngineRuntimeMode::Editor;
 }
 
 EngineRuntimeSettings &EngineRuntime::Settings() { return settings_; }

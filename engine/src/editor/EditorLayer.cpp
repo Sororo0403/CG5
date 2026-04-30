@@ -1,0 +1,103 @@
+#include "EditorLayer.h"
+#include "EngineRuntime.h"
+#include "IEditableScene.h"
+#include "imgui.h"
+#include <algorithm>
+#include <string>
+
+namespace {
+
+constexpr float kToolbarHeight = 42.0f;
+constexpr float kHierarchyWidth = 260.0f;
+constexpr float kInspectorWidth = 320.0f;
+constexpr float kConsoleHeight = 170.0f;
+
+} // namespace
+
+void EditorLayer::Draw(IEditableScene *scene) {
+#ifdef _DEBUG
+    EditorContext context{};
+    context.scene = scene;
+    context.console = &console_;
+    context.paused = paused_;
+
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    const ImVec2 origin = viewport->WorkPos;
+    const ImVec2 size = viewport->WorkSize;
+
+    ImGui::SetNextWindowPos(origin);
+    ImGui::SetNextWindowSize({size.x, kToolbarHeight});
+    DrawToolbar(context);
+    paused_ = context.paused;
+
+    ImGui::SetNextWindowPos({origin.x, origin.y + kToolbarHeight});
+    ImGui::SetNextWindowSize(
+        {kHierarchyWidth, (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});
+    hierarchyPanel_.Draw(context);
+
+    ImGui::SetNextWindowPos(
+        {origin.x + size.x - kInspectorWidth, origin.y + kToolbarHeight});
+    ImGui::SetNextWindowSize(
+        {kInspectorWidth, (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});
+    inspectorPanel_.Draw(context);
+
+    ImGui::SetNextWindowPos({origin.x, origin.y + size.y - kConsoleHeight});
+    ImGui::SetNextWindowSize({size.x, kConsoleHeight});
+    consolePanel_.Draw(console_);
+#else
+    (void)scene;
+#endif // _DEBUG
+}
+
+void EditorLayer::DrawToolbar(EditorContext &context) {
+#ifdef _DEBUG
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
+                             ImGuiWindowFlags_NoCollapse |
+                             ImGuiWindowFlags_NoTitleBar;
+    if (!ImGui::Begin("Editor Toolbar", nullptr, flags)) {
+        ImGui::End();
+        return;
+    }
+
+    EngineRuntime &runtime = EngineRuntime::GetInstance();
+    const bool engineMode = runtime.IsEditorMode();
+    if (ImGui::Button(engineMode ? "Engine Mode" : "Gameplay Mode")) {
+        runtime.SetMode(engineMode ? EngineRuntimeMode::Gameplay
+                                   : EngineRuntimeMode::Editor);
+        console_.AddLog(runtime.IsEditorMode() ? "Switched to Engine Mode"
+                                               : "Switched to Gameplay Mode");
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button(context.paused ? "Play" : "Pause")) {
+        context.paused = !context.paused;
+        console_.AddLog(context.paused ? "Paused" : "Playing");
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Save Scene")) {
+        std::string message;
+        const bool saved =
+            context.scene && context.scene->SaveScene(&message);
+        console_.AddLog(saved ? "Saved scene: " + message
+                              : "Failed to save scene: " + message);
+    }
+
+    ImGui::SameLine();
+    if (ImGui::Button("Load Scene")) {
+        std::string message;
+        const bool loaded =
+            context.scene && context.scene->LoadScene(&message);
+        console_.AddLog(loaded ? "Loaded scene: " + message
+                               : "Failed to load scene: " + message);
+    }
+
+    ImGui::SameLine();
+    const size_t objectCount =
+        context.scene ? context.scene->GetEditableObjectCount() : 0;
+    ImGui::Text("Objects: %zu", objectCount);
+    ImGui::End();
+#else
+    (void)context;
+#endif // _DEBUG
+}

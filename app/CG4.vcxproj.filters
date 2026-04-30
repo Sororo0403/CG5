@@ -7,23 +7,14 @@
     <Filter Include="include\scene">
       <UniqueIdentifier>{edc77e8e-c3ca-4567-9f6d-afc6474c4827}</UniqueIdentifier>
     </Filter>
-    <Filter Include="include\editor">
-      <UniqueIdentifier>{ad12fc92-1658-4a73-a01f-fc7aa671ab06}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src">
       <UniqueIdentifier>{5301541f-af2b-4c39-9309-d90f5fd9039b}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\scene">
       <UniqueIdentifier>{6df06332-d393-4577-9a22-2260e6a5b501}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\editor">
-      <UniqueIdentifier>{f8ad1a65-4c5d-44ef-b610-88ffaf79ac46}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(SolutionDir)app\src\editor\EditorLayer.cpp">
-      <Filter>src\editor</Filter>
-    </ClCompile>
     <ClCompile Include="$(SolutionDir)app\src\GridPlacementTest.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -36,9 +27,6 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(SolutionDir)app\include\editor\EditorLayer.h">
-      <Filter>include\editor</Filter>
-    </ClInclude>
     <ClInclude Include="$(SolutionDir)app\include\GridPlacementTest.h">
       <Filter>include</Filter>
     </ClInclude>

@@ -3,7 +3,7 @@
 #include "Camera.h"
 #include "GridPlacementTest.h"
 #ifdef _DEBUG
-#include "editor/EditorLayer.h"
+#include "EditorLayer.h"
 #endif // _DEBUG
 #include <cstdint>
 

@@ -99,7 +99,7 @@ void GameScene::Update() {
 #endif // _DEBUG
 
 #ifdef _DEBUG
-    if (EngineRuntime::GetInstance().IsTuningMode() ||
+    if (EngineRuntime::GetInstance().IsEditorMode() ||
         !editorLayer_.IsPaused()) {
         gridPlacementTest_.Update(*ctx_, camera_);
     }
@@ -147,7 +147,7 @@ void GameScene::Draw() {
     ctx_->core.dxCommon->TransitionDepthToWrite();
 
 #ifdef _DEBUG
-    editorLayer_.Draw(gridPlacementTest_);
+    editorLayer_.Draw(&gridPlacementTest_);
 #endif // _DEBUG
 }
 

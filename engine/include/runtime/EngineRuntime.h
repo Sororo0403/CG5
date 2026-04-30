@@ -1,12 +1,14 @@
 #pragma once
 
 enum class EngineRuntimeMode {
-    Play,
-    Tuning,
+    Gameplay,
+    Editor,
+    Play = Gameplay,
+    Tuning = Editor,
 };
 
 struct EngineRuntimeSettings {
-    EngineRuntimeMode mode = EngineRuntimeMode::Play;
+    EngineRuntimeMode mode = EngineRuntimeMode::Gameplay;
 
     /// <summary>
     /// 調整用GUIを表示するか。
@@ -31,7 +33,7 @@ struct EngineRuntimeSettings {
 
 /// <summary>
 /// エンジン全体の実行モードを管理する。
-/// Play Modeでは通常のゲーム実行を行い、Tuning ModeではGUIによる調整やデバッグ表示を行う。
+/// Gameplay Modeでは通常のゲーム実行を行い、Editor ModeではGUIによる編集やデバッグ表示を行う。
 /// </summary>
 class EngineRuntime {
   public:
@@ -43,6 +45,8 @@ class EngineRuntime {
 
     bool IsPlayMode() const;
     bool IsTuningMode() const;
+    bool IsGameplayMode() const;
+    bool IsEditorMode() const;
 
     EngineRuntimeSettings &Settings();
     const EngineRuntimeSettings &Settings() const;

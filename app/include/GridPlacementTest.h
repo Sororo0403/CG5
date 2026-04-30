@@ -1,5 +1,7 @@
 #pragma once
 #include "Camera.h"
+#include "IEditableObject.h"
+#include "IEditableScene.h"
 #include "PlacementMap.h"
 #include "SceneContext.h"
 #include "Transform.h"
@@ -17,7 +19,7 @@ enum class PlacementObjectKind {
     EnemyMarker,
 };
 
-struct PlacementObject {
+struct PlacementObject : public IEditableObject {
     PlacementObjectKind kind = PlacementObjectKind::Floor;
     char mapCode = '0';
     int gridX = 0;
@@ -25,9 +27,14 @@ struct PlacementObject {
     uint32_t modelId = 0;
     Transform transform;
     std::string name;
+
+    EditableObjectDesc GetEditorDesc() const override;
+    void SetEditorName(const std::string &name) override;
+    EditableTransform GetEditorTransform() const override;
+    void SetEditorTransform(const EditableTransform &transform) override;
 };
 
-class GridPlacementTest {
+class GridPlacementTest : public IEditableScene {
   public:
     void Initialize(const SceneContext &ctx);
     void Update(const SceneContext &ctx, Camera &camera);
@@ -38,17 +45,18 @@ class GridPlacementTest {
     void RegisterInspectorObjects(const Camera &camera);
 
     const PlacementMap &GetMap() const { return map_; }
-    size_t GetObjectCount() const { return objects_.size(); }
-    PlacementObject *GetPlacementObject(size_t index);
-    const PlacementObject *GetPlacementObject(size_t index) const;
-    int GetSelectedIndex() const { return selectedIndex_; }
-    void SetSelectedIndex(int index);
-    bool SaveStage();
-    bool LoadStage();
-    const std::string &GetStagePath() const { return stagePath_; }
+    size_t GetObjectCount() const { return GetEditableObjectCount(); }
     const DirectX::XMFLOAT3 &GetCameraTarget() const { return cameraTarget_; }
-    void OnEditorObjectChanged(size_t index);
     static const char *GetKindName(PlacementObjectKind kind);
+
+    size_t GetEditableObjectCount() const override;
+    IEditableObject *GetEditableObject(size_t index) override;
+    const IEditableObject *GetEditableObject(size_t index) const override;
+    int GetSelectedEditableObjectIndex() const override;
+    void SetSelectedEditableObjectIndex(int index) override;
+    void OnEditableObjectChanged(size_t index) override;
+    bool SaveScene(std::string *message) override;
+    bool LoadScene(std::string *message) override;
 
   private:
     void CreateModels(const SceneContext &ctx);

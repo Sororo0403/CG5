@@ -22,6 +22,21 @@ namespace {
 constexpr float kFloorHeight = 0.0f;
 constexpr float kMarkerHeight = 0.08f;
 
+const char *GetPlacementKindName(PlacementObjectKind kind) {
+    switch (kind) {
+    case PlacementObjectKind::Floor:
+        return "Floor";
+    case PlacementObjectKind::Wall:
+        return "Wall";
+    case PlacementObjectKind::PlayerStart:
+        return "Player Start";
+    case PlacementObjectKind::EnemyMarker:
+        return "Enemy Marker";
+    default:
+        return "Unknown";
+    }
+}
+
 Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
     Material material{};
     material.color = color;
@@ -34,6 +49,38 @@ Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
 }
 
 } // namespace
+
+EditableObjectDesc PlacementObject::GetEditorDesc() const {
+    EditableObjectDesc desc{};
+    desc.name = name;
+    desc.type = GetPlacementKindName(kind);
+    if (kind == PlacementObjectKind::Wall) {
+        desc.collider = "blocked grid tile";
+    } else if (kind == PlacementObjectKind::Floor ||
+               kind == PlacementObjectKind::PlayerStart ||
+               kind == PlacementObjectKind::EnemyMarker) {
+        desc.collider = "walkable grid tile";
+    }
+    return desc;
+}
+
+void PlacementObject::SetEditorName(const std::string &newName) {
+    name = newName;
+}
+
+EditableTransform PlacementObject::GetEditorTransform() const {
+    EditableTransform editable{};
+    editable.position = transform.position;
+    editable.rotation = transform.rotation;
+    editable.scale = transform.scale;
+    return editable;
+}
+
+void PlacementObject::SetEditorTransform(const EditableTransform &editable) {
+    transform.position = editable.position;
+    transform.rotation = editable.rotation;
+    transform.scale = editable.scale;
+}
 
 void GridPlacementTest::Initialize(const SceneContext &ctx) {
     CreateModels(ctx);
@@ -151,7 +198,7 @@ void GridPlacementTest::Update(const SceneContext &ctx, Camera &camera) {
     if (ctx.assets.model) {
         ctx.assets.model->UpdateAnimation(playerModelId_, ctx.frame.deltaTime);
     }
-    if (EngineRuntime::GetInstance().IsTuningMode()) {
+    if (EngineRuntime::GetInstance().IsEditorMode()) {
         UpdateTuningMode(ctx, camera);
     } else {
         UpdatePlayMode(ctx, camera);
@@ -319,10 +366,10 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
         BuildObjects();
     }
     if (input->IsKeyTrigger(DIK_F5)) {
-        SaveStage();
+        SaveScene(nullptr);
     }
     if (input->IsKeyTrigger(DIK_F9)) {
-        LoadStage();
+        LoadScene(nullptr);
     }
 }
 
@@ -487,21 +534,29 @@ void GridPlacementTest::RegisterInspectorObjects(const Camera &camera) {
 #endif // _DEBUG
 }
 
-PlacementObject *GridPlacementTest::GetPlacementObject(size_t index) {
+size_t GridPlacementTest::GetEditableObjectCount() const {
+    return objects_.size();
+}
+
+IEditableObject *GridPlacementTest::GetEditableObject(size_t index) {
     if (index >= objects_.size()) {
         return nullptr;
     }
     return &objects_[index];
 }
 
-const PlacementObject *GridPlacementTest::GetPlacementObject(size_t index) const {
+const IEditableObject *GridPlacementTest::GetEditableObject(size_t index) const {
     if (index >= objects_.size()) {
         return nullptr;
     }
     return &objects_[index];
 }
 
-void GridPlacementTest::SetSelectedIndex(int index) {
+int GridPlacementTest::GetSelectedEditableObjectIndex() const {
+    return selectedIndex_;
+}
+
+void GridPlacementTest::SetSelectedEditableObjectIndex(int index) {
     if (objects_.empty()) {
         selectedIndex_ = 0;
         return;
@@ -509,7 +564,11 @@ void GridPlacementTest::SetSelectedIndex(int index) {
     selectedIndex_ = (std::clamp)(index, 0, static_cast<int>(objects_.size()) - 1);
 }
 
-bool GridPlacementTest::SaveStage() {
+bool GridPlacementTest::SaveScene(std::string *message) {
+    if (message) {
+        *message = stagePath_;
+    }
+
     if (map_.SaveToJson(stagePath_)) {
         ++saveCount_;
         return true;
@@ -517,7 +576,11 @@ bool GridPlacementTest::SaveStage() {
     return false;
 }
 
-bool GridPlacementTest::LoadStage() {
+bool GridPlacementTest::LoadScene(std::string *message) {
+    if (message) {
+        *message = stagePath_;
+    }
+
     if (!map_.LoadFromJson(stagePath_)) {
         return false;
     }
@@ -534,12 +597,12 @@ bool GridPlacementTest::LoadStage() {
     return true;
 }
 
-void GridPlacementTest::OnEditorObjectChanged(size_t index) {
-    PlacementObject *object = GetPlacementObject(index);
-    if (!object) {
+void GridPlacementTest::OnEditableObjectChanged(size_t index) {
+    if (index >= objects_.size()) {
         return;
     }
 
+    PlacementObject *object = &objects_[index];
     if (object->kind == PlacementObjectKind::PlayerStart) {
         playerSpawn_ = object->transform.position;
     }
@@ -581,18 +644,7 @@ void GridPlacementTest::SelectObject(int offset) {
 }
 
 const char *GridPlacementTest::GetKindName(PlacementObjectKind kind) {
-    switch (kind) {
-    case PlacementObjectKind::Floor:
-        return "Floor";
-    case PlacementObjectKind::Wall:
-        return "Wall";
-    case PlacementObjectKind::PlayerStart:
-        return "Player Start";
-    case PlacementObjectKind::EnemyMarker:
-        return "Enemy Marker";
-    default:
-        return "Unknown";
-    }
+    return GetPlacementKindName(kind);
 }
 
 char GridPlacementTest::GetBrushTile(int brush) {
