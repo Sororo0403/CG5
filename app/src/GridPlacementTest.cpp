@@ -141,6 +141,7 @@ Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
 
 EditableObjectDesc PlacementObject::GetEditorDesc() const {
     EditableObjectDesc desc{};
+    desc.id = id;
     desc.name = name;
     desc.type = GetPlacementKindName(kind);
     if (kind == PlacementObjectKind::Wall) {
@@ -182,6 +183,7 @@ void GridPlacementTest::Initialize(const SceneContext &ctx) {
     }
     RecomputePlayerSpawnFromObjects();
     ResetPlayerToSpawn();
+    ClearSceneDirty();
     lastAppliedTileSize_ = placementTileSize_;
     lastAppliedFloorScale_ = floorScale_;
     lastAppliedWallScale_ = wallScale_;
@@ -432,10 +434,12 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
         map_.SetTile(placementCursorX_, placementCursorY_,
                      GetBrushTile(placementBrush_));
         BuildObjects();
+        MarkSceneDirty();
     }
     if (input->IsKeyTrigger(DIK_BACK)) {
         map_.SetTile(placementCursorX_, placementCursorY_, '0');
         BuildObjects();
+        MarkSceneDirty();
     }
     if (input->IsKeyTrigger(DIK_F5)) {
         SaveScene(nullptr);
@@ -640,6 +644,7 @@ bool GridPlacementTest::SaveScene(std::string *message) {
     const EditableSceneDocument document = BuildSceneDocument();
     if (SceneSerializer::Save(stagePath_, document, message)) {
         ++saveCount_;
+        ClearSceneDirty();
         return true;
     }
     return false;
@@ -655,6 +660,7 @@ bool GridPlacementTest::LoadScene(std::string *message) {
         return false;
     }
     ResetPlayerToSpawn();
+    ClearSceneDirty();
     lastAppliedTileSize_ = placementTileSize_;
     lastAppliedFloorScale_ = floorScale_;
     lastAppliedWallScale_ = wallScale_;
@@ -662,6 +668,20 @@ bool GridPlacementTest::LoadScene(std::string *message) {
     lastAppliedMarkerScale_ = markerScale_;
     ++loadCount_;
     return true;
+}
+
+bool GridPlacementTest::IsSceneDirty() const {
+    return sceneDirty_;
+}
+
+void GridPlacementTest::MarkSceneDirty() {
+    if (EngineRuntime::GetInstance().IsEditorMode()) {
+        sceneDirty_ = true;
+    }
+}
+
+void GridPlacementTest::ClearSceneDirty() {
+    sceneDirty_ = false;
 }
 
 bool GridPlacementTest::CanEditObjects() const {
@@ -698,9 +718,12 @@ bool GridPlacementTest::AddEditableObject(const std::string &type,
     selectedIndex_ = static_cast<int>(objects_.size()) - 1;
     SyncMapCellFromObjects(object.gridX, object.gridY);
     RecomputePlayerSpawnFromObjects();
+    MarkSceneDirty();
 
     if (message) {
-        *message = "Added " + GetPlacementKindDisplayName(kind);
+        *message = "Added " + GetPlacementKindDisplayName(kind) + " at (" +
+                   std::to_string(object.gridX) + ", " +
+                   std::to_string(object.gridY) + ")";
     }
     return true;
 }
@@ -726,6 +749,7 @@ bool GridPlacementTest::DeleteSelectedEditableObject(std::string *message) {
     ClampSelectedIndex();
     SyncMapCellFromObjects(removed.gridX, removed.gridY);
     RecomputePlayerSpawnFromObjects();
+    MarkSceneDirty();
 
     if (message) {
         *message = "Deleted " + removed.name;
@@ -775,9 +799,10 @@ bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
     selectedIndex_ = static_cast<int>(objects_.size()) - 1;
     SyncMapCellFromObjects(object.gridX, object.gridY);
     RecomputePlayerSpawnFromObjects();
+    MarkSceneDirty();
 
     if (message) {
-        *message = "Duplicated " + source.name;
+        *message = "Duplicated " + source.name + " -> " + object.name;
     }
     return true;
 }
@@ -834,6 +859,7 @@ void GridPlacementTest::OnEditableObjectChanged(size_t index) {
     if (object->kind == PlacementObjectKind::PlayerStart) {
         RecomputePlayerSpawnFromObjects();
     }
+    MarkSceneDirty();
 }
 
 void GridPlacementTest::RecomputePlayerSpawnFromObjects() {

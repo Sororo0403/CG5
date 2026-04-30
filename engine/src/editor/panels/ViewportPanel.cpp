@@ -43,10 +43,13 @@ void ViewportPanel::Draw(EditorContext &context) {
                 focused_ ? "yes" : "no");
     ImGui::Separator();
     if (context.gameplayMode) {
-        ImGui::TextWrapped("Gameplay Mode: WASD move, Space jump, R reset");
+        ImGui::TextWrapped(
+            "Gameplay Mode: WASD: Move player  Space: Jump  R: Reset player  F1: Toggle mode");
     } else {
         ImGui::TextWrapped(
-            "Engine Mode: WASD/QE/Arrow camera, IJKL cursor, Enter place, Backspace delete");
+            "Engine Mode: WASD: Move camera target  Q/E: Zoom  Arrow Keys: Rotate/Height");
+        ImGui::TextWrapped(
+            "I/J/K/L: Move placement cursor  Enter: Place  Backspace: Remove tile  F5: Save  F9: Load  Tab: Select next object");
     }
 
     const char *title = "Scene Viewport";

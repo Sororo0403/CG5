@@ -18,6 +18,10 @@ class IEditableScene {
     virtual bool SaveScene(std::string *message) = 0;
     virtual bool LoadScene(std::string *message) = 0;
 
+    virtual bool IsSceneDirty() const { return false; }
+    virtual void MarkSceneDirty() {}
+    virtual void ClearSceneDirty() {}
+
     virtual bool CanEditObjects() const { return false; }
     virtual bool AddEditableObject(const std::string &type,
                                    std::string *message) {

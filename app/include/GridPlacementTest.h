@@ -59,6 +59,9 @@ class GridPlacementTest : public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
+    bool IsSceneDirty() const override;
+    void MarkSceneDirty() override;
+    void ClearSceneDirty() override;
     bool CanEditObjects() const override;
     bool AddEditableObject(const std::string &type,
                            std::string *message) override;
@@ -122,6 +125,7 @@ class GridPlacementTest : public IEditableScene {
     float playerVelocityY_ = 0.0f;
     bool playerOnGround_ = true;
     bool gameplayPaused_ = false;
+    bool sceneDirty_ = false;
     DirectX::XMFLOAT3 editorCameraTarget_{0.0f, 0.0f, 0.0f};
     float editorCameraYaw_ = 0.0f;
     float editorCameraDistance_ = 9.5f;

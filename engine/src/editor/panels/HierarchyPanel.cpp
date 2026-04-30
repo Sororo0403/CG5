@@ -83,8 +83,9 @@ void HierarchyPanel::Draw(EditorContext &context) {
 
         const EditableObjectDesc desc = object->GetEditorDesc();
         char label[160]{};
-        std::snprintf(label, sizeof(label), "%03d  %s", index,
-                      desc.name.c_str());
+        std::snprintf(label, sizeof(label), "%03d  %s [%s] #%llu", index,
+                      desc.name.c_str(), desc.type.c_str(),
+                      static_cast<unsigned long long>(desc.id));
         if (ImGui::Selectable(label,
                               scene->GetSelectedEditableObjectIndex() == index)) {
             scene->SetSelectedEditableObjectIndex(index);

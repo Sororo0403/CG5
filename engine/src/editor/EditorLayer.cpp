@@ -68,11 +68,16 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
 
     EngineRuntime &runtime = EngineRuntime::GetInstance();
     const bool gameplayMode = runtime.IsGameplayMode();
+    const bool dirty = context.scene && context.scene->IsSceneDirty();
     ImGui::Text("Mode: %s", gameplayMode ? "Gameplay" : "Engine");
 
     ImGui::SameLine();
     if (ImGui::Button(gameplayMode ? "Switch to Engine"
                                    : "Switch to Gameplay")) {
+        if (!gameplayMode && dirty) {
+            console_.AddLog(
+                "Warning: entering Gameplay with unsaved scene changes");
+        }
         runtime.SetMode(gameplayMode ? EngineRuntimeMode::Editor
                                      : EngineRuntimeMode::Gameplay);
         console_.AddLog(runtime.IsEditorMode() ? "Switched to Engine Mode"
@@ -95,7 +100,7 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
             if (context.scene) {
                 context.scene->ResetGameplay();
             }
-            console_.AddLog("Gameplay reset to PlayerStart");
+            console_.AddLog("Reset player to spawn");
         }
     } else {
         ImGui::SameLine();
@@ -108,11 +113,18 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
 
         ImGui::SameLine();
         if (ImGui::Button("Load Scene")) {
+            if (dirty) {
+                console_.AddLog(
+                    "Warning: loading will discard unsaved changes");
+            }
             std::string message;
             const bool loaded =
                 context.scene && context.scene->LoadScene(&message);
             console_.AddLog(loaded ? message : "Failed to load scene: " + message);
         }
+
+        ImGui::SameLine();
+        ImGui::Text("Scene: %s", dirty ? "Unsaved *" : "Saved");
     }
 
     ImGui::SameLine();

@@ -1,5 +1,6 @@
 #pragma once
 #include <DirectXMath.h>
+#include <cstdint>
 #include <string>
 
 struct EditableTransform {
@@ -9,9 +10,12 @@ struct EditableTransform {
 };
 
 struct EditableObjectDesc {
+    uint64_t id = 0;
     std::string name;
     std::string type;
     std::string collider;
+    bool editable = true;
+    std::string warning;
 };
 
 class IEditableObject {
