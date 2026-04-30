@@ -172,8 +172,7 @@ void GameScene::ApplyDissolveMaterial() {
 }
 
 void GameScene::Draw() {
-    const EngineRuntime &runtime = EngineRuntime::GetInstance();
-    if (runtime.IsTuningMode() && runtime.Settings().showDebugUI) {
+    if (ShouldDrawDevelopmentUI()) {
         DrawPostEffectControls();
     }
 
@@ -228,6 +227,17 @@ void GameScene::Draw() {
     ctx_->renderer.postEffectRenderer->Draw(
         displayHandle, ctx_->core.dxCommon->GetDepthStencilGpuHandle());
     ctx_->core.dxCommon->TransitionDepthToWrite();
+}
+
+bool GameScene::ShouldDrawDevelopmentUI() const {
+#ifdef _DEBUG
+    const EngineRuntime &runtime = EngineRuntime::GetInstance();
+    const EngineRuntimeSettings &settings = runtime.Settings();
+    // Tuning Mode中だけ開発用GUIを表示する。showDebugUIは一時的に隠すためのフラグ。
+    return runtime.IsTuningMode() && settings.showDebugUI;
+#else
+    return false;
+#endif // _DEBUG
 }
 
 void GameScene::UpdatePostEffectControls() {
@@ -448,6 +458,8 @@ void GameScene::DrawRuntimeControls() {
         }
         ImGui::Checkbox("pauseGameInTuningMode",
                         &settings.pauseGameInTuningMode);
+        // 将来、GUI操作中のゲーム入力抑制を行うための設定。
+        ImGui::Checkbox("guiCapturesInput", &settings.guiCapturesInput);
         ImGui::SliderFloat("timeScale", &settings.timeScale, 0.0f, 3.0f);
         ImGui::Checkbox("showDebugUI", &settings.showDebugUI);
     }
