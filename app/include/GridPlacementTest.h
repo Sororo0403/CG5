@@ -63,6 +63,11 @@ class GridPlacementTest : public IEditableScene {
     uint64_t GetSelectedObjectId() const override;
     void SetSelectedObjectById(uint64_t id) override;
     uint64_t PickEditableObject(const EditableRay &ray) const override;
+    bool UpdateHoveredGridCellFromRay(const EditableRay &ray) override;
+    void ClearHoveredGridCell() override;
+    bool HasHoveredGridCell() const override;
+    int GetHoveredGridX() const override;
+    int GetHoveredGridY() const override;
     int GetSelectedEditableObjectIndex() const override;
     void SetSelectedEditableObjectIndex(int index) override;
     void OnEditableObjectChanged(size_t index) override;
@@ -128,6 +133,13 @@ class GridPlacementTest : public IEditableScene {
     void AssignRuntimeFields(PlacementObject &object) const;
     uint64_t AllocateObjectId();
     bool IsBlocked(float worldX, float worldZ) const;
+    bool TryGetGridCellAtWorld(float worldX, float worldZ, int &gridX,
+                               int &gridY) const;
+    void DrawEditorGridHighlight(ModelRenderer *renderer,
+                                 const SceneContext &ctx,
+                                 const Camera &camera,
+                                 bool gBuffer,
+                                 uint32_t environmentTextureId);
     void SelectObject(int offset);
     static char GetBrushTile(int brush);
     static DirectX::XMFLOAT4 MakeQuaternion(float pitch, float yaw, float roll);
@@ -139,6 +151,7 @@ class GridPlacementTest : public IEditableScene {
     uint32_t wallModelId_ = 0;
     uint32_t playerModelId_ = 0;
     uint32_t markerModelId_ = 0;
+    uint32_t highlightModelId_ = 0;
     DirectX::XMFLOAT3 cameraTarget_{0.0f, 0.0f, 0.0f};
     float cameraYaw_ = 0.0f;
     float cameraDistance_ = 9.5f;
@@ -166,7 +179,10 @@ class GridPlacementTest : public IEditableScene {
     float markerScale_ = 0.5f;
     int placementCursorX_ = 1;
     int placementCursorY_ = 1;
+    int hoveredGridX_ = 0;
+    int hoveredGridY_ = 0;
     int placementBrush_ = 1;
+    bool hasHoveredGridCell_ = false;
     int saveCount_ = 0;
     int loadCount_ = 0;
     uint64_t nextObjectId_ = 1;

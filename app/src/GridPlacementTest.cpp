@@ -203,6 +203,23 @@ bool IntersectRaySphere(const EditableRay &ray, const XMFLOAT3 &center,
     return true;
 }
 
+bool IntersectRayGround(const EditableRay &ray, float groundY,
+                        XMFLOAT3 &hitPosition) {
+    constexpr float kEpsilon = 0.000001f;
+    if (std::abs(ray.direction.y) < kEpsilon) {
+        return false;
+    }
+
+    const float distance = (groundY - ray.origin.y) / ray.direction.y;
+    if (distance < 0.0f) {
+        return false;
+    }
+
+    hitPosition = {ray.origin.x + ray.direction.x * distance, groundY,
+                   ray.origin.z + ray.direction.z * distance};
+    return true;
+}
+
 } // namespace
 
 EditableObjectDesc PlacementObject::GetEditorDesc() const {
@@ -307,6 +324,8 @@ void GridPlacementTest::CreateModels(const SceneContext &ctx) {
     markerModelId_ = ctx.assets.model->CreateCylinder(
         whiteTextureId, MakeMaterial({0.95f, 0.30f, 0.18f, 1.0f}, 0.18f), 24,
         0.35f, 0.35f, 1.0f);
+    highlightModelId_ = ctx.assets.model->CreatePlane(
+        whiteTextureId, MakeMaterial({1.0f, 0.84f, 0.10f, 0.55f}, 0.02f));
 }
 
 void GridPlacementTest::BuildObjects() {
@@ -628,6 +647,8 @@ void GridPlacementTest::DrawObjects(ModelRenderer *renderer,
                            environmentTextureId);
         }
     }
+    DrawEditorGridHighlight(renderer, ctx, camera, gBuffer,
+                            environmentTextureId);
     DrawPlayer(renderer, ctx, camera, gBuffer, environmentTextureId);
 
     renderer->PostDraw();
@@ -688,6 +709,12 @@ void GridPlacementTest::RegisterDebugUI() {
     registry.RegisterReadonlyInt("Placement", "Object Count", [this]() {
         return static_cast<int>(objects_.size());
     });
+    registry.RegisterReadonlyInt(
+        "Placement", "Hovered X",
+        [this]() { return hasHoveredGridCell_ ? hoveredGridX_ : -1; });
+    registry.RegisterReadonlyInt(
+        "Placement", "Hovered Y",
+        [this]() { return hasHoveredGridCell_ ? hoveredGridY_ : -1; });
     registry.RegisterReadonlyInt("Placement", "Stage Saves",
                                  [this]() { return saveCount_; });
     registry.RegisterReadonlyInt("Placement", "Stage Loads",
@@ -769,6 +796,44 @@ uint64_t GridPlacementTest::PickEditableObject(const EditableRay &ray) const {
     }
 
     return pickedId;
+}
+
+bool GridPlacementTest::UpdateHoveredGridCellFromRay(const EditableRay &ray) {
+    XMFLOAT3 hitPosition{};
+    if (!IntersectRayGround(ray, kFloorHeight, hitPosition)) {
+        hasHoveredGridCell_ = false;
+        return false;
+    }
+
+    int gridX = 0;
+    int gridY = 0;
+    if (!TryGetGridCellAtWorld(hitPosition.x, hitPosition.z, gridX, gridY)) {
+        hasHoveredGridCell_ = false;
+        return false;
+    }
+
+    hoveredGridX_ = gridX;
+    hoveredGridY_ = gridY;
+    hasHoveredGridCell_ = true;
+    placementCursorX_ = gridX;
+    placementCursorY_ = gridY;
+    return true;
+}
+
+void GridPlacementTest::ClearHoveredGridCell() {
+    hasHoveredGridCell_ = false;
+}
+
+bool GridPlacementTest::HasHoveredGridCell() const {
+    return hasHoveredGridCell_;
+}
+
+int GridPlacementTest::GetHoveredGridX() const {
+    return hoveredGridX_;
+}
+
+int GridPlacementTest::GetHoveredGridY() const {
+    return hoveredGridY_;
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {
@@ -1424,6 +1489,51 @@ bool GridPlacementTest::IsBlocked(float worldX, float worldZ) const {
         static_cast<int>(std::round((worldZ - originZ) / tileSize));
     const char tile = map_.GetTile(x, y);
     return tile == '0' || tile == '2';
+}
+
+bool GridPlacementTest::TryGetGridCellAtWorld(float worldX, float worldZ,
+                                              int &gridX, int &gridY) const {
+    const float tileSize = map_.GetTileSize();
+    if (tileSize <= 0.0f || map_.GetWidth() <= 0 || map_.GetHeight() <= 0) {
+        return false;
+    }
+
+    const float originX =
+        -static_cast<float>(map_.GetWidth() - 1) * tileSize * 0.5f;
+    const float originZ =
+        -static_cast<float>(map_.GetHeight() - 1) * tileSize * 0.5f;
+    gridX = static_cast<int>(std::round((worldX - originX) / tileSize));
+    gridY = static_cast<int>(std::round((worldZ - originZ) / tileSize));
+    return gridX >= 0 && gridX < map_.GetWidth() && gridY >= 0 &&
+           gridY < map_.GetHeight();
+}
+
+void GridPlacementTest::DrawEditorGridHighlight(
+    ModelRenderer *renderer, const SceneContext &ctx, const Camera &camera,
+    bool gBuffer, uint32_t environmentTextureId) {
+    if (gBuffer || !EngineRuntime::GetInstance().IsEditorMode() ||
+        !renderer || !ctx.assets.model || highlightModelId_ == 0) {
+        return;
+    }
+
+    const Model *model = ctx.assets.model->GetModel(highlightModelId_);
+    if (!model) {
+        return;
+    }
+
+    const int gridX = hasHoveredGridCell_ ? hoveredGridX_ : placementCursorX_;
+    const int gridY = hasHoveredGridCell_ ? hoveredGridY_ : placementCursorY_;
+    if (gridX < 0 || gridX >= map_.GetWidth() || gridY < 0 ||
+        gridY >= map_.GetHeight()) {
+        return;
+    }
+
+    const float tileSize = map_.GetTileSize();
+    Transform highlight{};
+    highlight.position = map_.GetCellCenter(gridX, gridY, kFloorHeight + 0.025f);
+    highlight.rotation = MakeQuaternion(-XM_PIDIV2, 0.0f, 0.0f);
+    highlight.scale = {tileSize * 0.92f, tileSize * 0.92f, 1.0f};
+    renderer->Draw(*model, highlight, camera, environmentTextureId);
 }
 
 void GridPlacementTest::SelectObject(int offset) {

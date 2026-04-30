@@ -176,6 +176,27 @@ void HandleViewportPicking(EditorContext &context) {
     }
 }
 
+void HandleHoveredGridCell(EditorContext &context) {
+    if (!context.scene) {
+        return;
+    }
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (context.gameplayMode || !context.viewportImageHovered ||
+        !context.camera || io.WantTextInput) {
+        context.scene->ClearHoveredGridCell();
+        return;
+    }
+    if (context.viewportGizmoUsing || ImGuizmo::IsUsing()) {
+        return;
+    }
+
+    if (!context.scene->UpdateHoveredGridCellFromRay(
+            BuildViewportRay(context))) {
+        context.scene->ClearHoveredGridCell();
+    }
+}
+
 } // namespace
 
 void ViewportPanel::Draw(EditorContext &context) {
@@ -221,12 +242,16 @@ void ViewportPanel::Draw(EditorContext &context) {
     context.viewportImagePosition = contentMin;
     context.viewportImageSize = {0.0f, 0.0f};
     context.viewportMousePosition = {0.0f, 0.0f};
+    context.viewportImageHovered = false;
     context.viewportClicked = false;
 
     RenderTexture *renderTexture = context.renderTexture;
     if (!renderTexture || renderTexture->GetWidth() <= 0 ||
         renderTexture->GetHeight() <= 0 || contentSize.x <= 0.0f ||
         contentSize.y <= 0.0f) {
+        if (context.scene) {
+            context.scene->ClearHoveredGridCell();
+        }
         ImGui::End();
         return;
     }
@@ -261,7 +286,9 @@ void ViewportPanel::Draw(EditorContext &context) {
         renderTexture->GetGpuHandle();
     ImGui::Image(static_cast<ImTextureID>(textureHandle.ptr), imageSize);
 
-    hovered_ = hovered_ || ImGui::IsItemHovered();
+    const bool imageHovered = ImGui::IsItemHovered();
+    context.viewportImageHovered = imageHovered;
+    hovered_ = hovered_ || imageHovered;
     context.viewportHovered = hovered_;
 
     const ImVec2 mousePos = ImGui::GetMousePos();
@@ -271,6 +298,7 @@ void ViewportPanel::Draw(EditorContext &context) {
         ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
     DrawGizmo(context);
+    HandleHoveredGridCell(context);
     HandleViewportPicking(context);
 
     ImGui::End();

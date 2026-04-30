@@ -22,6 +22,7 @@ struct EditorContext {
     ImVec2 viewportImagePosition{0.0f, 0.0f};
     ImVec2 viewportImageSize{0.0f, 0.0f};
     ImVec2 viewportMousePosition{0.0f, 0.0f};
+    bool viewportImageHovered = false;
     bool viewportClicked = false;
     bool viewportGizmoUsing = false;
 };

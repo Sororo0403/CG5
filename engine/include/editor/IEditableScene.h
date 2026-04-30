@@ -18,6 +18,14 @@ class IEditableScene {
         (void)ray;
         return 0;
     }
+    virtual bool UpdateHoveredGridCellFromRay(const EditableRay &ray) {
+        (void)ray;
+        return false;
+    }
+    virtual void ClearHoveredGridCell() {}
+    virtual bool HasHoveredGridCell() const { return false; }
+    virtual int GetHoveredGridX() const { return 0; }
+    virtual int GetHoveredGridY() const { return 0; }
 
     virtual int GetSelectedEditableObjectIndex() const = 0;
     virtual void SetSelectedEditableObjectIndex(int index) = 0;
