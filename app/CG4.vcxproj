@@ -73,8 +73,8 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;dinput8.lib;dxguid.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;ImGuizmo.lib;dinput8.lib;dxguid.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;$(SolutionDir)..\generated\outputs\$(Configuration)\ImGuizmo\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>REM JoyShockLibrary
@@ -107,8 +107,8 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" (
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
-      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;dinput8.lib;dxguid.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;ImGuizmo.lib;dinput8.lib;dxguid.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;$(SolutionDir)..\generated\outputs\$(Configuration)\ImGuizmo\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>REM JoyShockLibrary
@@ -146,6 +146,9 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" (
     </ProjectReference>
     <ProjectReference Include="..\engine\externals\imgui\imgui.vcxproj">
       <Project>{f6ba9c36-46d4-4c55-9c90-d016c833a837}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\engine\externals\ImGuizmo\ImGuizmo.vcxproj">
+      <Project>{2b508b11-3cd1-46c9-9b38-fd0c56553bf1}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

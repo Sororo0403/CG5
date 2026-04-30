@@ -153,9 +153,6 @@
     <ClCompile Include="$(SolutionDir)engine\src\editor\panels\ViewportPanel.cpp">
       <Filter>src\editor\panels</Filter>
     </ClCompile>
-    <ClCompile Include="$(SolutionDir)engine\externals\ImGuizmo\ImGuizmo.cpp">
-      <Filter>src\editor\panels</Filter>
-    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\core\WinApp.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
@@ -303,9 +300,6 @@
       <Filter>include\editor\panels</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\editor\panels\ViewportPanel.h">
-      <Filter>include\editor\panels</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\externals\ImGuizmo\ImGuizmo.h">
       <Filter>include\editor\panels</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\core\WinApp.h">
