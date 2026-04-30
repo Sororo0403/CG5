@@ -1,0 +1,26 @@
+{
+  "Dissolve": {
+    "Auto Animate": true,
+    "Edge Color": [
+      1.0,
+      0.3199999928474426,
+      0.0,
+      1.0
+    ],
+    "Edge Width": 0.05999999865889549,
+    "Enabled": true,
+    "Threshold": 0.5359446406364441
+  },
+  "Lighting": {
+    "Animate Point Lights": true
+  },
+  "Random": {
+    "Animate": true,
+    "Scale": 360.0,
+    "Strength": 0.11999999731779099
+  },
+  "Renderer": {
+    "GBuffer Debug View": 0,
+    "Use Deferred Rendering": true
+  }
+}

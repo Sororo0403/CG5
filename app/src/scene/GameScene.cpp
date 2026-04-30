@@ -6,6 +6,7 @@
 #include "EngineRuntime.h"
 #include "GBuffer.h"
 #include "Input.h"
+#include "Inspector.h"
 #include "LightManager.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
@@ -95,6 +96,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->renderer.model->SetDissolveNoiseTexture(dissolveNoiseTextureId_);
     ApplyDissolveMaterial();
     RegisterDebugUI();
+    RegisterInspector();
 }
 
 void GameScene::Update() {
@@ -184,8 +186,6 @@ void GameScene::RegisterDebugUI() {
     debugUI.RegisterReadonlyInt("Scene", "Render Height",
                                 [this]() { return renderHeight_; });
 
-    debugUI.RegisterTransform("Model", "Transform", &modelTransform_);
-
     debugUI.RegisterBool("Random", "Animate", &randomNoiseAnimate_);
     debugUI.RegisterSliderFloat("Random", "Strength", &randomNoiseStrength_,
                                 0.0f, 1.0f);
@@ -211,8 +211,18 @@ void GameScene::RegisterDebugUI() {
                            "GBuffer Material"});
 }
 
+void GameScene::RegisterInspector() {
+    Inspector &inspector = Inspector::GetInstance();
+    // Inspectorも対象ポインタを保持するため、Scene初期化時に古い登録を消す。
+    inspector.Clear();
+
+    inspector.RegisterTransform("Model", &modelTransform_);
+    inspector.RegisterCameraInfo("Camera", &camera_);
+}
+
 void GameScene::Draw() {
     DebugUIRegistry::GetInstance().Draw();
+    Inspector::GetInstance().Draw();
 
     if (ShouldDrawDevelopmentUI()) {
         DrawPostEffectControls();
