@@ -67,6 +67,21 @@ bool IsPlacementObjectKind(const std::string &kindName,
     return false;
 }
 
+std::string GetPlacementKindDisplayName(PlacementObjectKind kind) {
+    switch (kind) {
+    case PlacementObjectKind::Floor:
+        return "Floor";
+    case PlacementObjectKind::Wall:
+        return "Wall";
+    case PlacementObjectKind::PlayerStart:
+        return "Player Start";
+    case PlacementObjectKind::GoalMarker:
+        return "GoalMarker";
+    default:
+        return "Unknown";
+    }
+}
+
 char GetDefaultMapCode(PlacementObjectKind kind) {
     switch (kind) {
     case PlacementObjectKind::Floor:
@@ -236,69 +251,33 @@ void GridPlacementTest::BuildObjects() {
                 continue;
             }
 
-            PlacementObject floor{};
-            floor.id = AllocateObjectId();
-            floor.kind = PlacementObjectKind::Floor;
+            PlacementObject floor =
+                CreatePlacementObject(PlacementObjectKind::Floor, x, y);
             floor.mapCode = tile;
-            floor.gridX = x;
-            floor.gridY = y;
-            floor.modelId = floorModelId_;
-            floor.transform.position = map_.GetCellCenter(x, y, kFloorHeight);
             floor.transform.rotation = floorRotation;
-            floor.transform.scale = {tileSize * floorScale_, tileSize * floorScale_,
-                                     1.0f};
-            floor.name = "Floor";
+            floor.transform.scale = {tileSize * floorScale_,
+                                     tileSize * floorScale_, 1.0f};
             objects_.push_back(floor);
 
             if (tile == '2') {
-                PlacementObject wall{};
-                wall.id = AllocateObjectId();
-                wall.kind = PlacementObjectKind::Wall;
-                wall.mapCode = tile;
-                wall.gridX = x;
-                wall.gridY = y;
-                wall.modelId = wallModelId_;
-                wall.transform.position = map_.GetCellCenter(x, y, 0.05f);
-                wall.transform.rotation = MakeQuaternion(0.0f, XM_PIDIV4, 0.0f);
-                wall.transform.scale = {tileSize * wallScale_, tileSize * wallHeight_,
-                                        tileSize * wallScale_};
-                wall.name = "Wall";
+                PlacementObject wall =
+                    CreatePlacementObject(PlacementObjectKind::Wall, x, y);
                 objects_.push_back(wall);
             } else if (tile == '3') {
-                PlacementObject player{};
-                player.id = AllocateObjectId();
-                player.kind = PlacementObjectKind::PlayerStart;
-                player.mapCode = tile;
-                player.gridX = x;
-                player.gridY = y;
-                player.modelId = playerModelId_;
-                player.transform.position = map_.GetCellCenter(x, y, 0.0f);
-                player.transform.rotation = MakeQuaternion(0.0f, XM_PI, 0.0f);
-                player.transform.scale = {0.24f, 0.24f, 0.24f};
-                player.name = "Player Start";
+                PlacementObject player =
+                    CreatePlacementObject(PlacementObjectKind::PlayerStart, x,
+                                          y);
                 objects_.push_back(player);
             } else if (tile == '4') {
-                PlacementObject marker{};
-                marker.id = AllocateObjectId();
-                marker.kind = PlacementObjectKind::GoalMarker;
-                marker.mapCode = tile;
-                marker.gridX = x;
-                marker.gridY = y;
-                marker.modelId = markerModelId_;
-                marker.transform.position =
-                    map_.GetCellCenter(x, y, kMarkerHeight);
-                marker.transform.scale = {tileSize * markerScale_,
-                                          tileSize * (markerScale_ * 2.4f),
-                                          tileSize * markerScale_};
-                marker.name = "GoalMarker";
+                PlacementObject marker =
+                    CreatePlacementObject(PlacementObjectKind::GoalMarker, x,
+                                          y);
                 objects_.push_back(marker);
             }
         }
     }
 
-    if (selectedIndex_ >= static_cast<int>(objects_.size())) {
-        selectedIndex_ = objects_.empty() ? 0 : static_cast<int>(objects_.size()) - 1;
-    }
+    ClampSelectedIndex();
     RecomputePlayerSpawnFromObjects();
 }
 
@@ -721,6 +700,124 @@ bool GridPlacementTest::LoadScene(std::string *message) {
     return true;
 }
 
+bool GridPlacementTest::CanEditObjects() const {
+    return EngineRuntime::GetInstance().IsEditorMode();
+}
+
+bool GridPlacementTest::AddEditableObject(const std::string &type,
+                                          std::string *message) {
+    if (!CanEditObjects()) {
+        if (message) {
+            *message = "Object editing is disabled in Gameplay Mode";
+        }
+        return false;
+    }
+
+    PlacementObjectKind kind = PlacementObjectKind::Floor;
+    if (!IsPlacementObjectKind(type, &kind)) {
+        if (message) {
+            *message = "Unknown object type: " + type;
+        }
+        return false;
+    }
+
+    if (kind == PlacementObjectKind::PlayerStart) {
+        RemoveExistingPlayerStarts();
+    }
+    if (kind != PlacementObjectKind::Floor) {
+        EnsureFloorObjectAtCell(placementCursorX_, placementCursorY_);
+    }
+
+    PlacementObject object =
+        CreatePlacementObject(kind, placementCursorX_, placementCursorY_);
+    objects_.push_back(object);
+    selectedIndex_ = static_cast<int>(objects_.size()) - 1;
+    SyncMapCellFromObjects(object.gridX, object.gridY);
+    RecomputePlayerSpawnFromObjects();
+
+    if (message) {
+        *message = "Added " + GetPlacementKindDisplayName(kind);
+    }
+    return true;
+}
+
+bool GridPlacementTest::DeleteSelectedEditableObject(std::string *message) {
+    if (!CanEditObjects()) {
+        if (message) {
+            *message = "Object editing is disabled in Gameplay Mode";
+        }
+        return false;
+    }
+    if (selectedIndex_ < 0 ||
+        selectedIndex_ >= static_cast<int>(objects_.size())) {
+        if (message) {
+            *message = "No object selected";
+        }
+        return false;
+    }
+
+    const PlacementObject removed =
+        objects_[static_cast<size_t>(selectedIndex_)];
+    objects_.erase(objects_.begin() + selectedIndex_);
+    ClampSelectedIndex();
+    SyncMapCellFromObjects(removed.gridX, removed.gridY);
+    RecomputePlayerSpawnFromObjects();
+
+    if (message) {
+        *message = "Deleted " + removed.name;
+    }
+    return true;
+}
+
+bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
+    if (!CanEditObjects()) {
+        if (message) {
+            *message = "Object editing is disabled in Gameplay Mode";
+        }
+        return false;
+    }
+    if (selectedIndex_ < 0 ||
+        selectedIndex_ >= static_cast<int>(objects_.size())) {
+        if (message) {
+            *message = "No object selected";
+        }
+        return false;
+    }
+
+    const PlacementObject source =
+        objects_[static_cast<size_t>(selectedIndex_)];
+    if (source.kind == PlacementObjectKind::PlayerStart) {
+        RemoveExistingPlayerStarts();
+    }
+    if (source.kind != PlacementObjectKind::Floor) {
+        EnsureFloorObjectAtCell(placementCursorX_, placementCursorY_);
+    }
+
+    PlacementObject object = source;
+    object.id = AllocateObjectId();
+    object.name = source.name + " Copy";
+    object.gridX = placementCursorX_;
+    object.gridY = placementCursorY_;
+    object.mapCode = GetDefaultMapCode(object.kind);
+
+    const XMFLOAT3 cellCenter =
+        map_.GetCellCenter(object.gridX, object.gridY,
+                           object.transform.position.y);
+    object.transform.position.x = cellCenter.x;
+    object.transform.position.z = cellCenter.z;
+    AssignRuntimeFields(object);
+
+    objects_.push_back(object);
+    selectedIndex_ = static_cast<int>(objects_.size()) - 1;
+    SyncMapCellFromObjects(object.gridX, object.gridY);
+    RecomputePlayerSpawnFromObjects();
+
+    if (message) {
+        *message = "Duplicated " + source.name;
+    }
+    return true;
+}
+
 void GridPlacementTest::OnEnterEditorMode() {
     EnterEditorMode();
 }
@@ -951,6 +1048,126 @@ bool GridPlacementTest::SaveSceneToJson(const std::string &path) const {
 
     file << root.dump(2);
     return true;
+}
+
+PlacementObject GridPlacementTest::CreatePlacementObject(PlacementObjectKind kind,
+                                                         int gridX,
+                                                         int gridY) {
+    PlacementObject object{};
+    object.id = AllocateObjectId();
+    object.kind = kind;
+    object.mapCode = GetDefaultMapCode(kind);
+    object.gridX = gridX;
+    object.gridY = gridY;
+    object.name = GetPlacementKindDisplayName(kind);
+
+    const float tileSize = map_.GetTileSize();
+    switch (kind) {
+    case PlacementObjectKind::Floor:
+        object.modelId = floorModelId_;
+        object.transform.position = map_.GetCellCenter(gridX, gridY, kFloorHeight);
+        object.transform.rotation = MakeQuaternion(-XM_PIDIV2, 0.0f, 0.0f);
+        object.transform.scale = {tileSize * floorScale_,
+                                  tileSize * floorScale_, 1.0f};
+        break;
+    case PlacementObjectKind::Wall:
+        object.modelId = wallModelId_;
+        object.transform.position = map_.GetCellCenter(gridX, gridY, 0.05f);
+        object.transform.rotation = MakeQuaternion(0.0f, XM_PIDIV4, 0.0f);
+        object.transform.scale = {tileSize * wallScale_,
+                                  tileSize * wallHeight_,
+                                  tileSize * wallScale_};
+        break;
+    case PlacementObjectKind::PlayerStart:
+        object.modelId = playerModelId_;
+        object.transform.position = map_.GetCellCenter(gridX, gridY, 0.0f);
+        object.transform.rotation = MakeQuaternion(0.0f, XM_PI, 0.0f);
+        object.transform.scale = {0.24f, 0.24f, 0.24f};
+        break;
+    case PlacementObjectKind::GoalMarker:
+        object.modelId = markerModelId_;
+        object.transform.position = map_.GetCellCenter(gridX, gridY, kMarkerHeight);
+        object.transform.rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+        object.transform.scale = {tileSize * markerScale_,
+                                  tileSize * (markerScale_ * 2.4f),
+                                  tileSize * markerScale_};
+        break;
+    }
+
+    return object;
+}
+
+void GridPlacementTest::EnsureFloorObjectAtCell(int gridX, int gridY) {
+    const auto hasFloor =
+        std::any_of(objects_.begin(), objects_.end(),
+                    [gridX, gridY](const PlacementObject &object) {
+                        return object.gridX == gridX && object.gridY == gridY &&
+                               object.kind == PlacementObjectKind::Floor;
+                    });
+    if (hasFloor) {
+        return;
+    }
+
+    PlacementObject floor =
+        CreatePlacementObject(PlacementObjectKind::Floor, gridX, gridY);
+    objects_.push_back(floor);
+}
+
+void GridPlacementTest::RemoveExistingPlayerStarts() {
+    std::vector<std::pair<int, int>> touchedCells;
+    objects_.erase(std::remove_if(objects_.begin(), objects_.end(),
+                                  [&touchedCells](const PlacementObject &object) {
+                                      if (object.kind !=
+                                          PlacementObjectKind::PlayerStart) {
+                                          return false;
+                                      }
+                                      touchedCells.push_back(
+                                          {object.gridX, object.gridY});
+                                      return true;
+                                  }),
+                   objects_.end());
+
+    for (const auto &[gridX, gridY] : touchedCells) {
+        SyncMapCellFromObjects(gridX, gridY);
+    }
+    ClampSelectedIndex();
+}
+
+void GridPlacementTest::SyncMapCellFromObjects(int gridX, int gridY) {
+    char tile = '0';
+    for (const PlacementObject &object : objects_) {
+        if (object.gridX != gridX || object.gridY != gridY) {
+            continue;
+        }
+
+        if (object.kind == PlacementObjectKind::PlayerStart) {
+            tile = '3';
+            break;
+        }
+        if (object.kind == PlacementObjectKind::GoalMarker) {
+            tile = '4';
+        } else if (object.kind == PlacementObjectKind::Wall && tile != '4') {
+            tile = '2';
+        } else if (object.kind == PlacementObjectKind::Floor && tile == '0') {
+            tile = '1';
+        }
+    }
+
+    map_.SetTile(gridX, gridY, tile);
+    for (PlacementObject &object : objects_) {
+        if (object.gridX == gridX && object.gridY == gridY) {
+            object.mapCode = tile;
+        }
+    }
+}
+
+void GridPlacementTest::ClampSelectedIndex() {
+    if (objects_.empty()) {
+        selectedIndex_ = 0;
+        return;
+    }
+    selectedIndex_ =
+        (std::clamp)(selectedIndex_, 0, static_cast<int>(objects_.size()) - 1);
 }
 
 void GridPlacementTest::AssignRuntimeFields(PlacementObject &object) const {

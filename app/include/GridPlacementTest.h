@@ -58,6 +58,11 @@ class GridPlacementTest : public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
+    bool CanEditObjects() const override;
+    bool AddEditableObject(const std::string &type,
+                           std::string *message) override;
+    bool DeleteSelectedEditableObject(std::string *message) override;
+    bool DuplicateSelectedEditableObject(std::string *message) override;
     void OnEnterEditorMode() override;
     void OnEnterGameplayMode() override;
     void SetGameplayPaused(bool paused) override;
@@ -86,6 +91,12 @@ class GridPlacementTest : public IEditableScene {
     void RecomputePlayerSpawnFromObjects();
     bool LoadObjectsFromJson(const std::string &path, bool *hasObjects);
     bool SaveSceneToJson(const std::string &path) const;
+    PlacementObject CreatePlacementObject(PlacementObjectKind kind, int gridX,
+                                          int gridY);
+    void EnsureFloorObjectAtCell(int gridX, int gridY);
+    void RemoveExistingPlayerStarts();
+    void SyncMapCellFromObjects(int gridX, int gridY);
+    void ClampSelectedIndex();
     void AssignRuntimeFields(PlacementObject &object) const;
     uint64_t AllocateObjectId();
     bool IsBlocked(float worldX, float worldZ) const;

@@ -18,6 +18,28 @@ class IEditableScene {
     virtual bool SaveScene(std::string *message) = 0;
     virtual bool LoadScene(std::string *message) = 0;
 
+    virtual bool CanEditObjects() const { return false; }
+    virtual bool AddEditableObject(const std::string &type,
+                                   std::string *message) {
+        (void)type;
+        if (message) {
+            *message = "Object editing is not supported";
+        }
+        return false;
+    }
+    virtual bool DeleteSelectedEditableObject(std::string *message) {
+        if (message) {
+            *message = "Object editing is not supported";
+        }
+        return false;
+    }
+    virtual bool DuplicateSelectedEditableObject(std::string *message) {
+        if (message) {
+            *message = "Object editing is not supported";
+        }
+        return false;
+    }
+
     virtual void OnEnterEditorMode() {}
     virtual void OnEnterGameplayMode() {}
     virtual void SetGameplayPaused(bool paused) { (void)paused; }
