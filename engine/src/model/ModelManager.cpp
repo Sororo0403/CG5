@@ -26,7 +26,7 @@ constexpr std::array<Vertex, 4> kPlaneVertices = {{
     {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}},
 }};
 
-constexpr std::array<uint32_t, 6> kPlaneIndices = {0, 1, 2, 2, 1, 3};
+constexpr std::array<uint32_t, 6> kPlaneIndices = {0, 2, 1, 2, 3, 1};
 
 } // namespace
 
@@ -167,11 +167,11 @@ uint32_t ModelManager::CreateRing(uint32_t textureId, const Material &material,
              {uNext, 1.0f}});
 
         indices.push_back(base + 0);
-        indices.push_back(base + 2);
         indices.push_back(base + 1);
         indices.push_back(base + 2);
+        indices.push_back(base + 2);
+        indices.push_back(base + 1);
         indices.push_back(base + 3);
-        indices.push_back(base + 1);
     }
 
     Model model{};
@@ -211,8 +211,8 @@ uint32_t ModelManager::CreateCylinder(uint32_t textureId,
 
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
-    vertices.reserve(static_cast<size_t>(divide) * 6u);
-    indices.reserve(static_cast<size_t>(divide) * 6u);
+    vertices.reserve(static_cast<size_t>(divide) * 12u);
+    indices.reserve(static_cast<size_t>(divide) * 12u);
 
     const float radianPerDivide = std::numbers::pi_v<float> * 2.0f /
                                   static_cast<float>(divide);
@@ -264,6 +264,39 @@ uint32_t ModelManager::CreateCylinder(uint32_t textureId,
         indices.push_back(base + 3);
         indices.push_back(base + 4);
         indices.push_back(base + 5);
+
+        const uint32_t capBase = static_cast<uint32_t>(vertices.size());
+
+        vertices.push_back({{0.0f, height, 0.0f},
+                            {0.0f, 1.0f, 0.0f},
+                            {0.5f, 0.5f}});
+        vertices.push_back({{-sinV * topRadius, height, cosV * topRadius},
+                            {0.0f, 1.0f, 0.0f},
+                            {0.5f - sinV * 0.5f, 0.5f - cosV * 0.5f}});
+        vertices.push_back({{-sinNext * topRadius, height,
+                             cosNext * topRadius},
+                            {0.0f, 1.0f, 0.0f},
+                            {0.5f - sinNext * 0.5f,
+                             0.5f - cosNext * 0.5f}});
+
+        vertices.push_back({{0.0f, 0.0f, 0.0f},
+                            {0.0f, -1.0f, 0.0f},
+                            {0.5f, 0.5f}});
+        vertices.push_back({{-sinV * bottomRadius, 0.0f, cosV * bottomRadius},
+                            {0.0f, -1.0f, 0.0f},
+                            {0.5f - sinV * 0.5f, 0.5f - cosV * 0.5f}});
+        vertices.push_back({{-sinNext * bottomRadius, 0.0f,
+                             cosNext * bottomRadius},
+                            {0.0f, -1.0f, 0.0f},
+                            {0.5f - sinNext * 0.5f,
+                             0.5f - cosNext * 0.5f}});
+
+        indices.push_back(capBase + 0);
+        indices.push_back(capBase + 2);
+        indices.push_back(capBase + 1);
+        indices.push_back(capBase + 3);
+        indices.push_back(capBase + 4);
+        indices.push_back(capBase + 5);
     }
 
     Model model{};

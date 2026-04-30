@@ -733,6 +733,8 @@ void ModelRenderer::CreatePipelineState() {
     pso.SampleDesc.Count = 1;
     pso.SampleMask = UINT_MAX;
     pso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+    // Winding check: temporarily set CullMode to NONE here if generated meshes
+    // appear clipped. Production meshes should render correctly with BACK culling.
 
     D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
     blend.RenderTarget[0].BlendEnable = FALSE;

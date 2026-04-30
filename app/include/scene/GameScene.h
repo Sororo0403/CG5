@@ -1,7 +1,7 @@
 #pragma once
 #include "BaseScene.h"
 #include "Camera.h"
-#include "Transform.h"
+#include "GridPlacementTest.h"
 #include <cstdint>
 
 class GameScene : public BaseScene {
@@ -25,36 +25,14 @@ class GameScene : public BaseScene {
     void OnResize(int width, int height) override;
 
   private:
-    void UpdatePostEffectControls();
-    void UpdateLighting();
-    void ApplyDissolveMaterial();
-    void RegisterDebugUI();
-    void RegisterInspector();
-    bool ShouldDrawDevelopmentUI() const;
-    void DrawRuntimeControls();
-    void DrawPostEffectControls();
     void DrawGBufferScene();
     void DrawOffscreenScene();
 
     Camera camera_;
-    Transform modelTransform_;
-    uint32_t modelId_ = 0;
+    GridPlacementTest gridPlacementTest_;
     uint32_t skyboxModelId_ = 0;
     uint32_t environmentTextureId_ = 0;
-    uint32_t dissolveNoiseTextureId_ = 0;
     int renderWidth_ = 0;
     int renderHeight_ = 0;
-    float time_ = 0.0f;
-    bool randomNoiseAnimate_ = true;
-    float randomNoiseTime_ = 0.0f;
-    float randomNoiseStrength_ = 0.12f;
-    float randomNoiseScale_ = 360.0f;
-    bool dissolveEnabled_ = true;
-    bool dissolveAutoAnimate_ = true;
-    float dissolveThreshold_ = 0.35f;
-    float dissolveEdgeWidth_ = 0.06f;
-    float dissolveEdgeColor_[4] = {1.0f, 0.32f, 0.0f, 1.0f};
-    bool pointLightAnimate_ = true;
     bool useDeferredRendering_ = true;
-    int gBufferDebugView_ = 0;
 };
