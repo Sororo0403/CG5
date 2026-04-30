@@ -7,6 +7,14 @@ void EditorCommandManager::Execute(std::unique_ptr<IEditorCommand> command) {
         return;
     }
     command->Execute();
+    PushExecuted(std::move(command));
+}
+
+void EditorCommandManager::PushExecuted(
+    std::unique_ptr<IEditorCommand> command) {
+    if (!command) {
+        return;
+    }
     undoStack_.push_back(std::move(command));
     redoStack_.clear();
 }

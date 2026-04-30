@@ -16,6 +16,7 @@ class IEditorCommand {
 class EditorCommandManager {
   public:
     void Execute(std::unique_ptr<IEditorCommand> command);
+    void PushExecuted(std::unique_ptr<IEditorCommand> command);
     void Undo();
     void Redo();
     void Clear();

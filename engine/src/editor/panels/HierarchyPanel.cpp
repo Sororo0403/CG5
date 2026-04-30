@@ -51,7 +51,7 @@ void PushSceneCommand(EditorContext &context, IEditableScene &scene,
     if (!CaptureSceneState(scene, afterState) || afterState == beforeState) {
         return;
     }
-    context.commands->Execute(std::make_unique<SceneStateCommand>(
+    context.commands->PushExecuted(std::make_unique<SceneStateCommand>(
         scene, name, beforeState, afterState));
 }
 
