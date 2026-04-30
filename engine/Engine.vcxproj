@@ -93,6 +93,7 @@
     <ClCompile Include="$(SolutionDir)engine\src\editor\EditorConsole.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\editor\EditableObjectFactory.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\editor\EditorLayer.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
@@ -153,6 +154,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\editor\EditorConsole.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\EditorContext.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\EditorLayer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\editor\EditableObjectFactory.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\IEditableObject.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\IEditableScene.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\panels\ConsolePanel.h" />

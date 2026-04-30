@@ -1,6 +1,7 @@
 #include "GridPlacementTest.h"
 #include "DirectXCommon.h"
 #include "DebugUIRegistry.h"
+#include "EditableObjectFactory.h"
 #include "EngineRuntime.h"
 #include "Inspector.h"
 #include "Input.h"
@@ -203,6 +204,7 @@ void PlacementObject::SetEditorTransform(const EditableTransform &editable) {
 
 void GridPlacementTest::Initialize(const SceneContext &ctx) {
     CreateModels(ctx);
+    RegisterEditableObjectTypes();
     EditableSceneDocument document{};
     std::string loadMessage;
     if (!SceneSerializer::Load(stagePath_, document, &loadMessage) ||
@@ -736,33 +738,18 @@ bool GridPlacementTest::AddEditableObject(const std::string &type,
         return false;
     }
 
-    PlacementObjectKind kind = PlacementObjectKind::Floor;
-    if (!IsPlacementObjectKind(type, &kind)) {
+    IEditableObject *created =
+        EditableObjectFactory::GetInstance().Create(type, *this);
+    if (!created) {
         if (message) {
             *message = "Unknown object type: " + type;
         }
         return false;
     }
 
-    if (kind == PlacementObjectKind::PlayerStart) {
-        RemoveExistingPlayerStarts();
-    }
-    if (kind != PlacementObjectKind::Floor) {
-        EnsureFloorObjectAtCell(placementCursorX_, placementCursorY_);
-    }
-
-    PlacementObject object =
-        CreatePlacementObject(kind, placementCursorX_, placementCursorY_);
-    objects_.push_back(object);
-    selectedObjectId_ = object.id;
-    SyncMapCellFromObjects(object.gridX, object.gridY);
-    RecomputePlayerSpawnFromObjects();
-    MarkSceneDirty();
-
     if (message) {
-        *message = "Added " + GetPlacementKindDisplayName(kind) + " at (" +
-                   std::to_string(object.gridX) + ", " +
-                   std::to_string(object.gridY) + ")";
+        const EditableObjectDesc desc = created->GetEditorDesc();
+        *message = "Added " + desc.name + " (" + desc.type + ")";
     }
     return true;
 }
@@ -1015,6 +1002,57 @@ bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document
     ClampSelectedIndex();
     RecomputePlayerSpawnFromObjects();
     return true;
+}
+
+void GridPlacementTest::RegisterEditableObjectTypes() {
+    EditableObjectFactory &factory = EditableObjectFactory::GetInstance();
+    factory.Register("Floor", [](IEditableScene &scene) -> IEditableObject * {
+        auto *grid = dynamic_cast<GridPlacementTest *>(&scene);
+        return grid ? grid->CreateEditableObjectFromFactory("Floor")
+                    : nullptr;
+    });
+    factory.Register("Wall", [](IEditableScene &scene) -> IEditableObject * {
+        auto *grid = dynamic_cast<GridPlacementTest *>(&scene);
+        return grid ? grid->CreateEditableObjectFromFactory("Wall") : nullptr;
+    });
+    factory.Register("PlayerStart",
+                     [](IEditableScene &scene) -> IEditableObject * {
+                         auto *grid = dynamic_cast<GridPlacementTest *>(&scene);
+                         return grid ? grid->CreateEditableObjectFromFactory(
+                                           "PlayerStart")
+                                     : nullptr;
+                     });
+    factory.Register("GoalMarker",
+                     [](IEditableScene &scene) -> IEditableObject * {
+                         auto *grid = dynamic_cast<GridPlacementTest *>(&scene);
+                         return grid ? grid->CreateEditableObjectFromFactory(
+                                           "GoalMarker")
+                                     : nullptr;
+                     });
+}
+
+IEditableObject *
+GridPlacementTest::CreateEditableObjectFromFactory(const std::string &type) {
+    PlacementObjectKind kind = PlacementObjectKind::Floor;
+    if (!IsPlacementObjectKind(type, &kind)) {
+        return nullptr;
+    }
+
+    if (kind == PlacementObjectKind::PlayerStart) {
+        RemoveExistingPlayerStarts();
+    }
+    if (kind != PlacementObjectKind::Floor) {
+        EnsureFloorObjectAtCell(placementCursorX_, placementCursorY_);
+    }
+
+    PlacementObject object =
+        CreatePlacementObject(kind, placementCursorX_, placementCursorY_);
+    objects_.push_back(object);
+    selectedObjectId_ = object.id;
+    SyncMapCellFromObjects(object.gridX, object.gridY);
+    RecomputePlayerSpawnFromObjects();
+    MarkSceneDirty();
+    return &objects_.back();
 }
 
 PlacementObject GridPlacementTest::CreatePlacementObject(PlacementObjectKind kind,

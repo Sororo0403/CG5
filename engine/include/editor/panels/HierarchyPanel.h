@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 struct EditorContext;
@@ -19,4 +20,5 @@ class HierarchyPanel {
     char renameBuffer_[128]{};
     uint64_t renamingObjectId_ = 0;
     bool renameFocusPending_ = false;
+    int addTypeIndex_ = 0;
 };

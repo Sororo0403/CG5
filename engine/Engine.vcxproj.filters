@@ -138,6 +138,9 @@
     <ClCompile Include="$(SolutionDir)engine\src\editor\EditorConsole.cpp">
       <Filter>src\editor</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\editor\EditableObjectFactory.cpp">
+      <Filter>src\editor</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\editor\EditorLayer.cpp">
       <Filter>src\editor</Filter>
     </ClCompile>
@@ -282,6 +285,9 @@
       <Filter>include\editor</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\editor\EditorLayer.h">
+      <Filter>include\editor</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\editor\EditableObjectFactory.h">
       <Filter>include\editor</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\editor\IEditableObject.h">

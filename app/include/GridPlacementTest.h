@@ -104,6 +104,8 @@ class GridPlacementTest : public IEditableScene {
     EditableSceneDocument BuildSceneDocument() const;
     bool ApplySceneDocument(const EditableSceneDocument &document,
                             std::string *message);
+    void RegisterEditableObjectTypes();
+    IEditableObject *CreateEditableObjectFromFactory(const std::string &type);
     PlacementObject CreatePlacementObject(PlacementObjectKind kind, int gridX,
                                           int gridY);
     void EnsureFloorObjectAtCell(int gridX, int gridY);

@@ -1,4 +1,5 @@
 #include "panels/HierarchyPanel.h"
+#include "EditableObjectFactory.h"
 #include "EditorConsole.h"
 #include "EditorContext.h"
 #include "IEditableScene.h"
@@ -51,26 +52,41 @@ void HierarchyPanel::Draw(EditorContext &context) {
         return;
     }
 
-    static int addTypeIndex = 0;
-    constexpr const char *kAddTypes[] = {"Floor", "Wall", "PlayerStart",
-                                         "GoalMarker"};
+    const std::vector<std::string> &addTypes =
+        EditableObjectFactory::GetInstance().GetRegisteredTypes();
+    if (addTypeIndex_ >= static_cast<int>(addTypes.size())) {
+        addTypeIndex_ = 0;
+    }
     const bool canEdit = !context.readOnly && scene->CanEditObjects();
-    if (!canEdit) {
+    if (!canEdit || addTypes.empty()) {
         ImGui::BeginDisabled();
     }
 
     ImGui::SetNextItemWidth(130.0f);
-    ImGui::Combo("##AddObjectType", &addTypeIndex, kAddTypes,
-                 static_cast<int>(std::size(kAddTypes)));
+    const char *preview =
+        addTypes.empty() ? "No types" : addTypes[static_cast<size_t>(addTypeIndex_)].c_str();
+    if (ImGui::BeginCombo("##AddObjectType", preview)) {
+        for (int index = 0; index < static_cast<int>(addTypes.size()); ++index) {
+            const bool selected = addTypeIndex_ == index;
+            if (ImGui::Selectable(addTypes[static_cast<size_t>(index)].c_str(),
+                                  selected)) {
+                addTypeIndex_ = index;
+            }
+            if (selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
     ImGui::SameLine();
     if (ImGui::Button("Add")) {
         std::string message;
-        const bool added =
-            scene->AddEditableObject(kAddTypes[addTypeIndex], &message);
+        const std::string &type = addTypes[static_cast<size_t>(addTypeIndex_)];
+        const bool added = scene->AddEditableObject(type, &message);
         LogResult(context, added, message, "Failed to add object: ");
     }
 
-    if (!canEdit) {
+    if (!canEdit || addTypes.empty()) {
         ImGui::EndDisabled();
     }
 
