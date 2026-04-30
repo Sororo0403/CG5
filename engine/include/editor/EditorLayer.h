@@ -4,6 +4,7 @@
 #include "panels/ConsolePanel.h"
 #include "panels/HierarchyPanel.h"
 #include "panels/InspectorPanel.h"
+#include "panels/ViewportPanel.h"
 
 class IEditableScene;
 
@@ -16,6 +17,7 @@ class EditorLayer {
 
     EditorConsole console_;
     HierarchyPanel hierarchyPanel_;
+    ViewportPanel viewportPanel_;
     InspectorPanel inspectorPanel_;
     ConsolePanel consolePanel_;
 };

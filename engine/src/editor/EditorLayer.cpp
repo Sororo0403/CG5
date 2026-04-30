@@ -36,6 +36,13 @@ void EditorLayer::Draw(IEditableScene *scene) {
     hierarchyPanel_.Draw(context);
 
     ImGui::SetNextWindowPos(
+        {origin.x + kHierarchyWidth, origin.y + kToolbarHeight});
+    ImGui::SetNextWindowSize(
+        {(std::max)(0.0f, size.x - kHierarchyWidth - kInspectorWidth),
+         (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});
+    viewportPanel_.Draw(context);
+
+    ImGui::SetNextWindowPos(
         {origin.x + size.x - kInspectorWidth, origin.y + kToolbarHeight});
     ImGui::SetNextWindowSize(
         {kInspectorWidth, (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});

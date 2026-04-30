@@ -105,6 +105,9 @@
     <ClCompile Include="$(SolutionDir)engine\src\editor\panels\InspectorPanel.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\editor\panels\ViewportPanel.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\imgui\DebugUIRegistry.cpp" />
@@ -155,6 +158,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\editor\panels\ConsolePanel.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\panels\HierarchyPanel.h" />
     <ClInclude Include="$(SolutionDir)engine\include\editor\panels\InspectorPanel.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\editor\panels\ViewportPanel.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\DebugCamera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\runtime\EngineRuntime.h" />
     <ClInclude Include="$(SolutionDir)engine\include\imgui\DebugUIRegistry.h" />
