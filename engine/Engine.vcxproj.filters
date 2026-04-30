@@ -25,6 +25,9 @@
     <Filter Include="include\core">
       <UniqueIdentifier>{426c453d-acbc-4090-be64-3dc3056a4c6d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\runtime">
+      <UniqueIdentifier>{e4b10f22-69f8-4da3-9f2c-cbaec30acb44}</UniqueIdentifier>
+    </Filter>
     <Filter Include="include\camera">
       <UniqueIdentifier>{284ab13d-a94f-4b94-9b8e-269bc028fe26}</UniqueIdentifier>
     </Filter>
@@ -39,6 +42,9 @@
     </Filter>
     <Filter Include="src\core">
       <UniqueIdentifier>{ff8fb54f-cff5-4d87-8fb5-4a32872d78c4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\runtime">
+      <UniqueIdentifier>{6ac1c7f5-50a0-4b2a-a933-062a0d8d0d05}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\graphics">
       <UniqueIdentifier>{97862079-a97b-4220-a22d-7186c388520a}</UniqueIdentifier>
@@ -119,6 +125,9 @@
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\core\WinApp.cpp">
       <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp">
+      <Filter>src\runtime</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp">
       <Filter>src\graphics</Filter>
@@ -232,6 +241,9 @@
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\core\WinApp.h">
       <Filter>include\core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\runtime\EngineRuntime.h">
+      <Filter>include\runtime</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h">
       <Filter>include\graphics</Filter>

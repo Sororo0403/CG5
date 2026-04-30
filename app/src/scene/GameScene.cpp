@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "DeferredRenderer.h"
 #include "DirectXCommon.h"
+#include "EngineRuntime.h"
 #include "GBuffer.h"
 #include "Input.h"
 #include "LightManager.h"
@@ -95,15 +96,28 @@ void GameScene::Initialize(const SceneContext &ctx) {
 }
 
 void GameScene::Update() {
-    time_ += ctx_->frame.deltaTime;
+#ifdef _DEBUG
+    if (ctx_->core.input && ctx_->core.input->IsKeyTrigger(DIK_F1)) {
+        EngineRuntime::GetInstance().ToggleMode();
+    }
+#endif // _DEBUG
+
+    EngineRuntime &runtime = EngineRuntime::GetInstance();
+    const EngineRuntimeSettings &runtimeSettings = runtime.Settings();
+    float gameDeltaTime = ctx_->frame.deltaTime * runtimeSettings.timeScale;
+    if (runtime.IsTuningMode() && runtimeSettings.pauseGameInTuningMode) {
+        gameDeltaTime = 0.0f;
+    }
+
+    time_ += gameDeltaTime;
     if (randomNoiseAnimate_) {
-        randomNoiseTime_ += ctx_->frame.deltaTime;
+        randomNoiseTime_ += gameDeltaTime;
     }
     if (ctx_->renderer.postEffectRenderer) {
         ctx_->renderer.postEffectRenderer->SetRandomTime(randomNoiseTime_);
     }
 
-    ctx_->assets.model->UpdateAnimation(modelId_, ctx_->frame.deltaTime);
+    ctx_->assets.model->UpdateAnimation(modelId_, gameDeltaTime);
     if (dissolveAutoAnimate_) {
         dissolveThreshold_ = 0.5f + 0.5f * std::sin(time_ * 0.8f);
     }
@@ -158,7 +172,10 @@ void GameScene::ApplyDissolveMaterial() {
 }
 
 void GameScene::Draw() {
-    DrawPostEffectControls();
+    const EngineRuntime &runtime = EngineRuntime::GetInstance();
+    if (runtime.IsTuningMode() && runtime.Settings().showDebugUI) {
+        DrawPostEffectControls();
+    }
 
     if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer) {
         return;
@@ -279,6 +296,8 @@ void GameScene::DrawPostEffectControls() {
     if (!ctx_->renderer.postEffectRenderer) {
         return;
     }
+
+    DrawRuntimeControls();
 
     int colorMode =
         static_cast<int>(ctx_->renderer.postEffectRenderer->GetColorMode());
@@ -413,6 +432,26 @@ void GameScene::DrawPostEffectControls() {
         static_cast<PostEffectRenderer::RandomMode>(randomMode));
     ctx_->renderer.postEffectRenderer->SetRandomStrength(randomNoiseStrength_);
     ctx_->renderer.postEffectRenderer->SetRandomScale(randomNoiseScale_);
+#endif // _DEBUG
+}
+
+void GameScene::DrawRuntimeControls() {
+#ifdef _DEBUG
+    EngineRuntime &runtime = EngineRuntime::GetInstance();
+    EngineRuntimeSettings &settings = runtime.Settings();
+
+    if (ImGui::Begin("Engine Runtime")) {
+        ImGui::Text("Current Mode: %s",
+                    runtime.IsTuningMode() ? "Tuning" : "Play");
+        if (ImGui::Button("Toggle Mode")) {
+            runtime.ToggleMode();
+        }
+        ImGui::Checkbox("pauseGameInTuningMode",
+                        &settings.pauseGameInTuningMode);
+        ImGui::SliderFloat("timeScale", &settings.timeScale, 0.0f, 3.0f);
+        ImGui::Checkbox("showDebugUI", &settings.showDebugUI);
+    }
+    ImGui::End();
 #endif // _DEBUG
 }
 
