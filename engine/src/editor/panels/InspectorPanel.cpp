@@ -1,5 +1,6 @@
 #include "EditorCommand.h"
 #include "panels/InspectorPanel.h"
+#include "EditorConsole.h"
 #include "EditorContext.h"
 #include "IEditableScene.h"
 #include "imgui.h"
@@ -124,6 +125,12 @@ void PushSceneCommand(EditorContext &context, IEditableScene &scene,
         scene, name, beforeState, afterState));
 }
 
+void LogLockedObject(EditorContext &context, const EditableObjectDesc &desc) {
+    if (context.console) {
+        context.console->AddLog("Object is locked: " + desc.name);
+    }
+}
+
 } // namespace
 
 void InspectorPanel::Draw(EditorContext &context) {
@@ -168,18 +175,31 @@ void InspectorPanel::Draw(EditorContext &context) {
     } else if (!desc.editable) {
         ImGui::TextDisabled("Read Only - Object is not editable");
     }
+    if (desc.locked) {
+        ImGui::TextDisabled("Locked - editing disabled");
+    }
+    if (!desc.visible) {
+        ImGui::TextDisabled("Hidden - not drawn in the viewport or gameplay");
+    }
 
     if (readOnly) {
         ImGui::BeginDisabled();
     }
 
     ImGui::SeparatorText("Basic");
+    if (desc.locked) {
+        ImGui::BeginDisabled();
+    }
     ImGui::SetNextItemWidth(-1.0f);
     const bool nameEnter = ImGui::InputText(
         "Name", nameBuffer_, static_cast<size_t>(std::size(nameBuffer_)),
         ImGuiInputTextFlags_EnterReturnsTrue);
     if (nameEnter || ImGui::IsItemDeactivatedAfterEdit()) {
-        CommitName(*scene, *object, static_cast<size_t>(selectedIndex));
+        CommitName(context, *scene, *object,
+                   static_cast<size_t>(selectedIndex));
+    }
+    if (desc.locked) {
+        ImGui::EndDisabled();
     }
     ImGui::Text("Type: %s", desc.type.c_str());
     ImGui::Text("ID: %llu", static_cast<unsigned long long>(desc.id));
@@ -195,6 +215,9 @@ void InspectorPanel::Draw(EditorContext &context) {
         }
     }
     bool visible = desc.visible;
+    if (desc.locked) {
+        ImGui::BeginDisabled();
+    }
     if (ImGui::Checkbox("Visible", &visible)) {
         std::string beforeState;
         CaptureSceneState(*scene, beforeState);
@@ -203,8 +226,14 @@ void InspectorPanel::Draw(EditorContext &context) {
             PushSceneCommand(context, *scene, "Edit Object", beforeState);
         }
     }
+    if (desc.locked) {
+        ImGui::EndDisabled();
+    }
 
     int colliderIndex = ColliderIndex(desc.collider);
+    if (desc.locked) {
+        ImGui::BeginDisabled();
+    }
     ImGui::SetNextItemWidth(-1.0f);
     if (ImGui::Combo("Collider", &colliderIndex, kColliderOptions,
                      static_cast<int>(std::size(kColliderOptions)))) {
@@ -214,6 +243,9 @@ void InspectorPanel::Draw(EditorContext &context) {
             scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
             PushSceneCommand(context, *scene, "Edit Object", beforeState);
         }
+    }
+    if (desc.locked) {
+        ImGui::EndDisabled();
     }
 
     ImGui::SeparatorText("Transform");
@@ -284,12 +316,22 @@ void InspectorPanel::SyncNameBuffer(const EditableObjectDesc &desc) {
     std::snprintf(nameBuffer_, sizeof(nameBuffer_), "%s", desc.name.c_str());
 }
 
-void InspectorPanel::CommitName(IEditableScene &scene, IEditableObject &object,
+void InspectorPanel::CommitName(EditorContext &context, IEditableScene &scene,
+                                IEditableObject &object,
                                 size_t selectedIndex) {
     const EditableObjectDesc desc = object.GetEditorDesc();
     if (std::strcmp(nameBuffer_, desc.name.c_str()) == 0) {
         return;
     }
+    if (desc.locked) {
+        LogLockedObject(context, desc);
+        std::snprintf(nameBuffer_, sizeof(nameBuffer_), "%s",
+                      desc.name.c_str());
+        return;
+    }
+    std::string beforeState;
+    CaptureSceneState(scene, beforeState);
     object.SetEditorName(nameBuffer_);
     scene.OnEditableObjectChanged(selectedIndex);
+    PushSceneCommand(context, scene, "Rename Object", beforeState);
 }

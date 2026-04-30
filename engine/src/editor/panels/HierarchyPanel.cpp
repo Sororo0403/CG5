@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstring>
 #include <iterator>
 #include <memory>
 #include <string>
@@ -53,6 +54,12 @@ void PushSceneCommand(EditorContext &context, IEditableScene &scene,
     }
     context.commands->PushExecuted(std::make_unique<SceneStateCommand>(
         scene, name, beforeState, afterState));
+}
+
+void LogLockedObject(EditorContext &context, const EditableObjectDesc &desc) {
+    if (context.console) {
+        context.console->AddLog("Object is locked: " + desc.name);
+    }
 }
 
 } // namespace
@@ -160,6 +167,7 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                                    IEditableObject &object, size_t index) {
     const EditableObjectDesc desc = object.GetEditorDesc();
     const bool canEdit = !context.readOnly && scene.CanEditObjects();
+    const bool canModifyObject = canEdit && !desc.locked;
     const bool selected = scene.GetSelectedObjectId() == desc.id;
     bool clickedOnItem = false;
 
@@ -168,7 +176,7 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                   static_cast<unsigned long long>(desc.id));
     ImGui::PushID(idScope);
 
-    if (renamingObjectId_ == desc.id && canEdit) {
+    if (renamingObjectId_ == desc.id && canModifyObject) {
         ImGui::SetNextItemWidth(-1.0f);
         if (renameFocusPending_) {
             ImGui::SetKeyboardFocusHere();
@@ -180,12 +188,15 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                 ImGuiInputTextFlags_AutoSelectAll);
         clickedOnItem |= ImGui::IsItemClicked() || ImGui::IsItemActive();
         if (enterPressed || ImGui::IsItemDeactivatedAfterEdit()) {
-            std::string beforeState;
-            CaptureSceneState(scene, beforeState);
-            object.SetEditorName(renameBuffer_);
+            if (std::strcmp(renameBuffer_, desc.name.c_str()) != 0) {
+                std::string beforeState;
+                CaptureSceneState(scene, beforeState);
+                object.SetEditorName(renameBuffer_);
+                scene.OnEditableObjectChanged(index);
+                PushSceneCommand(context, scene, "Rename Object",
+                                 beforeState);
+            }
             scene.SetSelectedObjectById(desc.id);
-            scene.OnEditableObjectChanged(index);
-            PushSceneCommand(context, scene, "Rename Object", beforeState);
             renamingObjectId_ = 0;
             renameFocusPending_ = false;
         }
@@ -195,23 +206,49 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
         }
     } else {
         char label[192]{};
-        std::snprintf(label, sizeof(label), "%s (ID: %llu)",
-                      desc.name.c_str(),
+        char status[64]{};
+        if (!desc.visible) {
+            std::snprintf(status + std::strlen(status),
+                          sizeof(status) - std::strlen(status), " [hidden]");
+        }
+        if (desc.locked) {
+            std::snprintf(status + std::strlen(status),
+                          sizeof(status) - std::strlen(status), " [locked]");
+        }
+        std::snprintf(label, sizeof(label), "%s%s (ID: %llu)",
+                      desc.name.c_str(), status,
                       static_cast<unsigned long long>(desc.id));
+        if (!desc.visible) {
+            const ImVec4 disabledColor =
+                ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled);
+            ImGui::PushStyleColor(ImGuiCol_Text, disabledColor);
+        }
         if (ImGui::Selectable(label, selected,
                               ImGuiSelectableFlags_AllowDoubleClick |
                                   ImGuiSelectableFlags_SpanAllColumns)) {
             scene.SetSelectedObjectById(desc.id);
             clickedOnItem = true;
-            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && canEdit) {
-                BeginRename(desc);
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) &&
+                canEdit) {
+                if (desc.locked) {
+                    LogLockedObject(context, desc);
+                } else {
+                    BeginRename(desc);
+                }
             }
+        }
+        if (!desc.visible) {
+            ImGui::PopStyleColor();
+        }
+        if (renamingObjectId_ == desc.id && desc.locked) {
+            renamingObjectId_ = 0;
+            renameFocusPending_ = false;
         }
         clickedOnItem |= ImGui::IsItemHovered();
 
         if (ImGui::BeginPopupContextItem("ObjectContext")) {
             scene.SetSelectedObjectById(desc.id);
-            if (!canEdit) {
+            if (!canModifyObject) {
                 ImGui::BeginDisabled();
             }
             if (ImGui::MenuItem("Rename")) {
@@ -243,14 +280,21 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                 LogResult(context, deleted, message,
                           "Failed to delete object: ");
             }
-            if (!canEdit) {
+            if (!canModifyObject) {
                 ImGui::EndDisabled();
             }
             ImGui::EndPopup();
             clickedOnItem = true;
         }
 
-        ImGui::TextDisabled("  %s", desc.type.c_str());
+        if (desc.visible) {
+            ImGui::TextDisabled("  %s", desc.type.c_str());
+        } else {
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                                  ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::Text("  %s", desc.type.c_str());
+            ImGui::PopStyleColor();
+        }
     }
 
     ImGui::PopID();

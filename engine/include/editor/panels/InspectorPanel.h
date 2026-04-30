@@ -13,8 +13,8 @@ class InspectorPanel {
 
   private:
     void SyncNameBuffer(const EditableObjectDesc &desc);
-    void CommitName(IEditableScene &scene, IEditableObject &object,
-                    size_t selectedIndex);
+    void CommitName(EditorContext &context, IEditableScene &scene,
+                    IEditableObject &object, size_t selectedIndex);
 
     char nameBuffer_[128]{};
     uint64_t editingObjectId_ = 0;

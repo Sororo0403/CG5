@@ -171,20 +171,32 @@ EditableObjectDesc PlacementObject::GetEditorDesc() const {
 }
 
 void PlacementObject::SetEditorName(const std::string &newName) {
+    if (locked) {
+        return;
+    }
     name = newName;
 }
 
 bool PlacementObject::SetEditorCollider(const std::string &newCollider) {
+    if (locked || collider == newCollider) {
+        return false;
+    }
     collider = newCollider;
     return true;
 }
 
 bool PlacementObject::SetEditorLocked(bool newLocked) {
+    if (locked == newLocked) {
+        return false;
+    }
     locked = newLocked;
     return true;
 }
 
 bool PlacementObject::SetEditorVisible(bool newVisible) {
+    if (locked || visible == newVisible) {
+        return false;
+    }
     visible = newVisible;
     return true;
 }
@@ -198,6 +210,9 @@ EditableTransform PlacementObject::GetEditorTransform() const {
 }
 
 void PlacementObject::SetEditorTransform(const EditableTransform &editable) {
+    if (locked) {
+        return;
+    }
     transform.position = editable.position;
     transform.rotation = editable.rotation;
     transform.scale = editable.scale;
@@ -551,6 +566,10 @@ void GridPlacementTest::DrawObjects(ModelRenderer *renderer,
     }
 
     for (const PlacementObject &object : objects_) {
+        if (!object.visible) {
+            continue;
+        }
+
         const Model *model = ctx.assets.model->GetModel(object.modelId);
         if (!model) {
             continue;
@@ -828,6 +847,13 @@ bool GridPlacementTest::DeleteSelectedEditableObject(std::string *message) {
 
     const PlacementObject removed =
         objects_[static_cast<size_t>(selectedIndex)];
+    if (removed.locked) {
+        if (message) {
+            *message = "Object is locked: " + removed.name;
+        }
+        return false;
+    }
+
     objects_.erase(objects_.begin() + selectedIndex);
     if (selectedIndex < static_cast<int>(objects_.size())) {
         selectedObjectId_ = objects_[static_cast<size_t>(selectedIndex)].id;
@@ -861,6 +887,13 @@ bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
 
     const PlacementObject source =
         objects_[static_cast<size_t>(selectedIndex)];
+    if (source.locked) {
+        if (message) {
+            *message = "Object is locked: " + source.name;
+        }
+        return false;
+    }
+
     if (source.kind == PlacementObjectKind::PlayerStart) {
         RemoveExistingPlayerStarts();
     }
