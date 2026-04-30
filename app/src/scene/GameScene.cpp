@@ -178,18 +178,26 @@ void GameScene::RegisterDebugUI() {
     // Registryは変数ポインタを保持するため、Scene初期化時に古い登録を消してから再登録する。
     debugUI.Clear();
 
+    debugUI.RegisterReadonlyFloat("Scene", "Time", [this]() { return time_; });
+    debugUI.RegisterReadonlyInt("Scene", "Render Width",
+                                [this]() { return renderWidth_; });
+    debugUI.RegisterReadonlyInt("Scene", "Render Height",
+                                [this]() { return renderHeight_; });
+
+    debugUI.RegisterTransform("Model", "Transform", &modelTransform_);
+
     debugUI.RegisterBool("Random", "Animate", &randomNoiseAnimate_);
-    debugUI.RegisterFloat("Random", "Strength", &randomNoiseStrength_, 0.0f,
-                          1.0f);
-    debugUI.RegisterFloat("Random", "Scale", &randomNoiseScale_, 1.0f,
-                          1024.0f);
+    debugUI.RegisterSliderFloat("Random", "Strength", &randomNoiseStrength_,
+                                0.0f, 1.0f);
+    debugUI.RegisterSliderFloat("Random", "Scale", &randomNoiseScale_, 1.0f,
+                                1024.0f);
 
     debugUI.RegisterBool("Dissolve", "Enabled", &dissolveEnabled_);
     debugUI.RegisterBool("Dissolve", "Auto Animate", &dissolveAutoAnimate_);
-    debugUI.RegisterFloat("Dissolve", "Threshold", &dissolveThreshold_, 0.0f,
-                          1.0f);
-    debugUI.RegisterFloat("Dissolve", "Edge Width", &dissolveEdgeWidth_,
-                          0.001f, 0.25f);
+    debugUI.RegisterSliderFloat("Dissolve", "Threshold", &dissolveThreshold_,
+                                0.0f, 1.0f);
+    debugUI.RegisterSliderFloat("Dissolve", "Edge Width", &dissolveEdgeWidth_,
+                                0.001f, 0.25f);
     debugUI.RegisterColor4("Dissolve", "Edge Color", dissolveEdgeColor_);
 
     debugUI.RegisterBool("Lighting", "Animate Point Lights",
