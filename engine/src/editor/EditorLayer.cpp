@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -179,19 +180,6 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
         ImGui::EndDisabled();
     }
 
-    ImGui::SameLine();
-    if (ImGui::Button(gameplayMode ? "Switch to Engine"
-                                   : "Switch to Gameplay")) {
-        if (dirty) {
-            RequestModeSwitch();
-        } else {
-            runtime.SetMode(gameplayMode ? EngineRuntimeMode::Editor
-                                         : EngineRuntimeMode::Gameplay);
-            console_.AddLog(runtime.IsEditorMode() ? "Switched to Engine Mode"
-                                                   : "Switched to Gameplay Mode");
-        }
-    }
-
     if (gameplayMode) {
         const bool paused =
             context.scene ? context.scene->IsGameplayPaused() : false;
@@ -204,6 +192,11 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
         }
 
         ImGui::SameLine();
+        if (ImGui::Button("Stop")) {
+            StopPlay(context);
+        }
+
+        ImGui::SameLine();
         if (ImGui::Button("Reset Player")) {
             if (context.scene) {
                 context.scene->ResetGameplay();
@@ -211,6 +204,11 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
             console_.AddLog("Reset player to spawn");
         }
     } else {
+        ImGui::SameLine();
+        if (ImGui::Button("Play")) {
+            StartPlay(context);
+        }
+
         ImGui::SameLine();
         if (ImGui::Button("Save")) {
             std::string message;
@@ -361,9 +359,61 @@ void EditorLayer::RequestLoadScene(const std::string &path) {
 #endif // _DEBUG
 }
 
-void EditorLayer::RequestModeSwitch() {
+void EditorLayer::StartPlay(EditorContext &context) {
 #ifdef _DEBUG
-    pendingAction_ = PendingAction::SwitchMode;
+    if (!context.scene) {
+        console_.AddLog("Failed to start play: no editable scene");
+        return;
+    }
+
+    std::string state;
+    std::string message;
+    if (!context.scene->CaptureSceneState(&state, &message)) {
+        console_.AddLog("Failed to capture editor scene state: " + message);
+        return;
+    }
+
+    playStartSceneState_ = std::move(state);
+    playStartDirty_ = context.scene->IsSceneDirty();
+    playSessionActive_ = true;
+    context.scene->SetGameplayPaused(false);
+    EngineRuntime::GetInstance().SetMode(EngineRuntimeMode::Gameplay);
+    statusMessage_ = "Play";
+    console_.AddLog("Play started");
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::StopPlay(EditorContext &context) {
+#ifdef _DEBUG
+    EngineRuntime::GetInstance().SetMode(EngineRuntimeMode::Editor);
+
+    bool restored = true;
+    if (context.scene && playSessionActive_ && !playStartSceneState_.empty()) {
+        std::string message;
+        restored = context.scene->RestoreSceneState(playStartSceneState_, &message);
+        if (!restored) {
+            console_.AddLog("Failed to restore editor scene state: " + message);
+        } else if (playStartDirty_) {
+            context.scene->MarkSceneDirty();
+        } else {
+            context.scene->ClearSceneDirty();
+        }
+    } else if (context.scene) {
+        context.scene->ClearHoveredGridCell();
+    }
+
+    if (context.scene) {
+        context.scene->SetGameplayPaused(false);
+    }
+    playSessionActive_ = false;
+    playStartDirty_ = false;
+    playStartSceneState_.clear();
+    statusMessage_ = restored ? "Stopped" : "Stop restore failed";
+    console_.AddLog("Play stopped");
+#else
+    (void)context;
 #endif // _DEBUG
 }
 
@@ -381,14 +431,6 @@ void EditorLayer::ExecutePendingAction(EditorContext &context) {
             commandManager_.Clear();
         }
         return;
-    }
-
-    if (pendingAction_ == PendingAction::SwitchMode) {
-        EngineRuntime &runtime = EngineRuntime::GetInstance();
-        runtime.SetMode(runtime.IsGameplayMode() ? EngineRuntimeMode::Editor
-                                                 : EngineRuntimeMode::Gameplay);
-        console_.AddLog(runtime.IsEditorMode() ? "Switched to Engine Mode"
-                                               : "Switched to Gameplay Mode");
     }
 #else
     (void)context;

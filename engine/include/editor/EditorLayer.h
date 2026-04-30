@@ -24,14 +24,14 @@ class EditorLayer {
     void DrawUnsavedChangesModal(EditorContext &context);
     void ApplyViewportInputState(const EditorContext &context);
     void RequestLoadScene(const std::string &path);
-    void RequestModeSwitch();
+    void StartPlay(EditorContext &context);
+    void StopPlay(EditorContext &context);
     void ExecutePendingAction(EditorContext &context);
     void HandleUndoRedoShortcuts();
 
     enum class PendingAction {
         None,
         LoadScene,
-        SwitchMode,
     };
 
     EditorConsole console_;
@@ -43,6 +43,9 @@ class EditorLayer {
     std::array<char, 128> saveAsName_{};
     std::string statusMessage_;
     std::string pendingScenePath_;
+    std::string playStartSceneState_;
     PendingAction pendingAction_ = PendingAction::None;
+    bool playSessionActive_ = false;
+    bool playStartDirty_ = false;
     bool saveAsNameInitialized_ = false;
 };
