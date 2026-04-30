@@ -86,6 +86,12 @@ class GridPlacementTest : public IEditableScene {
     void MarkSceneDirty() override;
     void ClearSceneDirty() override;
     bool CanEditObjects() const override;
+    bool CanEditGrid() const override;
+    std::vector<std::string> GetGridBrushNames() const override;
+    int GetSelectedGridBrushIndex() const override;
+    void SetSelectedGridBrushIndex(int index) override;
+    bool PlaceObjectAtHoveredGridCell(std::string *message) override;
+    bool EraseObjectAtHoveredGridCell(std::string *message) override;
     bool AddEditableObject(const std::string &type,
                            std::string *message) override;
     bool DeleteSelectedEditableObject(std::string *message) override;
@@ -127,6 +133,16 @@ class GridPlacementTest : public IEditableScene {
     void EnsureFloorObjectAtCell(int gridX, int gridY);
     void RemoveExistingPlayerStarts();
     void SyncMapCellFromObjects(int gridX, int gridY);
+    bool PlaceObjectAtGridCell(PlacementObjectKind kind, int gridX, int gridY,
+                               std::string *message);
+    bool EraseObjectsAtGridCell(int gridX, int gridY, std::string *message);
+    bool HasLockedObjectAtCell(int gridX, int gridY,
+                               std::string *message) const;
+    bool HasLockedPlayerStart(std::string *message) const;
+    int FindObjectIndexAtCell(int gridX, int gridY,
+                              PlacementObjectKind kind) const;
+    void RemoveObjectsAtCellExceptFloor(int gridX, int gridY);
+    void RemoveUnlockedPlayerStarts();
     void ClampSelectedIndex();
     int FindObjectIndexById(uint64_t id) const;
     void EnsureSelectedObjectValid();

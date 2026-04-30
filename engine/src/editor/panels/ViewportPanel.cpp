@@ -197,6 +197,47 @@ void HandleHoveredGridCell(EditorContext &context) {
     }
 }
 
+bool CanUseViewportGridEdit(EditorContext &context) {
+    if (context.gameplayMode || !context.scene || !context.camera ||
+        !context.viewportImageHovered || !context.scene->CanEditGrid() ||
+        context.viewportGizmoUsing || ImGuizmo::IsUsing() ||
+        ImGuizmo::IsOver()) {
+        return false;
+    }
+
+    const ImGuiIO &io = ImGui::GetIO();
+    return !io.WantTextInput;
+}
+
+bool HandleViewportGridEdit(EditorContext &context) {
+    if (!CanUseViewportGridEdit(context)) {
+        return false;
+    }
+
+    const bool place = context.viewportClicked;
+    const bool erase = context.viewportRightClicked;
+    if (!place && !erase) {
+        return false;
+    }
+
+    IEditableScene &scene = *context.scene;
+    std::string beforeState;
+    CaptureSceneState(scene, beforeState);
+
+    std::string message;
+    const bool changed = place ? scene.PlaceObjectAtHoveredGridCell(&message)
+                               : scene.EraseObjectAtHoveredGridCell(&message);
+    if (changed) {
+        PushSceneCommand(context, scene, place ? "Place Grid Object"
+                                               : "Erase Grid Object",
+                         beforeState);
+    }
+    if (context.console && !message.empty()) {
+        context.console->AddLog(message);
+    }
+    return true;
+}
+
 } // namespace
 
 void ViewportPanel::Draw(EditorContext &context) {
@@ -244,6 +285,7 @@ void ViewportPanel::Draw(EditorContext &context) {
     context.viewportMousePosition = {0.0f, 0.0f};
     context.viewportImageHovered = false;
     context.viewportClicked = false;
+    context.viewportRightClicked = false;
 
     RenderTexture *renderTexture = context.renderTexture;
     if (!renderTexture || renderTexture->GetWidth() <= 0 ||
@@ -296,10 +338,14 @@ void ViewportPanel::Draw(EditorContext &context) {
                                      mousePos.y - imagePos.y};
     context.viewportClicked =
         ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+    context.viewportRightClicked =
+        ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Right);
 
     DrawGizmo(context);
     HandleHoveredGridCell(context);
-    HandleViewportPicking(context);
+    if (!HandleViewportGridEdit(context)) {
+        HandleViewportPicking(context);
+    }
 
     ImGui::End();
 }

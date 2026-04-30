@@ -12,6 +12,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -120,6 +121,38 @@ void HierarchyPanel::Draw(EditorContext &context) {
 
     if (!canEdit || addTypes.empty()) {
         ImGui::EndDisabled();
+    }
+
+    const std::vector<std::string> brushNames = scene->GetGridBrushNames();
+    if (!brushNames.empty()) {
+        const bool canEditGrid = !context.readOnly && scene->CanEditGrid();
+        int brushIndex = scene->GetSelectedGridBrushIndex();
+        if (brushIndex < 0 || brushIndex >= static_cast<int>(brushNames.size())) {
+            brushIndex = 0;
+        }
+        if (!canEditGrid) {
+            ImGui::BeginDisabled();
+        }
+        ImGui::SetNextItemWidth(-1.0f);
+        const char *brushPreview = brushNames[static_cast<size_t>(brushIndex)].c_str();
+        if (ImGui::BeginCombo("Brush", brushPreview)) {
+            for (int index = 0; index < static_cast<int>(brushNames.size());
+                 ++index) {
+                const bool selected = brushIndex == index;
+                if (ImGui::Selectable(brushNames[static_cast<size_t>(index)].c_str(),
+                                      selected)) {
+                    scene->SetSelectedGridBrushIndex(index);
+                    brushIndex = index;
+                }
+                if (selected) {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+        if (!canEditGrid) {
+            ImGui::EndDisabled();
+        }
     }
 
     ImGui::SetNextItemWidth(-1.0f);

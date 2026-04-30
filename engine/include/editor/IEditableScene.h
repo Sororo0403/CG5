@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 class IEditableScene {
   public:
@@ -66,6 +67,22 @@ class IEditableScene {
     virtual void ClearSceneDirty() {}
 
     virtual bool CanEditObjects() const { return false; }
+    virtual bool CanEditGrid() const { return CanEditObjects(); }
+    virtual std::vector<std::string> GetGridBrushNames() const { return {}; }
+    virtual int GetSelectedGridBrushIndex() const { return 0; }
+    virtual void SetSelectedGridBrushIndex(int index) { (void)index; }
+    virtual bool PlaceObjectAtHoveredGridCell(std::string *message) {
+        if (message) {
+            *message = "Grid placement is not supported";
+        }
+        return false;
+    }
+    virtual bool EraseObjectAtHoveredGridCell(std::string *message) {
+        if (message) {
+            *message = "Grid erasing is not supported";
+        }
+        return false;
+    }
     virtual bool AddEditableObject(const std::string &type,
                                    std::string *message) {
         (void)type;

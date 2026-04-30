@@ -100,6 +100,21 @@ char GetDefaultMapCode(PlacementObjectKind kind) {
     }
 }
 
+PlacementObjectKind GetBrushKind(int brush) {
+    switch (brush) {
+    case 0:
+        return PlacementObjectKind::Floor;
+    case 1:
+        return PlacementObjectKind::Wall;
+    case 2:
+        return PlacementObjectKind::PlayerStart;
+    case 3:
+        return PlacementObjectKind::GoalMarker;
+    default:
+        return PlacementObjectKind::Floor;
+    }
+}
+
 void NormalizeQuaternion(XMFLOAT4 &rotation) {
     const float lengthSq = rotation.x * rotation.x + rotation.y * rotation.y +
                            rotation.z * rotation.z + rotation.w * rotation.w;
@@ -547,15 +562,11 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
     placementCursorY_ = (std::clamp)(placementCursorY_, 0, map_.GetHeight() - 1);
 
     if (input->IsKeyTrigger(DIK_RETURN)) {
-        map_.SetTile(placementCursorX_, placementCursorY_,
-                     GetBrushTile(placementBrush_));
-        BuildObjects();
-        MarkSceneDirty();
+        PlaceObjectAtGridCell(GetBrushKind(placementBrush_), placementCursorX_,
+                              placementCursorY_, nullptr);
     }
-    if (input->IsKeyTrigger(DIK_BACK)) {
-        map_.SetTile(placementCursorX_, placementCursorY_, '0');
-        BuildObjects();
-        MarkSceneDirty();
+    if (input->IsKeyTrigger(DIK_BACK) || input->IsKeyTrigger(DIK_DELETE)) {
+        EraseObjectsAtGridCell(placementCursorX_, placementCursorY_, nullptr);
     }
     if (input->IsKeyTrigger(DIK_F5)) {
         SaveScene(nullptr);
@@ -937,6 +948,45 @@ void GridPlacementTest::ClearSceneDirty() {
 
 bool GridPlacementTest::CanEditObjects() const {
     return EngineRuntime::GetInstance().IsEditorMode();
+}
+
+bool GridPlacementTest::CanEditGrid() const {
+    return CanEditObjects();
+}
+
+std::vector<std::string> GridPlacementTest::GetGridBrushNames() const {
+    return {"Floor", "Wall", "Player Start", "GoalMarker"};
+}
+
+int GridPlacementTest::GetSelectedGridBrushIndex() const {
+    return placementBrush_;
+}
+
+void GridPlacementTest::SetSelectedGridBrushIndex(int index) {
+    const int maxBrush =
+        static_cast<int>(GetGridBrushNames().size()) - 1;
+    placementBrush_ = (std::clamp)(index, 0, maxBrush);
+}
+
+bool GridPlacementTest::PlaceObjectAtHoveredGridCell(std::string *message) {
+    if (!hasHoveredGridCell_) {
+        if (message) {
+            *message = "No hovered grid cell";
+        }
+        return false;
+    }
+    return PlaceObjectAtGridCell(GetBrushKind(placementBrush_), hoveredGridX_,
+                                 hoveredGridY_, message);
+}
+
+bool GridPlacementTest::EraseObjectAtHoveredGridCell(std::string *message) {
+    if (!hasHoveredGridCell_) {
+        if (message) {
+            *message = "No hovered grid cell";
+        }
+        return false;
+    }
+    return EraseObjectsAtGridCell(hoveredGridX_, hoveredGridY_, message);
 }
 
 bool GridPlacementTest::AddEditableObject(const std::string &type,
@@ -1397,6 +1447,248 @@ void GridPlacementTest::SyncMapCellFromObjects(int gridX, int gridY) {
         if (object.gridX == gridX && object.gridY == gridY) {
             object.mapCode = tile;
         }
+    }
+}
+
+bool GridPlacementTest::PlaceObjectAtGridCell(PlacementObjectKind kind,
+                                              int gridX, int gridY,
+                                              std::string *message) {
+    if (!CanEditObjects()) {
+        if (message) {
+            *message = "Grid editing is disabled in Gameplay Mode";
+        }
+        return false;
+    }
+    if (gridX < 0 || gridX >= map_.GetWidth() || gridY < 0 ||
+        gridY >= map_.GetHeight()) {
+        if (message) {
+            *message = "No hovered grid cell";
+        }
+        return false;
+    }
+    if (HasLockedObjectAtCell(gridX, gridY, message)) {
+        return false;
+    }
+    if (kind == PlacementObjectKind::PlayerStart &&
+        HasLockedPlayerStart(message)) {
+        return false;
+    }
+
+    bool changed = false;
+    uint64_t selectedId = 0;
+    if (kind == PlacementObjectKind::PlayerStart) {
+        RemoveUnlockedPlayerStarts();
+        changed = true;
+    } else {
+        const int sameIndex = FindObjectIndexAtCell(gridX, gridY, kind);
+        if (sameIndex >= 0) {
+            selectedId = objects_[static_cast<size_t>(sameIndex)].id;
+        }
+    }
+
+    if (kind == PlacementObjectKind::Floor) {
+        const int floorIndex =
+            FindObjectIndexAtCell(gridX, gridY, PlacementObjectKind::Floor);
+        const size_t beforeCount = objects_.size();
+        RemoveObjectsAtCellExceptFloor(gridX, gridY);
+        changed = changed || objects_.size() != beforeCount;
+        if (floorIndex < 0) {
+            PlacementObject floor =
+                CreatePlacementObject(PlacementObjectKind::Floor, gridX, gridY);
+            selectedId = floor.id;
+            objects_.push_back(floor);
+            changed = true;
+        } else if (selectedId == 0) {
+            const int newFloorIndex = FindObjectIndexAtCell(
+                gridX, gridY, PlacementObjectKind::Floor);
+            if (newFloorIndex >= 0) {
+                selectedId = objects_[static_cast<size_t>(newFloorIndex)].id;
+            }
+        }
+    } else {
+        const int sameIndex = FindObjectIndexAtCell(gridX, gridY, kind);
+        const size_t beforeCount = objects_.size();
+        objects_.erase(
+            std::remove_if(objects_.begin(), objects_.end(),
+                           [gridX, gridY, kind](const PlacementObject &object) {
+                               return object.gridX == gridX &&
+                                      object.gridY == gridY &&
+                                      object.kind != PlacementObjectKind::Floor &&
+                                      object.kind != kind;
+                           }),
+            objects_.end());
+        changed = changed || objects_.size() != beforeCount;
+        const size_t countBeforeFloor = objects_.size();
+        EnsureFloorObjectAtCell(gridX, gridY);
+        changed = changed || objects_.size() != countBeforeFloor;
+        if (sameIndex < 0 || kind == PlacementObjectKind::PlayerStart) {
+            PlacementObject object = CreatePlacementObject(kind, gridX, gridY);
+            selectedId = object.id;
+            objects_.push_back(object);
+            changed = true;
+        } else {
+            const int existingIndex = FindObjectIndexAtCell(gridX, gridY, kind);
+            if (existingIndex >= 0) {
+                selectedId = objects_[static_cast<size_t>(existingIndex)].id;
+            }
+        }
+    }
+
+    SyncMapCellFromObjects(gridX, gridY);
+    RecomputePlayerSpawnFromObjects();
+    if (selectedId != 0) {
+        selectedObjectId_ = selectedId;
+    }
+
+    if (!changed) {
+        if (message) {
+            *message = std::string(GetPlacementKindDisplayName(kind)) +
+                       " already exists at (" + std::to_string(gridX) + ", " +
+                       std::to_string(gridY) + ")";
+        }
+        return false;
+    }
+
+    MarkSceneDirty();
+    if (message) {
+        *message = "Placed " + GetPlacementKindDisplayName(kind) + " at (" +
+                   std::to_string(gridX) + ", " + std::to_string(gridY) + ")";
+    }
+    return true;
+}
+
+bool GridPlacementTest::EraseObjectsAtGridCell(int gridX, int gridY,
+                                               std::string *message) {
+    if (!CanEditObjects()) {
+        if (message) {
+            *message = "Grid editing is disabled in Gameplay Mode";
+        }
+        return false;
+    }
+    if (gridX < 0 || gridX >= map_.GetWidth() || gridY < 0 ||
+        gridY >= map_.GetHeight()) {
+        if (message) {
+            *message = "No hovered grid cell";
+        }
+        return false;
+    }
+    if (HasLockedObjectAtCell(gridX, gridY, message)) {
+        return false;
+    }
+
+    int eraseIndex =
+        FindObjectIndexAtCell(gridX, gridY, PlacementObjectKind::PlayerStart);
+    if (eraseIndex < 0) {
+        eraseIndex =
+            FindObjectIndexAtCell(gridX, gridY, PlacementObjectKind::GoalMarker);
+    }
+    if (eraseIndex < 0) {
+        eraseIndex =
+            FindObjectIndexAtCell(gridX, gridY, PlacementObjectKind::Wall);
+    }
+    if (eraseIndex < 0) {
+        eraseIndex =
+            FindObjectIndexAtCell(gridX, gridY, PlacementObjectKind::Floor);
+    }
+    if (eraseIndex < 0) {
+        if (message) {
+            *message = "Cell is already empty: (" + std::to_string(gridX) +
+                       ", " + std::to_string(gridY) + ")";
+        }
+        return false;
+    }
+
+    const uint64_t erasedId = objects_[static_cast<size_t>(eraseIndex)].id;
+    const PlacementObjectKind erasedKind =
+        objects_[static_cast<size_t>(eraseIndex)].kind;
+    objects_.erase(objects_.begin() + eraseIndex);
+    if (erasedKind == PlacementObjectKind::Floor) {
+        objects_.erase(std::remove_if(objects_.begin(), objects_.end(),
+                                      [gridX, gridY](const PlacementObject &object) {
+                                          return object.gridX == gridX &&
+                                                 object.gridY == gridY;
+                                      }),
+                       objects_.end());
+    }
+
+    if (selectedObjectId_ == erasedId || FindObjectIndexById(selectedObjectId_) < 0) {
+        selectedObjectId_ = 0;
+    }
+    SyncMapCellFromObjects(gridX, gridY);
+    RecomputePlayerSpawnFromObjects();
+    MarkSceneDirty();
+
+    if (message) {
+        *message = "Erased cell (" + std::to_string(gridX) + ", " +
+                   std::to_string(gridY) + ")";
+    }
+    return true;
+}
+
+bool GridPlacementTest::HasLockedObjectAtCell(int gridX, int gridY,
+                                              std::string *message) const {
+    for (const PlacementObject &object : objects_) {
+        if (object.gridX == gridX && object.gridY == gridY && object.locked) {
+            if (message) {
+                *message = "Object is locked: " + object.name;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+bool GridPlacementTest::HasLockedPlayerStart(std::string *message) const {
+    for (const PlacementObject &object : objects_) {
+        if (object.kind == PlacementObjectKind::PlayerStart && object.locked) {
+            if (message) {
+                *message = "Object is locked: " + object.name;
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+int GridPlacementTest::FindObjectIndexAtCell(int gridX, int gridY,
+                                             PlacementObjectKind kind) const {
+    for (int index = 0; index < static_cast<int>(objects_.size()); ++index) {
+        const PlacementObject &object = objects_[static_cast<size_t>(index)];
+        if (object.gridX == gridX && object.gridY == gridY &&
+            object.kind == kind) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+void GridPlacementTest::RemoveObjectsAtCellExceptFloor(int gridX, int gridY) {
+    objects_.erase(std::remove_if(objects_.begin(), objects_.end(),
+                                  [gridX, gridY](const PlacementObject &object) {
+                                      return object.gridX == gridX &&
+                                             object.gridY == gridY &&
+                                             object.kind !=
+                                                 PlacementObjectKind::Floor;
+                                  }),
+                   objects_.end());
+}
+
+void GridPlacementTest::RemoveUnlockedPlayerStarts() {
+    std::vector<std::pair<int, int>> touchedCells;
+    objects_.erase(std::remove_if(objects_.begin(), objects_.end(),
+                                  [&touchedCells](const PlacementObject &object) {
+                                      if (object.kind !=
+                                              PlacementObjectKind::PlayerStart ||
+                                          object.locked) {
+                                          return false;
+                                      }
+                                      touchedCells.push_back(
+                                          {object.gridX, object.gridY});
+                                      return true;
+                                  }),
+                   objects_.end());
+    for (const auto &[gridX, gridY] : touchedCells) {
+        SyncMapCellFromObjects(gridX, gridY);
     }
 }
 
