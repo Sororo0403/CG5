@@ -384,6 +384,9 @@ void GridPlacementTest::UpdatePlayMode(const SceneContext &ctx, Camera &camera) 
     if (!input) {
         return;
     }
+    if (gameplayPaused_) {
+        return;
+    }
 
     const float dt = ctx.frame.deltaTime;
     float moveX = 0.0f;
@@ -716,6 +719,49 @@ bool GridPlacementTest::LoadScene(std::string *message) {
     lastAppliedWallHeight_ = wallHeight_;
     lastAppliedMarkerScale_ = markerScale_;
     return true;
+}
+
+void GridPlacementTest::OnEnterEditorMode() {
+    EnterEditorMode();
+}
+
+void GridPlacementTest::OnEnterGameplayMode() {
+    EnterGameplayMode();
+}
+
+void GridPlacementTest::SetGameplayPaused(bool paused) {
+    PauseGameplay(paused);
+}
+
+bool GridPlacementTest::IsGameplayPaused() const {
+    return gameplayPaused_;
+}
+
+void GridPlacementTest::ResetGameplay() {
+    RecomputePlayerSpawnFromObjects();
+    ResetPlayerToSpawn();
+}
+
+void GridPlacementTest::EnterEditorMode() {
+    gameplayPaused_ = false;
+    cameraTarget_ = editorCameraTarget_;
+    cameraYaw_ = editorCameraYaw_;
+    cameraDistance_ = editorCameraDistance_;
+    cameraHeight_ = editorCameraHeight_;
+}
+
+void GridPlacementTest::EnterGameplayMode() {
+    editorCameraTarget_ = cameraTarget_;
+    editorCameraYaw_ = cameraYaw_;
+    editorCameraDistance_ = cameraDistance_;
+    editorCameraHeight_ = cameraHeight_;
+    gameplayPaused_ = false;
+    RecomputePlayerSpawnFromObjects();
+    ResetPlayerToSpawn();
+}
+
+void GridPlacementTest::PauseGameplay(bool paused) {
+    gameplayPaused_ = paused;
 }
 
 void GridPlacementTest::OnEditableObjectChanged(size_t index) {

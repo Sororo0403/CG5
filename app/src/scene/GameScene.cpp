@@ -83,6 +83,14 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->renderer.model->SetEnvironmentTexture(environmentTextureId_);
 
     gridPlacementTest_.Initialize(*ctx_);
+#ifdef _DEBUG
+    previousRuntimeMode_ = EngineRuntime::GetInstance().GetMode();
+    if (EngineRuntime::GetInstance().IsEditorMode()) {
+        gridPlacementTest_.OnEnterEditorMode();
+    } else {
+        gridPlacementTest_.OnEnterGameplayMode();
+    }
+#endif // _DEBUG
     RegisterDebugUI();
 #ifdef _DEBUG
     DebugUIRegistry::GetInstance().LoadFromJson(
@@ -96,21 +104,31 @@ void GameScene::Update() {
     if (ctx_->core.input && ctx_->core.input->IsKeyTrigger(DIK_F1)) {
         EngineRuntime::GetInstance().ToggleMode();
     }
+    HandleRuntimeModeChanged();
 #endif // _DEBUG
 
-#ifdef _DEBUG
-    if (EngineRuntime::GetInstance().IsEditorMode() ||
-        !editorLayer_.IsPaused()) {
-        gridPlacementTest_.Update(*ctx_, camera_);
-    }
-#else
     gridPlacementTest_.Update(*ctx_, camera_);
-#endif // _DEBUG
     ApplyTuning();
     if (ctx_->renderer.postEffectRenderer) {
         ctx_->renderer.postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
                                                               camera_.GetFarZ());
     }
+}
+
+void GameScene::HandleRuntimeModeChanged() {
+#ifdef _DEBUG
+    const EngineRuntimeMode currentMode = EngineRuntime::GetInstance().GetMode();
+    if (currentMode == previousRuntimeMode_) {
+        return;
+    }
+
+    previousRuntimeMode_ = currentMode;
+    if (EngineRuntime::GetInstance().IsEditorMode()) {
+        gridPlacementTest_.OnEnterEditorMode();
+    } else {
+        gridPlacementTest_.OnEnterGameplayMode();
+    }
+#endif // _DEBUG
 }
 
 void GameScene::Draw() {

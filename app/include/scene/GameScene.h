@@ -2,6 +2,7 @@
 #include "BaseScene.h"
 #include "Camera.h"
 #include "GridPlacementTest.h"
+#include "EngineRuntime.h"
 #ifdef _DEBUG
 #include "EditorLayer.h"
 #endif // _DEBUG
@@ -29,6 +30,7 @@ class GameScene : public BaseScene {
 
   private:
     void RegisterDebugUI();
+    void HandleRuntimeModeChanged();
     void ApplyTuning();
     void DrawGBufferScene();
     void DrawOffscreenScene();
@@ -48,4 +50,7 @@ class GameScene : public BaseScene {
     float pointLight0Intensity_ = 1.8f;
     float pointLight1Intensity_ = 1.2f;
     float ambientStrength_ = 0.20f;
+#ifdef _DEBUG
+    EngineRuntimeMode previousRuntimeMode_ = EngineRuntimeMode::Gameplay;
+#endif // _DEBUG
 };

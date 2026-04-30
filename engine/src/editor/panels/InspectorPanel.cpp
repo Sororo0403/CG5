@@ -58,6 +58,12 @@ void InspectorPanel::Draw(EditorContext &context) {
     const EditableObjectDesc desc = object->GetEditorDesc();
     char nameBuffer[128]{};
     std::snprintf(nameBuffer, sizeof(nameBuffer), "%s", desc.name.c_str());
+    if (context.readOnly) {
+        ImGui::TextDisabled("Read only in Gameplay Mode");
+    }
+    if (context.readOnly) {
+        ImGui::BeginDisabled();
+    }
     if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
         object->SetEditorName(nameBuffer);
         scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
@@ -79,6 +85,9 @@ void InspectorPanel::Draw(EditorContext &context) {
         transform.scale.z = (std::max)(0.01f, transform.scale.z);
         object->SetEditorTransform(transform);
         scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+    }
+    if (context.readOnly) {
+        ImGui::EndDisabled();
     }
 
     ImGui::Separator();

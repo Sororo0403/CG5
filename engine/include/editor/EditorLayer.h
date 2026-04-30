@@ -11,12 +11,9 @@ class EditorLayer {
   public:
     void Draw(IEditableScene *scene);
 
-    bool IsPaused() const { return paused_; }
-
   private:
     void DrawToolbar(EditorContext &context);
 
-    bool paused_ = false;
     EditorConsole console_;
     HierarchyPanel hierarchyPanel_;
     InspectorPanel inspectorPanel_;

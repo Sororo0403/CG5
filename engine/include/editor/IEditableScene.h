@@ -17,4 +17,10 @@ class IEditableScene {
 
     virtual bool SaveScene(std::string *message) = 0;
     virtual bool LoadScene(std::string *message) = 0;
+
+    virtual void OnEnterEditorMode() {}
+    virtual void OnEnterGameplayMode() {}
+    virtual void SetGameplayPaused(bool paused) { (void)paused; }
+    virtual bool IsGameplayPaused() const { return false; }
+    virtual void ResetGameplay() {}
 };

@@ -19,7 +19,8 @@ void EditorLayer::Draw(IEditableScene *scene) {
     EditorContext context{};
     context.scene = scene;
     context.console = &console_;
-    context.paused = paused_;
+    context.gameplayMode = EngineRuntime::GetInstance().IsGameplayMode();
+    context.readOnly = context.gameplayMode;
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImVec2 origin = viewport->WorkPos;
@@ -28,7 +29,6 @@ void EditorLayer::Draw(IEditableScene *scene) {
     ImGui::SetNextWindowPos(origin);
     ImGui::SetNextWindowSize({size.x, kToolbarHeight});
     DrawToolbar(context);
-    paused_ = context.paused;
 
     ImGui::SetNextWindowPos({origin.x, origin.y + kToolbarHeight});
     ImGui::SetNextWindowSize(
@@ -60,36 +60,54 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
     }
 
     EngineRuntime &runtime = EngineRuntime::GetInstance();
-    const bool engineMode = runtime.IsEditorMode();
-    if (ImGui::Button(engineMode ? "Engine Mode" : "Gameplay Mode")) {
-        runtime.SetMode(engineMode ? EngineRuntimeMode::Gameplay
-                                   : EngineRuntimeMode::Editor);
+    const bool gameplayMode = runtime.IsGameplayMode();
+    ImGui::Text("Mode: %s", gameplayMode ? "Gameplay" : "Engine");
+
+    ImGui::SameLine();
+    if (ImGui::Button(gameplayMode ? "Switch to Engine"
+                                   : "Switch to Gameplay")) {
+        runtime.SetMode(gameplayMode ? EngineRuntimeMode::Editor
+                                     : EngineRuntimeMode::Gameplay);
         console_.AddLog(runtime.IsEditorMode() ? "Switched to Engine Mode"
                                                : "Switched to Gameplay Mode");
     }
 
-    ImGui::SameLine();
-    if (ImGui::Button(context.paused ? "Play" : "Pause")) {
-        context.paused = !context.paused;
-        console_.AddLog(context.paused ? "Paused" : "Playing");
-    }
+    if (gameplayMode) {
+        const bool paused =
+            context.scene ? context.scene->IsGameplayPaused() : false;
+        ImGui::SameLine();
+        if (ImGui::Button(paused ? "Resume" : "Pause")) {
+            if (context.scene) {
+                context.scene->SetGameplayPaused(!paused);
+            }
+            console_.AddLog(paused ? "Gameplay resumed" : "Gameplay paused");
+        }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Save Scene")) {
-        std::string message;
-        const bool saved =
-            context.scene && context.scene->SaveScene(&message);
-        console_.AddLog(saved ? "Saved scene: " + message
-                              : "Failed to save scene: " + message);
-    }
+        ImGui::SameLine();
+        if (ImGui::Button("Reset Player")) {
+            if (context.scene) {
+                context.scene->ResetGameplay();
+            }
+            console_.AddLog("Gameplay reset to PlayerStart");
+        }
+    } else {
+        ImGui::SameLine();
+        if (ImGui::Button("Save Scene")) {
+            std::string message;
+            const bool saved =
+                context.scene && context.scene->SaveScene(&message);
+            console_.AddLog(saved ? "Saved scene: " + message
+                                  : "Failed to save scene: " + message);
+        }
 
-    ImGui::SameLine();
-    if (ImGui::Button("Load Scene")) {
-        std::string message;
-        const bool loaded =
-            context.scene && context.scene->LoadScene(&message);
-        console_.AddLog(loaded ? "Loaded scene: " + message
-                               : "Failed to load scene: " + message);
+        ImGui::SameLine();
+        if (ImGui::Button("Load Scene")) {
+            std::string message;
+            const bool loaded =
+                context.scene && context.scene->LoadScene(&message);
+            console_.AddLog(loaded ? "Loaded scene: " + message
+                                   : "Failed to load scene: " + message);
+        }
     }
 
     ImGui::SameLine();

@@ -58,6 +58,15 @@ class GridPlacementTest : public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
+    void OnEnterEditorMode() override;
+    void OnEnterGameplayMode() override;
+    void SetGameplayPaused(bool paused) override;
+    bool IsGameplayPaused() const override;
+    void ResetGameplay() override;
+
+    void EnterEditorMode();
+    void EnterGameplayMode();
+    void PauseGameplay(bool paused);
 
   private:
     void CreateModels(const SceneContext &ctx);
@@ -99,6 +108,11 @@ class GridPlacementTest : public IEditableScene {
     DirectX::XMFLOAT3 playerSpawn_{0.0f, 0.0f, 0.0f};
     float playerVelocityY_ = 0.0f;
     bool playerOnGround_ = true;
+    bool gameplayPaused_ = false;
+    DirectX::XMFLOAT3 editorCameraTarget_{0.0f, 0.0f, 0.0f};
+    float editorCameraYaw_ = 0.0f;
+    float editorCameraDistance_ = 9.5f;
+    float editorCameraHeight_ = 7.0f;
     float playerMoveSpeed_ = 4.0f;
     float playerJumpStrength_ = 6.0f;
     float cameraFollowSpeed_ = 8.0f;
