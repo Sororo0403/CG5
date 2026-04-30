@@ -1,5 +1,6 @@
 #include "panels/ViewportPanel.h"
 #include "Camera.h"
+#include "EditorCommand.h"
 #include "EngineRuntime.h"
 #include "EditorContext.h"
 #include "IEditableObject.h"
@@ -10,6 +11,7 @@
 #include <DirectXMath.h>
 #include <algorithm>
 #include <cmath>
+#include <memory>
 
 namespace {
 
@@ -84,6 +86,24 @@ bool MatrixChanged(const DirectX::XMFLOAT4X4 &a,
         }
     }
     return false;
+}
+
+bool CaptureSceneState(IEditableScene &scene, std::string &state) {
+    std::string message;
+    return scene.CaptureSceneState(&state, &message);
+}
+
+void PushSceneCommand(EditorContext &context, IEditableScene &scene,
+                      const char *name, const std::string &beforeState) {
+    if (!context.commands || beforeState.empty()) {
+        return;
+    }
+    std::string afterState;
+    if (!CaptureSceneState(scene, afterState) || afterState == beforeState) {
+        return;
+    }
+    context.commands->Execute(std::make_unique<SceneStateCommand>(
+        scene, name, beforeState, afterState));
 }
 
 } // namespace
@@ -253,6 +273,15 @@ void ViewportPanel::DrawGizmo(EditorContext &context) {
         static_cast<ImGuizmo::MODE>(gizmoMode_), &matrix.m[0][0]);
 
     context.viewportGizmoUsing = ImGuizmo::IsUsing();
+    if (context.viewportGizmoUsing && !gizmoEditActive_) {
+        gizmoEditActive_ = CaptureSceneState(*scene, gizmoBeforeState_);
+    }
+    if (gizmoEditActive_ && !context.viewportGizmoUsing) {
+        PushSceneCommand(context, *scene, "Transform Object",
+                         gizmoBeforeState_);
+        gizmoEditActive_ = false;
+        gizmoBeforeState_.clear();
+    }
     if (!manipulated || !MatrixChanged(beforeMatrix, matrix)) {
         return;
     }

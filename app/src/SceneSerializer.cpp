@@ -1,6 +1,7 @@
 #include "SceneSerializer.h"
 #include <fstream>
 #include <nlohmann/json.hpp>
+#include <sstream>
 #include <utility>
 
 namespace {
@@ -88,35 +89,21 @@ bool LoadObject(const nlohmann::json &objectJson, EditableSceneObject &object,
     return true;
 }
 
-} // namespace
-
-bool SceneSerializer::Load(const std::filesystem::path &path,
-                           EditableSceneDocument &outDocument,
-                           std::string *message) {
-    std::ifstream file(path);
-    if (!file) {
-        SetMessage(message, "Failed to open file: " + path.generic_string());
-        return false;
-    }
-
-    nlohmann::json root;
-    try {
-        file >> root;
-    } catch (const nlohmann::json::exception &e) {
-        SetMessage(message, "Invalid scene json in " + path.generic_string() +
-                                ": " + e.what());
-        return false;
-    }
-
+bool LoadDocumentFromJson(const nlohmann::json &root,
+                          const std::string &sourceName,
+                          EditableSceneDocument &outDocument,
+                          std::string *message) {
     if (!root.is_object()) {
-        SetMessage(message, "Invalid scene json: root must be object");
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": root must be object");
         return false;
     }
 
     EditableSceneDocument document{};
     if (root.contains("version")) {
         if (!root["version"].is_number_integer()) {
-            SetMessage(message, "Invalid scene json: version must be integer");
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": version must be integer");
             return false;
         }
         document.hasVersion = true;
@@ -124,35 +111,54 @@ bool SceneSerializer::Load(const std::filesystem::path &path,
         if (document.version > kCurrentSceneVersion) {
             SetMessage(message, "Unsupported scene version " +
                                     std::to_string(document.version) +
-                                    " in " + path.generic_string() +
-                                    " (current: " +
+                                    " in " + sourceName + " (current: " +
                                     std::to_string(kCurrentSceneVersion) + ")");
             return false;
         }
     }
 
+    if (root.contains("name") && !root["name"].is_string()) {
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": name must be string");
+        return false;
+    }
+    if (root.contains("tileSize") && !root["tileSize"].is_number()) {
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": tileSize must be number");
+        return false;
+    }
     document.name = root.value("name", std::string{"game_stage"});
     document.tileSize = root.value("tileSize", 1.0f);
 
     if (!root.contains("rows") || !root["rows"].is_array()) {
-        SetMessage(message, "Invalid scene json: rows must be array");
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": rows must be array");
         return false;
     }
     for (const nlohmann::json &row : root["rows"]) {
         if (!row.is_string()) {
-            SetMessage(message, "Invalid scene json: rows must be strings");
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": rows must be strings");
             return false;
         }
         document.rows.push_back(row.get<std::string>());
     }
     if (document.rows.empty()) {
-        SetMessage(message, "Invalid scene json: rows must not be empty");
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": rows must not be empty");
         return false;
     }
 
-    if (root.contains("objects")) {
+    if (!root.contains("objects")) {
+        if (document.hasVersion) {
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": objects must be array");
+            return false;
+        }
+    } else {
         if (!root["objects"].is_array()) {
-            SetMessage(message, "Invalid scene json: objects must be array");
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": objects must be array");
             return false;
         }
         document.hasObjects = true;
@@ -166,29 +172,19 @@ bool SceneSerializer::Load(const std::filesystem::path &path,
     }
 
     outDocument = std::move(document);
-    if (outDocument.hasVersion) {
-        SetMessage(message, "Loaded scene: " + path.generic_string());
+    if (outDocument.hasVersion && outDocument.version < kCurrentSceneVersion) {
+        SetMessage(message, "Loaded older scene version " +
+                                std::to_string(outDocument.version) +
+                                " from " + sourceName);
+    } else if (outDocument.hasVersion) {
+        SetMessage(message, "Loaded scene: " + sourceName);
     } else {
-        SetMessage(message,
-                   "Loaded legacy scene format: " + path.generic_string());
+        SetMessage(message, "Loaded legacy scene format: " + sourceName);
     }
     return true;
 }
 
-bool SceneSerializer::Save(const std::filesystem::path &path,
-                           const EditableSceneDocument &document,
-                           std::string *message) {
-    if (path.has_parent_path()) {
-        std::error_code error;
-        std::filesystem::create_directories(path.parent_path(), error);
-        if (error) {
-            SetMessage(message, "Failed to create scene directory: " +
-                                    path.parent_path().generic_string() +
-                                    " (" + error.message() + ")");
-            return false;
-        }
-    }
-
+nlohmann::json BuildSceneJson(const EditableSceneDocument &document) {
     nlohmann::json root;
     root["version"] = kCurrentSceneVersion;
     root["name"] = document.name;
@@ -227,6 +223,73 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
         };
         root["objects"].push_back(objectJson);
     }
+    return root;
+}
+
+} // namespace
+
+bool SceneSerializer::Load(const std::filesystem::path &path,
+                           EditableSceneDocument &outDocument,
+                           std::string *message) {
+    std::ifstream file(path);
+    if (!file) {
+        SetMessage(message, "Failed to open file: " + path.generic_string());
+        return false;
+    }
+
+    nlohmann::json root;
+    try {
+        file >> root;
+    } catch (const nlohmann::json::exception &e) {
+        SetMessage(message, "Invalid scene json in " + path.generic_string() +
+                                ": " + e.what());
+        return false;
+    }
+
+    return LoadDocumentFromJson(root, path.generic_string(), outDocument,
+                                message);
+}
+
+bool SceneSerializer::LoadFromString(const std::string &text,
+                                     EditableSceneDocument &outDocument,
+                                     std::string *message) {
+    nlohmann::json root;
+    try {
+        root = nlohmann::json::parse(text);
+    } catch (const nlohmann::json::exception &e) {
+        SetMessage(message, std::string("Invalid scene state json: ") +
+                                e.what());
+        return false;
+    }
+    return LoadDocumentFromJson(root, "memory", outDocument, message);
+}
+
+bool SceneSerializer::Save(const std::filesystem::path &path,
+                           const EditableSceneDocument &document,
+                           std::string *message) {
+    if (path.has_parent_path()) {
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        if (error) {
+            SetMessage(message, "Failed to create scene directory: " +
+                                    path.parent_path().generic_string() +
+                                    " (" + error.message() + ")");
+            return false;
+        }
+    }
+
+    if (std::filesystem::exists(path)) {
+        std::error_code error;
+        std::filesystem::copy_file(
+            path, path.generic_string() + ".bak",
+            std::filesystem::copy_options::overwrite_existing, error);
+        if (error) {
+            SetMessage(message, "Failed to create backup: " +
+                                    path.generic_string() + ".bak (" +
+                                    error.message() + ")");
+            return false;
+        }
+    }
 
     std::ofstream file(path);
     if (!file) {
@@ -234,11 +297,27 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
         return false;
     }
 
-    file << root.dump(2);
+    std::string text;
+    if (!SaveToString(document, text, message)) {
+        return false;
+    }
+    file << text;
     if (!file) {
         SetMessage(message, "Failed to write file: " + path.generic_string());
         return false;
     }
     SetMessage(message, "Saved scene: " + path.generic_string());
+    return true;
+}
+
+bool SceneSerializer::SaveToString(const EditableSceneDocument &document,
+                                   std::string &outText,
+                                   std::string *message) {
+    if (document.rows.empty()) {
+        SetMessage(message, "Cannot save scene: rows must not be empty");
+        return false;
+    }
+    const nlohmann::json root = BuildSceneJson(document);
+    outText = root.dump(2);
     return true;
 }

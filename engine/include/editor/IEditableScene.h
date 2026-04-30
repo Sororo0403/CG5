@@ -32,6 +32,22 @@ class IEditableScene {
     }
     virtual std::string GetCurrentScenePath() const { return {}; }
     virtual std::string GetCurrentSceneName() const { return {}; }
+    virtual bool CaptureSceneState(std::string *outState,
+                                   std::string *message) const {
+        (void)outState;
+        if (message) {
+            *message = "Scene state capture is not supported";
+        }
+        return false;
+    }
+    virtual bool RestoreSceneState(const std::string &state,
+                                   std::string *message) {
+        (void)state;
+        if (message) {
+            *message = "Scene state restore is not supported";
+        }
+        return false;
+    }
 
     virtual bool IsSceneDirty() const { return false; }
     virtual void MarkSceneDirty() {}

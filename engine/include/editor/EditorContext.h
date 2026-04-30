@@ -2,6 +2,7 @@
 #include "imgui.h"
 
 class EditorConsole;
+class EditorCommandManager;
 class IEditableScene;
 class Camera;
 class RenderTexture;
@@ -9,6 +10,7 @@ class RenderTexture;
 struct EditorContext {
     IEditableScene *scene = nullptr;
     EditorConsole *console = nullptr;
+    EditorCommandManager *commands = nullptr;
     const Camera *camera = nullptr;
     RenderTexture *renderTexture = nullptr;
     bool gameplayMode = false;

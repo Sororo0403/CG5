@@ -1,3 +1,4 @@
+#include "EditorCommand.h"
 #include "panels/InspectorPanel.h"
 #include "EditorContext.h"
 #include "IEditableScene.h"
@@ -8,6 +9,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <memory>
 
 namespace {
 
@@ -104,6 +106,24 @@ int ColliderIndex(const std::string &collider) {
     return 0;
 }
 
+bool CaptureSceneState(IEditableScene &scene, std::string &state) {
+    std::string message;
+    return scene.CaptureSceneState(&state, &message);
+}
+
+void PushSceneCommand(EditorContext &context, IEditableScene &scene,
+                      const char *name, const std::string &beforeState) {
+    if (!context.commands || beforeState.empty()) {
+        return;
+    }
+    std::string afterState;
+    if (!CaptureSceneState(scene, afterState) || afterState == beforeState) {
+        return;
+    }
+    context.commands->Execute(std::make_unique<SceneStateCommand>(
+        scene, name, beforeState, afterState));
+}
+
 } // namespace
 
 void InspectorPanel::Draw(EditorContext &context) {
@@ -167,14 +187,20 @@ void InspectorPanel::Draw(EditorContext &context) {
     ImGui::SeparatorText("Properties");
     bool locked = desc.locked;
     if (ImGui::Checkbox("Locked", &locked)) {
+        std::string beforeState;
+        CaptureSceneState(*scene, beforeState);
         if (object->SetEditorLocked(locked)) {
             scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+            PushSceneCommand(context, *scene, "Edit Object", beforeState);
         }
     }
     bool visible = desc.visible;
     if (ImGui::Checkbox("Visible", &visible)) {
+        std::string beforeState;
+        CaptureSceneState(*scene, beforeState);
         if (object->SetEditorVisible(visible)) {
             scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+            PushSceneCommand(context, *scene, "Edit Object", beforeState);
         }
     }
 
@@ -182,8 +208,11 @@ void InspectorPanel::Draw(EditorContext &context) {
     ImGui::SetNextItemWidth(-1.0f);
     if (ImGui::Combo("Collider", &colliderIndex, kColliderOptions,
                      static_cast<int>(std::size(kColliderOptions)))) {
+        std::string beforeState;
+        CaptureSceneState(*scene, beforeState);
         if (object->SetEditorCollider(kColliderOptions[colliderIndex])) {
             scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+            PushSceneCommand(context, *scene, "Edit Object", beforeState);
         }
     }
 
@@ -195,19 +224,33 @@ void InspectorPanel::Draw(EditorContext &context) {
     DirectX::XMFLOAT3 eulerDegrees =
         QuaternionToEulerDegrees(transform.rotation);
     bool transformChanged = false;
+    bool transformControlActive = false;
     transformChanged |= ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
+    transformControlActive |= ImGui::IsItemActive();
     if (ImGui::DragFloat3("Rotation", &eulerDegrees.x, 0.25f)) {
         transform.rotation = EulerDegreesToQuaternion(eulerDegrees);
         transformChanged = true;
     }
+    transformControlActive |= ImGui::IsItemActive();
     transformChanged |= ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f);
+    transformControlActive |= ImGui::IsItemActive();
     if (desc.locked) {
         ImGui::EndDisabled();
     }
     if (transformChanged && !desc.locked) {
+        if (!transformEditActive_) {
+            transformEditActive_ =
+                CaptureSceneState(*scene, transformBeforeState_);
+        }
         SanitizeTransform(transform);
         object->SetEditorTransform(transform);
         scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+    }
+    if (transformEditActive_ && !transformControlActive) {
+        PushSceneCommand(context, *scene, "Transform Object",
+                         transformBeforeState_);
+        transformEditActive_ = false;
+        transformBeforeState_.clear();
     }
 
     if (readOnly) {
@@ -235,6 +278,8 @@ void InspectorPanel::SyncNameBuffer(const EditableObjectDesc &desc) {
     if (editingObjectId_ == desc.id) {
         return;
     }
+    transformEditActive_ = false;
+    transformBeforeState_.clear();
     editingObjectId_ = desc.id;
     std::snprintf(nameBuffer_, sizeof(nameBuffer_), "%s", desc.name.c_str());
 }

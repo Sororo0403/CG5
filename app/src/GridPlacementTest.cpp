@@ -737,6 +737,37 @@ std::string GridPlacementTest::GetCurrentSceneName() const {
     return currentSceneName_;
 }
 
+bool GridPlacementTest::CaptureSceneState(std::string *outState,
+                                          std::string *message) const {
+    if (!outState) {
+        if (message) {
+            *message = "Scene state output is null";
+        }
+        return false;
+    }
+    const EditableSceneDocument document = BuildSceneDocument();
+    return SceneSerializer::SaveToString(document, *outState, message);
+}
+
+bool GridPlacementTest::RestoreSceneState(const std::string &state,
+                                          std::string *message) {
+    EditableSceneDocument document{};
+    if (!SceneSerializer::LoadFromString(state, document, message)) {
+        return false;
+    }
+    if (!ApplySceneDocument(document, message)) {
+        return false;
+    }
+    ResetPlayerToSpawn();
+    MarkSceneDirty();
+    lastAppliedTileSize_ = placementTileSize_;
+    lastAppliedFloorScale_ = floorScale_;
+    lastAppliedWallScale_ = wallScale_;
+    lastAppliedWallHeight_ = wallHeight_;
+    lastAppliedMarkerScale_ = markerScale_;
+    return true;
+}
+
 bool GridPlacementTest::IsSceneDirty() const {
     return sceneDirty_;
 }

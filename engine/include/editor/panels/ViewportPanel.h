@@ -1,5 +1,6 @@
 #pragma once
 #include "imgui.h"
+#include <string>
 
 struct EditorContext;
 
@@ -21,4 +22,6 @@ class ViewportPanel {
     bool focused_ = false;
     int gizmoOperation_ = 0;
     int gizmoMode_ = 1;
+    bool gizmoEditActive_ = false;
+    std::string gizmoBeforeState_;
 };

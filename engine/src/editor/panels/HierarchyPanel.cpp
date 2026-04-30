@@ -1,5 +1,6 @@
 #include "panels/HierarchyPanel.h"
 #include "EditableObjectFactory.h"
+#include "EditorCommand.h"
 #include "EditorConsole.h"
 #include "EditorContext.h"
 #include "IEditableScene.h"
@@ -8,6 +9,7 @@
 #include <cctype>
 #include <cstdio>
 #include <iterator>
+#include <memory>
 #include <string>
 
 namespace {
@@ -33,6 +35,24 @@ void LogResult(EditorContext &context, bool ok, const std::string &message,
         return;
     }
     context.console->AddLog(ok ? message : failedPrefix + message);
+}
+
+bool CaptureSceneState(IEditableScene &scene, std::string &state) {
+    std::string message;
+    return scene.CaptureSceneState(&state, &message);
+}
+
+void PushSceneCommand(EditorContext &context, IEditableScene &scene,
+                      const char *name, const std::string &beforeState) {
+    if (!context.commands || beforeState.empty()) {
+        return;
+    }
+    std::string afterState;
+    if (!CaptureSceneState(scene, afterState) || afterState == beforeState) {
+        return;
+    }
+    context.commands->Execute(std::make_unique<SceneStateCommand>(
+        scene, name, beforeState, afterState));
 }
 
 } // namespace
@@ -80,9 +100,14 @@ void HierarchyPanel::Draw(EditorContext &context) {
     }
     ImGui::SameLine();
     if (ImGui::Button("Add")) {
+        std::string beforeState;
+        CaptureSceneState(*scene, beforeState);
         std::string message;
         const std::string &type = addTypes[static_cast<size_t>(addTypeIndex_)];
         const bool added = scene->AddEditableObject(type, &message);
+        if (added) {
+            PushSceneCommand(context, *scene, "Add Object", beforeState);
+        }
         LogResult(context, added, message, "Failed to add object: ");
     }
 
@@ -155,9 +180,12 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                 ImGuiInputTextFlags_AutoSelectAll);
         clickedOnItem |= ImGui::IsItemClicked() || ImGui::IsItemActive();
         if (enterPressed || ImGui::IsItemDeactivatedAfterEdit()) {
+            std::string beforeState;
+            CaptureSceneState(scene, beforeState);
             object.SetEditorName(renameBuffer_);
             scene.SetSelectedObjectById(desc.id);
             scene.OnEditableObjectChanged(index);
+            PushSceneCommand(context, scene, "Rename Object", beforeState);
             renamingObjectId_ = 0;
             renameFocusPending_ = false;
         }
@@ -190,16 +218,28 @@ bool HierarchyPanel::DrawObjectRow(EditorContext &context,
                 BeginRename(desc);
             }
             if (ImGui::MenuItem("Duplicate")) {
+                std::string beforeState;
+                CaptureSceneState(scene, beforeState);
                 std::string message;
                 const bool duplicated =
                     scene.DuplicateSelectedEditableObject(&message);
+                if (duplicated) {
+                    PushSceneCommand(context, scene, "Duplicate Object",
+                                     beforeState);
+                }
                 LogResult(context, duplicated, message,
                           "Failed to duplicate object: ");
             }
             if (ImGui::MenuItem("Delete")) {
+                std::string beforeState;
+                CaptureSceneState(scene, beforeState);
                 std::string message;
                 const bool deleted =
                     scene.DeleteSelectedEditableObject(&message);
+                if (deleted) {
+                    PushSceneCommand(context, scene, "Delete Object",
+                                     beforeState);
+                }
                 LogResult(context, deleted, message,
                           "Failed to delete object: ");
             }

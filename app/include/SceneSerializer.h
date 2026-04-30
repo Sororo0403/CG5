@@ -39,7 +39,13 @@ class SceneSerializer {
     static bool Load(const std::filesystem::path &path,
                      EditableSceneDocument &outDocument,
                      std::string *message);
+    static bool LoadFromString(const std::string &text,
+                               EditableSceneDocument &outDocument,
+                               std::string *message);
     static bool Save(const std::filesystem::path &path,
                      const EditableSceneDocument &document,
                      std::string *message);
+    static bool SaveToString(const EditableSceneDocument &document,
+                             std::string &outText,
+                             std::string *message);
 };

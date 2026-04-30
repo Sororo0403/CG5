@@ -58,10 +58,12 @@ void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture,
     EditorContext context{};
     context.scene = scene;
     context.console = &console_;
+    context.commands = &commandManager_;
     context.camera = camera;
     context.renderTexture = renderTexture;
     context.gameplayMode = EngineRuntime::GetInstance().IsGameplayMode();
     context.readOnly = context.gameplayMode;
+    HandleUndoRedoShortcuts();
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImVec2 origin = viewport->WorkPos;
@@ -150,6 +152,34 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
     ImGui::Text("Mode: %s", gameplayMode ? "Gameplay" : "Engine");
 
     ImGui::SameLine();
+    const bool undoDisabled = gameplayMode || !commandManager_.CanUndo();
+    if (undoDisabled) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Undo")) {
+        commandManager_.Undo();
+        statusMessage_ = "Undo";
+        console_.AddLog("Undo");
+    }
+    if (undoDisabled) {
+        ImGui::EndDisabled();
+    }
+
+    ImGui::SameLine();
+    const bool redoDisabled = gameplayMode || !commandManager_.CanRedo();
+    if (redoDisabled) {
+        ImGui::BeginDisabled();
+    }
+    if (ImGui::Button("Redo")) {
+        commandManager_.Redo();
+        statusMessage_ = "Redo";
+        console_.AddLog("Redo");
+    }
+    if (redoDisabled) {
+        ImGui::EndDisabled();
+    }
+
+    ImGui::SameLine();
     if (ImGui::Button(gameplayMode ? "Switch to Engine"
                                    : "Switch to Gameplay")) {
         if (dirty) {
@@ -188,6 +218,9 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
                 context.scene && context.scene->SaveScene(&message);
             statusMessage_ = saved ? "Saved successfully" : "Failed to save";
             console_.AddLog(saved ? message : "Failed to save scene: " + message);
+            if (saved) {
+                commandManager_.Clear();
+            }
         }
 
         ImGui::SameLine();
@@ -203,6 +236,9 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
                 context.scene && context.scene->SaveSceneAs(path, &message);
             statusMessage_ = saved ? "Saved successfully" : "Failed to save";
             console_.AddLog(saved ? message : "Failed to save scene: " + message);
+            if (saved) {
+                commandManager_.Clear();
+            }
         }
 
         ImGui::SameLine();
@@ -341,6 +377,9 @@ void EditorLayer::ExecutePendingAction(EditorContext &context) {
         statusMessage_ = loaded ? "Loaded successfully" : "Failed to load";
         console_.AddLog(loaded ? message : "Failed to load scene: " + message);
         saveAsNameInitialized_ = false;
+        if (loaded) {
+            commandManager_.Clear();
+        }
         return;
     }
 
@@ -353,5 +392,26 @@ void EditorLayer::ExecutePendingAction(EditorContext &context) {
     }
 #else
     (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::HandleUndoRedoShortcuts() {
+#ifdef _DEBUG
+    ImGuiIO &io = ImGui::GetIO();
+    if (io.WantTextInput || EngineRuntime::GetInstance().IsGameplayMode()) {
+        return;
+    }
+
+    const bool ctrl = io.KeyCtrl;
+    if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) {
+        commandManager_.Undo();
+        statusMessage_ = "Undo";
+        console_.AddLog("Undo");
+    }
+    if (ctrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) {
+        commandManager_.Redo();
+        statusMessage_ = "Redo";
+        console_.AddLog("Redo");
+    }
 #endif // _DEBUG
 }

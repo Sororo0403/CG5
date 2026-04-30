@@ -1,4 +1,5 @@
 #pragma once
+#include "EditorCommand.h"
 #include "EditorConsole.h"
 #include "EditorContext.h"
 #include "panels/ConsolePanel.h"
@@ -25,6 +26,7 @@ class EditorLayer {
     void RequestLoadScene(const std::string &path);
     void RequestModeSwitch();
     void ExecutePendingAction(EditorContext &context);
+    void HandleUndoRedoShortcuts();
 
     enum class PendingAction {
         None,
@@ -33,6 +35,7 @@ class EditorLayer {
     };
 
     EditorConsole console_;
+    EditorCommandManager commandManager_;
     HierarchyPanel hierarchyPanel_;
     ViewportPanel viewportPanel_;
     InspectorPanel inspectorPanel_;

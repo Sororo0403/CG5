@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <string>
 
 struct EditorContext;
 struct EditableObjectDesc;
@@ -17,4 +18,6 @@ class InspectorPanel {
 
     char nameBuffer_[128]{};
     uint64_t editingObjectId_ = 0;
+    bool transformEditActive_ = false;
+    std::string transformBeforeState_;
 };

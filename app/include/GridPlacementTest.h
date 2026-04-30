@@ -72,6 +72,10 @@ class GridPlacementTest : public IEditableScene {
                            std::string *message) override;
     std::string GetCurrentScenePath() const override;
     std::string GetCurrentSceneName() const override;
+    bool CaptureSceneState(std::string *outState,
+                           std::string *message) const override;
+    bool RestoreSceneState(const std::string &state,
+                           std::string *message) override;
     bool IsSceneDirty() const override;
     void MarkSceneDirty() override;
     void ClearSceneDirty() override;
