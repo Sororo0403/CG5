@@ -9,11 +9,19 @@
 #include "ModelManager.h"
 #include "ModelRenderer.h"
 #include "TextureManager.h"
+#ifdef _DEBUG
+#include "imgui.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <limits>
+#include <nlohmann/json.hpp>
 #include <string>
+#include <utility>
 
 using namespace DirectX;
 
@@ -29,12 +37,103 @@ const char *GetPlacementKindName(PlacementObjectKind kind) {
     case PlacementObjectKind::Wall:
         return "Wall";
     case PlacementObjectKind::PlayerStart:
-        return "Player Start";
-    case PlacementObjectKind::EnemyMarker:
-        return "Enemy Marker";
+        return "PlayerStart";
+    case PlacementObjectKind::GoalMarker:
+        return "GoalMarker";
     default:
         return "Unknown";
     }
+}
+
+bool IsPlacementObjectKind(const std::string &kindName,
+                           PlacementObjectKind *kind) {
+    if (kindName == "Floor") {
+        *kind = PlacementObjectKind::Floor;
+        return true;
+    }
+    if (kindName == "Wall") {
+        *kind = PlacementObjectKind::Wall;
+        return true;
+    }
+    if (kindName == "PlayerStart" || kindName == "Player Start") {
+        *kind = PlacementObjectKind::PlayerStart;
+        return true;
+    }
+    if (kindName == "GoalMarker" || kindName == "Goal Marker" ||
+        kindName == "EnemyMarker" || kindName == "Enemy Marker") {
+        *kind = PlacementObjectKind::GoalMarker;
+        return true;
+    }
+    return false;
+}
+
+char GetDefaultMapCode(PlacementObjectKind kind) {
+    switch (kind) {
+    case PlacementObjectKind::Floor:
+        return '1';
+    case PlacementObjectKind::Wall:
+        return '2';
+    case PlacementObjectKind::PlayerStart:
+        return '3';
+    case PlacementObjectKind::GoalMarker:
+        return '4';
+    default:
+        return '0';
+    }
+}
+
+template <typename T>
+bool ReadFloatArray(const nlohmann::json &json, T &value) {
+    if (!json.is_array() || json.size() != 3) {
+        return false;
+    }
+    value.x = json[0].get<float>();
+    value.y = json[1].get<float>();
+    value.z = json[2].get<float>();
+    return true;
+}
+
+bool ReadRotationArray(const nlohmann::json &json, XMFLOAT4 &value) {
+    if (!json.is_array() || json.size() != 4) {
+        return false;
+    }
+    value.x = json[0].get<float>();
+    value.y = json[1].get<float>();
+    value.z = json[2].get<float>();
+    value.w = json[3].get<float>();
+    return true;
+}
+
+void NormalizeQuaternion(XMFLOAT4 &rotation) {
+    const float lengthSq = rotation.x * rotation.x + rotation.y * rotation.y +
+                           rotation.z * rotation.z + rotation.w * rotation.w;
+    if (lengthSq <= 0.000001f) {
+        rotation = {0.0f, 0.0f, 0.0f, 1.0f};
+        return;
+    }
+
+    const float invLength = 1.0f / std::sqrt(lengthSq);
+    rotation.x *= invLength;
+    rotation.y *= invLength;
+    rotation.z *= invLength;
+    rotation.w *= invLength;
+}
+
+void WarnDebug(const char *message) {
+#ifdef _DEBUG
+    std::fprintf(stderr, "%s\n", message);
+#else
+    (void)message;
+#endif
+}
+
+bool IsImGuiCapturingInput() {
+#ifdef _DEBUG
+    const ImGuiIO &io = ImGui::GetIO();
+    return io.WantCaptureKeyboard || io.WantCaptureMouse;
+#else
+    return false;
+#endif
 }
 
 Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
@@ -58,7 +157,7 @@ EditableObjectDesc PlacementObject::GetEditorDesc() const {
         desc.collider = "blocked grid tile";
     } else if (kind == PlacementObjectKind::Floor ||
                kind == PlacementObjectKind::PlayerStart ||
-               kind == PlacementObjectKind::EnemyMarker) {
+               kind == PlacementObjectKind::GoalMarker) {
         desc.collider = "walkable grid tile";
     }
     return desc;
@@ -86,8 +185,17 @@ void GridPlacementTest::Initialize(const SceneContext &ctx) {
     CreateModels(ctx);
     map_.LoadFromJson(stagePath_);
     placementTileSize_ = map_.GetTileSize();
-    BuildObjects();
+    bool hasObjects = false;
+    if (!LoadObjectsFromJson(stagePath_, &hasObjects) || !hasObjects) {
+        BuildObjects();
+    }
+    RecomputePlayerSpawnFromObjects();
     ResetPlayerToSpawn();
+    lastAppliedTileSize_ = placementTileSize_;
+    lastAppliedFloorScale_ = floorScale_;
+    lastAppliedWallScale_ = wallScale_;
+    lastAppliedWallHeight_ = wallHeight_;
+    lastAppliedMarkerScale_ = markerScale_;
     RegisterDebugUI();
 }
 
@@ -116,7 +224,7 @@ void GridPlacementTest::CreateModels(const SceneContext &ctx) {
 
 void GridPlacementTest::BuildObjects() {
     objects_.clear();
-    bool foundPlayerStart = false;
+    nextObjectId_ = 1;
 
     const XMFLOAT4 floorRotation = MakeQuaternion(-XM_PIDIV2, 0.0f, 0.0f);
     const float tileSize = map_.GetTileSize();
@@ -129,6 +237,7 @@ void GridPlacementTest::BuildObjects() {
             }
 
             PlacementObject floor{};
+            floor.id = AllocateObjectId();
             floor.kind = PlacementObjectKind::Floor;
             floor.mapCode = tile;
             floor.gridX = x;
@@ -143,6 +252,7 @@ void GridPlacementTest::BuildObjects() {
 
             if (tile == '2') {
                 PlacementObject wall{};
+                wall.id = AllocateObjectId();
                 wall.kind = PlacementObjectKind::Wall;
                 wall.mapCode = tile;
                 wall.gridX = x;
@@ -156,6 +266,7 @@ void GridPlacementTest::BuildObjects() {
                 objects_.push_back(wall);
             } else if (tile == '3') {
                 PlacementObject player{};
+                player.id = AllocateObjectId();
                 player.kind = PlacementObjectKind::PlayerStart;
                 player.mapCode = tile;
                 player.gridX = x;
@@ -166,11 +277,10 @@ void GridPlacementTest::BuildObjects() {
                 player.transform.scale = {0.24f, 0.24f, 0.24f};
                 player.name = "Player Start";
                 objects_.push_back(player);
-                playerSpawn_ = player.transform.position;
-                foundPlayerStart = true;
             } else if (tile == '4') {
                 PlacementObject marker{};
-                marker.kind = PlacementObjectKind::EnemyMarker;
+                marker.id = AllocateObjectId();
+                marker.kind = PlacementObjectKind::GoalMarker;
                 marker.mapCode = tile;
                 marker.gridX = x;
                 marker.gridY = y;
@@ -180,7 +290,7 @@ void GridPlacementTest::BuildObjects() {
                 marker.transform.scale = {tileSize * markerScale_,
                                           tileSize * (markerScale_ * 2.4f),
                                           tileSize * markerScale_};
-                marker.name = "Goal Marker";
+                marker.name = "GoalMarker";
                 objects_.push_back(marker);
             }
         }
@@ -189,9 +299,7 @@ void GridPlacementTest::BuildObjects() {
     if (selectedIndex_ >= static_cast<int>(objects_.size())) {
         selectedIndex_ = objects_.empty() ? 0 : static_cast<int>(objects_.size()) - 1;
     }
-    if (!foundPlayerStart) {
-        playerSpawn_ = {0.0f, 0.0f, 0.0f};
-    }
+    RecomputePlayerSpawnFromObjects();
 }
 
 void GridPlacementTest::Update(const SceneContext &ctx, Camera &camera) {
@@ -210,6 +318,9 @@ void GridPlacementTest::Update(const SceneContext &ctx, Camera &camera) {
 void GridPlacementTest::UpdateCamera(const SceneContext &ctx, Camera &camera) {
     const Input *input = ctx.core.input;
     if (!input) {
+        return;
+    }
+    if (IsImGuiCapturingInput()) {
         return;
     }
 
@@ -340,6 +451,9 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
     if (!input) {
         return;
     }
+    if (IsImGuiCapturingInput()) {
+        return;
+    }
 
     if (input->IsKeyTrigger(DIK_J)) {
         --placementCursorX_;
@@ -398,7 +512,7 @@ void GridPlacementTest::UpdateObjectTuning() {
             object.transform.scale = {tileSize * wallScale_,
                                       tileSize * wallHeight_,
                                       tileSize * wallScale_};
-        } else if (object.kind == PlacementObjectKind::EnemyMarker) {
+        } else if (object.kind == PlacementObjectKind::GoalMarker) {
             object.transform.position =
                 map_.GetCellCenter(object.gridX, object.gridY, kMarkerHeight);
             object.transform.scale = {tileSize * markerScale_,
@@ -506,7 +620,7 @@ void GridPlacementTest::RegisterDebugUI() {
     registry.RegisterInt("Placement", "Cursor Y", &placementCursorY_, 0,
                          map_.GetHeight() - 1, false);
     registry.RegisterCombo("Placement", "Brush", &placementBrush_,
-                           {"Floor", "Wall", "Player Start", "Goal Marker"},
+                           {"Floor", "Wall", "Player Start", "GoalMarker"},
                            false);
     registry.RegisterReadonlyInt("Placement", "Object Count", [this]() {
         return static_cast<int>(objects_.size());
@@ -569,7 +683,7 @@ bool GridPlacementTest::SaveScene(std::string *message) {
         *message = stagePath_;
     }
 
-    if (map_.SaveToJson(stagePath_)) {
+    if (SaveSceneToJson(stagePath_)) {
         ++saveCount_;
         return true;
     }
@@ -587,7 +701,14 @@ bool GridPlacementTest::LoadScene(std::string *message) {
 
     ++loadCount_;
     placementTileSize_ = map_.GetTileSize();
-    BuildObjects();
+    bool hasObjects = false;
+    if (!LoadObjectsFromJson(stagePath_, &hasObjects)) {
+        return false;
+    }
+    if (!hasObjects) {
+        BuildObjects();
+    }
+    RecomputePlayerSpawnFromObjects();
     ResetPlayerToSpawn();
     lastAppliedTileSize_ = placementTileSize_;
     lastAppliedFloorScale_ = floorScale_;
@@ -604,8 +725,226 @@ void GridPlacementTest::OnEditableObjectChanged(size_t index) {
 
     PlacementObject *object = &objects_[index];
     if (object->kind == PlacementObjectKind::PlayerStart) {
-        playerSpawn_ = object->transform.position;
+        RecomputePlayerSpawnFromObjects();
     }
+}
+
+void GridPlacementTest::RecomputePlayerSpawnFromObjects() {
+    bool foundPlayerStart = false;
+    int playerStartCount = 0;
+    for (const PlacementObject &object : objects_) {
+        if (object.kind != PlacementObjectKind::PlayerStart) {
+            continue;
+        }
+
+        ++playerStartCount;
+        if (!foundPlayerStart) {
+            playerSpawn_ = object.transform.position;
+            foundPlayerStart = true;
+        }
+    }
+
+    if (!foundPlayerStart) {
+        playerSpawn_ = {0.0f, 0.0f, 0.0f};
+    }
+    if (playerStartCount > 1) {
+        WarnDebug("GridPlacementTest: multiple PlayerStart objects found; using the first one.");
+    }
+}
+
+bool GridPlacementTest::LoadObjectsFromJson(const std::string &path,
+                                            bool *hasObjects) {
+    if (hasObjects) {
+        *hasObjects = false;
+    }
+
+    std::ifstream file(path);
+    if (!file) {
+        return false;
+    }
+
+    nlohmann::json root;
+    try {
+        file >> root;
+    } catch (const nlohmann::json::exception &) {
+        return false;
+    }
+
+    if (!root.contains("objects")) {
+        return true;
+    }
+    if (!root["objects"].is_array()) {
+        return false;
+    }
+    if (hasObjects) {
+        *hasObjects = true;
+    }
+
+    std::vector<PlacementObject> loadedObjects;
+    uint64_t maxId = 0;
+    for (const nlohmann::json &objectJson : root["objects"]) {
+        if (!objectJson.is_object()) {
+            return false;
+        }
+
+        PlacementObject object{};
+        object.id = objectJson.value("id", 0ull);
+
+        const std::string kindName = objectJson.value("kind", std::string{});
+        if (!kindName.empty()) {
+            if (!IsPlacementObjectKind(kindName, &object.kind)) {
+                return false;
+            }
+        } else {
+            const std::string mapCode = objectJson.value("mapCode", std::string{"1"});
+            switch (mapCode.empty() ? '1' : mapCode[0]) {
+            case '2':
+                object.kind = PlacementObjectKind::Wall;
+                break;
+            case '3':
+                object.kind = PlacementObjectKind::PlayerStart;
+                break;
+            case '4':
+                object.kind = PlacementObjectKind::GoalMarker;
+                break;
+            default:
+                object.kind = PlacementObjectKind::Floor;
+                break;
+            }
+        }
+
+        object.name = objectJson.value("name", std::string{});
+        object.gridX = objectJson.value("gridX", 0);
+        object.gridY = objectJson.value("gridY", 0);
+        const std::string mapCode =
+            objectJson.value("mapCode", std::string{1, GetDefaultMapCode(object.kind)});
+        object.mapCode = mapCode.empty() ? GetDefaultMapCode(object.kind) : mapCode[0];
+
+        if (objectJson.contains("transform")) {
+            const nlohmann::json &transformJson = objectJson["transform"];
+            if (!transformJson.is_object()) {
+                return false;
+            }
+            if (transformJson.contains("position") &&
+                !ReadFloatArray(transformJson["position"], object.transform.position)) {
+                return false;
+            }
+            if (transformJson.contains("rotation") &&
+                !ReadRotationArray(transformJson["rotation"], object.transform.rotation)) {
+                return false;
+            }
+            if (transformJson.contains("scale") &&
+                !ReadFloatArray(transformJson["scale"], object.transform.scale)) {
+                return false;
+            }
+        } else {
+            object.transform.position = map_.GetCellCenter(object.gridX, object.gridY);
+        }
+
+        if (object.id == 0 || object.id <= maxId) {
+            object.id = maxId + 1;
+        }
+        maxId = (std::max)(maxId, object.id);
+        AssignRuntimeFields(object);
+        loadedObjects.push_back(object);
+    }
+
+    objects_ = std::move(loadedObjects);
+    nextObjectId_ = maxId + 1;
+    if (selectedIndex_ >= static_cast<int>(objects_.size())) {
+        selectedIndex_ = objects_.empty() ? 0 : static_cast<int>(objects_.size()) - 1;
+    }
+    return true;
+}
+
+bool GridPlacementTest::SaveSceneToJson(const std::string &path) const {
+    std::filesystem::path scenePath(path);
+    if (scenePath.has_parent_path()) {
+        std::filesystem::create_directories(scenePath.parent_path());
+    }
+
+    nlohmann::json root;
+    root["name"] = "game_stage";
+    root["tileSize"] = map_.GetTileSize();
+    root["legend"] = {
+        {"0", "empty"},
+        {"1", "floor"},
+        {"2", "wall"},
+        {"3", "player_start"},
+        {"4", "goal_marker"},
+    };
+    root["rows"] = map_.GetRows();
+    root["objects"] = nlohmann::json::array();
+
+    for (const PlacementObject &object : objects_) {
+        nlohmann::json objectJson;
+        objectJson["id"] = object.id;
+        objectJson["name"] = object.name;
+        objectJson["kind"] = GetPlacementKindName(object.kind);
+        objectJson["gridX"] = object.gridX;
+        objectJson["gridY"] = object.gridY;
+        objectJson["mapCode"] = std::string(1, object.mapCode);
+        objectJson["transform"] = {
+            {"position",
+             {object.transform.position.x, object.transform.position.y,
+              object.transform.position.z}},
+            {"rotation",
+             {object.transform.rotation.x, object.transform.rotation.y,
+              object.transform.rotation.z, object.transform.rotation.w}},
+            {"scale",
+             {object.transform.scale.x, object.transform.scale.y,
+              object.transform.scale.z}},
+        };
+        root["objects"].push_back(objectJson);
+    }
+
+    std::ofstream file(scenePath);
+    if (!file) {
+        return false;
+    }
+
+    file << root.dump(2);
+    return true;
+}
+
+void GridPlacementTest::AssignRuntimeFields(PlacementObject &object) const {
+    switch (object.kind) {
+    case PlacementObjectKind::Floor:
+        object.modelId = floorModelId_;
+        if (object.name.empty()) {
+            object.name = "Floor";
+        }
+        break;
+    case PlacementObjectKind::Wall:
+        object.modelId = wallModelId_;
+        if (object.name.empty()) {
+            object.name = "Wall";
+        }
+        break;
+    case PlacementObjectKind::PlayerStart:
+        object.modelId = playerModelId_;
+        if (object.name.empty()) {
+            object.name = "Player Start";
+        }
+        break;
+    case PlacementObjectKind::GoalMarker:
+        object.modelId = markerModelId_;
+        if (object.name.empty()) {
+            object.name = "GoalMarker";
+        }
+        break;
+    }
+
+    object.mapCode = object.mapCode == '0' ? GetDefaultMapCode(object.kind)
+                                           : object.mapCode;
+    NormalizeQuaternion(object.transform.rotation);
+    object.transform.scale.x = (std::max)(0.01f, object.transform.scale.x);
+    object.transform.scale.y = (std::max)(0.01f, object.transform.scale.y);
+    object.transform.scale.z = (std::max)(0.01f, object.transform.scale.z);
+}
+
+uint64_t GridPlacementTest::AllocateObjectId() {
+    return nextObjectId_++;
 }
 
 void GridPlacementTest::ResetPlayerToSpawn() {

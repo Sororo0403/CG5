@@ -16,10 +16,11 @@ enum class PlacementObjectKind {
     Floor,
     Wall,
     PlayerStart,
-    EnemyMarker,
+    GoalMarker,
 };
 
 struct PlacementObject : public IEditableObject {
+    uint64_t id = 0;
     PlacementObjectKind kind = PlacementObjectKind::Floor;
     char mapCode = '0';
     int gridX = 0;
@@ -73,6 +74,11 @@ class GridPlacementTest : public IEditableScene {
                     const Camera &camera, bool gBuffer,
                     uint32_t environmentTextureId);
     void ResetPlayerToSpawn();
+    void RecomputePlayerSpawnFromObjects();
+    bool LoadObjectsFromJson(const std::string &path, bool *hasObjects);
+    bool SaveSceneToJson(const std::string &path) const;
+    void AssignRuntimeFields(PlacementObject &object) const;
+    uint64_t AllocateObjectId();
     bool IsBlocked(float worldX, float worldZ) const;
     void SelectObject(int offset);
     static char GetBrushTile(int brush);
@@ -109,6 +115,7 @@ class GridPlacementTest : public IEditableScene {
     int placementBrush_ = 1;
     int saveCount_ = 0;
     int loadCount_ = 0;
+    uint64_t nextObjectId_ = 1;
     std::string stagePath_ = "resources/levels/game_stage.json";
     float lastAppliedTileSize_ = 1.0f;
     float lastAppliedFloorScale_ = 1.0f;

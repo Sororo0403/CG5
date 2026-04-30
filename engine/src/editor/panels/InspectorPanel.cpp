@@ -2,6 +2,7 @@
 #include "EditorContext.h"
 #include "IEditableScene.h"
 #include "imgui.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
@@ -40,6 +41,12 @@ void InspectorPanel::Draw(EditorContext &context) {
     }
 
     const int selectedIndex = scene->GetSelectedEditableObjectIndex();
+    if (selectedIndex < 0) {
+        ImGui::Text("No object selected");
+        ImGui::End();
+        return;
+    }
+
     IEditableObject *object =
         scene->GetEditableObject(static_cast<size_t>(selectedIndex));
     if (!object) {
@@ -53,6 +60,7 @@ void InspectorPanel::Draw(EditorContext &context) {
     std::snprintf(nameBuffer, sizeof(nameBuffer), "%s", desc.name.c_str());
     if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
         object->SetEditorName(nameBuffer);
+        scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
     }
 
     ImGui::Text("Type: %s", desc.type.c_str());
@@ -61,10 +69,14 @@ void InspectorPanel::Draw(EditorContext &context) {
     EditableTransform transform = object->GetEditorTransform();
     bool changed = false;
     changed |= ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
+    // TODO: Replace direct quaternion editing with an Euler-angle UI.
     changed |= ImGui::DragFloat4("Rotation", &transform.rotation.x, 0.005f);
     changed |= ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f);
     if (changed) {
         NormalizeQuaternion(transform.rotation);
+        transform.scale.x = (std::max)(0.01f, transform.scale.x);
+        transform.scale.y = (std::max)(0.01f, transform.scale.y);
+        transform.scale.z = (std::max)(0.01f, transform.scale.z);
         object->SetEditorTransform(transform);
         scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
     }
