@@ -1,18 +1,19 @@
 #include "GridPlacementTest.h"
 #include "DirectXCommon.h"
+#include "DebugUIRegistry.h"
+#include "EngineRuntime.h"
+#include "Inspector.h"
 #include "Input.h"
 #include "Material.h"
 #include "Model.h"
 #include "ModelManager.h"
 #include "ModelRenderer.h"
 #include "TextureManager.h"
-#ifdef _DEBUG
-#include "imgui.h"
-#endif // _DEBUG
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
+#include <string>
 
 using namespace DirectX;
 
@@ -36,7 +37,11 @@ Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
 
 void GridPlacementTest::Initialize(const SceneContext &ctx) {
     CreateModels(ctx);
+    map_.LoadFromJson(stagePath_);
+    placementTileSize_ = map_.GetTileSize();
     BuildObjects();
+    ResetPlayerToSpawn();
+    RegisterDebugUI();
 }
 
 void GridPlacementTest::CreateModels(const SceneContext &ctx) {
@@ -64,6 +69,7 @@ void GridPlacementTest::CreateModels(const SceneContext &ctx) {
 
 void GridPlacementTest::BuildObjects() {
     objects_.clear();
+    bool foundPlayerStart = false;
 
     const XMFLOAT4 floorRotation = MakeQuaternion(-XM_PIDIV2, 0.0f, 0.0f);
     const float tileSize = map_.GetTileSize();
@@ -83,7 +89,8 @@ void GridPlacementTest::BuildObjects() {
             floor.modelId = floorModelId_;
             floor.transform.position = map_.GetCellCenter(x, y, kFloorHeight);
             floor.transform.rotation = floorRotation;
-            floor.transform.scale = {tileSize, tileSize, 1.0f};
+            floor.transform.scale = {tileSize * floorScale_, tileSize * floorScale_,
+                                     1.0f};
             floor.name = "Floor";
             objects_.push_back(floor);
 
@@ -96,8 +103,8 @@ void GridPlacementTest::BuildObjects() {
                 wall.modelId = wallModelId_;
                 wall.transform.position = map_.GetCellCenter(x, y, 0.05f);
                 wall.transform.rotation = MakeQuaternion(0.0f, XM_PIDIV4, 0.0f);
-                wall.transform.scale = {tileSize * 0.82f, tileSize * 0.9f,
-                                        tileSize * 0.82f};
+                wall.transform.scale = {tileSize * wallScale_, tileSize * wallHeight_,
+                                        tileSize * wallScale_};
                 wall.name = "Wall";
                 objects_.push_back(wall);
             } else if (tile == '3') {
@@ -109,9 +116,11 @@ void GridPlacementTest::BuildObjects() {
                 player.modelId = playerModelId_;
                 player.transform.position = map_.GetCellCenter(x, y, 0.0f);
                 player.transform.rotation = MakeQuaternion(0.0f, XM_PI, 0.0f);
-                player.transform.scale = {0.34f, 0.34f, 0.34f};
+                player.transform.scale = {0.24f, 0.24f, 0.24f};
                 player.name = "Player Start";
                 objects_.push_back(player);
+                playerSpawn_ = player.transform.position;
+                foundPlayerStart = true;
             } else if (tile == '4') {
                 PlacementObject marker{};
                 marker.kind = PlacementObjectKind::EnemyMarker;
@@ -121,9 +130,10 @@ void GridPlacementTest::BuildObjects() {
                 marker.modelId = markerModelId_;
                 marker.transform.position =
                     map_.GetCellCenter(x, y, kMarkerHeight);
-                marker.transform.scale = {tileSize * 0.5f, tileSize * 1.2f,
-                                          tileSize * 0.5f};
-                marker.name = "Enemy Marker";
+                marker.transform.scale = {tileSize * markerScale_,
+                                          tileSize * (markerScale_ * 2.4f),
+                                          tileSize * markerScale_};
+                marker.name = "Goal Marker";
                 objects_.push_back(marker);
             }
         }
@@ -132,13 +142,22 @@ void GridPlacementTest::BuildObjects() {
     if (selectedIndex_ >= static_cast<int>(objects_.size())) {
         selectedIndex_ = objects_.empty() ? 0 : static_cast<int>(objects_.size()) - 1;
     }
+    if (!foundPlayerStart) {
+        playerSpawn_ = {0.0f, 0.0f, 0.0f};
+    }
 }
 
 void GridPlacementTest::Update(const SceneContext &ctx, Camera &camera) {
     if (ctx.assets.model) {
         ctx.assets.model->UpdateAnimation(playerModelId_, ctx.frame.deltaTime);
     }
-    UpdateCamera(ctx, camera);
+    if (EngineRuntime::GetInstance().IsTuningMode()) {
+        UpdateTuningMode(ctx, camera);
+    } else {
+        UpdatePlayMode(ctx, camera);
+    }
+    UpdateObjectTuning();
+    RegisterInspectorObjects(camera);
 }
 
 void GridPlacementTest::UpdateCamera(const SceneContext &ctx, Camera &camera) {
@@ -148,39 +167,36 @@ void GridPlacementTest::UpdateCamera(const SceneContext &ctx, Camera &camera) {
     }
 
     const float dt = ctx.frame.deltaTime;
-    const float moveSpeed = 4.5f;
-    const float zoomSpeed = 7.0f;
-    const float rotateSpeed = 1.6f;
 
     if (input->IsKeyPress(DIK_A)) {
-        cameraTarget_.x -= moveSpeed * dt;
+        cameraTarget_.x -= freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_D)) {
-        cameraTarget_.x += moveSpeed * dt;
+        cameraTarget_.x += freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_W)) {
-        cameraTarget_.z += moveSpeed * dt;
+        cameraTarget_.z += freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_S)) {
-        cameraTarget_.z -= moveSpeed * dt;
+        cameraTarget_.z -= freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_Q)) {
-        cameraDistance_ += zoomSpeed * dt;
+        cameraDistance_ += freeCameraZoomSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_E)) {
-        cameraDistance_ -= zoomSpeed * dt;
+        cameraDistance_ -= freeCameraZoomSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_LEFT)) {
-        cameraYaw_ -= rotateSpeed * dt;
+        cameraYaw_ -= freeCameraRotateSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_RIGHT)) {
-        cameraYaw_ += rotateSpeed * dt;
+        cameraYaw_ += freeCameraRotateSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_UP)) {
-        cameraHeight_ += moveSpeed * dt;
+        cameraHeight_ += freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyPress(DIK_DOWN)) {
-        cameraHeight_ -= moveSpeed * dt;
+        cameraHeight_ -= freeCameraMoveSpeed_ * dt;
     }
     if (input->IsKeyTrigger(DIK_TAB)) {
         SelectObject(input->IsKeyPress(DIK_LSHIFT) ? -1 : 1);
@@ -197,6 +213,151 @@ void GridPlacementTest::UpdateCamera(const SceneContext &ctx, Camera &camera) {
     camera.SetPosition(cameraPosition);
     camera.LookAt(cameraTarget_);
     camera.UpdateMatrices();
+}
+
+void GridPlacementTest::UpdateTuningMode(const SceneContext &ctx,
+                                         Camera &camera) {
+    UpdatePlacementInput(ctx);
+    UpdateCamera(ctx, camera);
+}
+
+void GridPlacementTest::UpdatePlayMode(const SceneContext &ctx, Camera &camera) {
+    const Input *input = ctx.core.input;
+    if (!input) {
+        return;
+    }
+
+    const float dt = ctx.frame.deltaTime;
+    float moveX = 0.0f;
+    float moveZ = 0.0f;
+    if (input->IsKeyPress(DIK_A)) {
+        moveX -= 1.0f;
+    }
+    if (input->IsKeyPress(DIK_D)) {
+        moveX += 1.0f;
+    }
+    if (input->IsKeyPress(DIK_W)) {
+        moveZ += 1.0f;
+    }
+    if (input->IsKeyPress(DIK_S)) {
+        moveZ -= 1.0f;
+    }
+
+    const float length = std::sqrt(moveX * moveX + moveZ * moveZ);
+    if (length > 0.0f) {
+        moveX /= length;
+        moveZ /= length;
+    }
+
+    const float nextX = playerTransform_.position.x + moveX * playerMoveSpeed_ * dt;
+    const float nextZ = playerTransform_.position.z + moveZ * playerMoveSpeed_ * dt;
+    if (!IsBlocked(nextX, playerTransform_.position.z)) {
+        playerTransform_.position.x = nextX;
+    }
+    if (!IsBlocked(playerTransform_.position.x, nextZ)) {
+        playerTransform_.position.z = nextZ;
+    }
+
+    if (input->IsKeyTrigger(DIK_SPACE) && playerOnGround_) {
+        playerVelocityY_ = playerJumpStrength_;
+        playerOnGround_ = false;
+    }
+    playerVelocityY_ -= 14.0f * dt;
+    playerTransform_.position.y += playerVelocityY_ * dt;
+    if (playerTransform_.position.y <= playerSpawn_.y) {
+        playerTransform_.position.y = playerSpawn_.y;
+        playerVelocityY_ = 0.0f;
+        playerOnGround_ = true;
+    }
+    if (input->IsKeyTrigger(DIK_R)) {
+        ResetPlayerToSpawn();
+    }
+
+    const float follow = (std::clamp)(cameraFollowSpeed_ * dt, 0.0f, 1.0f);
+    cameraTarget_.x += (playerTransform_.position.x - cameraTarget_.x) * follow;
+    cameraTarget_.y += (playerTransform_.position.y - cameraTarget_.y) * follow;
+    cameraTarget_.z += (playerTransform_.position.z - cameraTarget_.z) * follow;
+
+    const float sinYaw = std::sin(cameraYaw_);
+    const float cosYaw = std::cos(cameraYaw_);
+    const XMFLOAT3 cameraPosition = {
+        cameraTarget_.x + sinYaw * cameraDistance_, cameraTarget_.y + cameraHeight_,
+        cameraTarget_.z - cosYaw * cameraDistance_};
+    camera.SetPosition(cameraPosition);
+    camera.LookAt(cameraTarget_);
+    camera.UpdateMatrices();
+}
+
+void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
+    const Input *input = ctx.core.input;
+    if (!input) {
+        return;
+    }
+
+    if (input->IsKeyTrigger(DIK_J)) {
+        --placementCursorX_;
+    }
+    if (input->IsKeyTrigger(DIK_L)) {
+        ++placementCursorX_;
+    }
+    if (input->IsKeyTrigger(DIK_I)) {
+        --placementCursorY_;
+    }
+    if (input->IsKeyTrigger(DIK_K)) {
+        ++placementCursorY_;
+    }
+    placementCursorX_ = (std::clamp)(placementCursorX_, 0, map_.GetWidth() - 1);
+    placementCursorY_ = (std::clamp)(placementCursorY_, 0, map_.GetHeight() - 1);
+
+    if (input->IsKeyTrigger(DIK_RETURN)) {
+        map_.SetTile(placementCursorX_, placementCursorY_,
+                     GetBrushTile(placementBrush_));
+        BuildObjects();
+    }
+    if (input->IsKeyTrigger(DIK_BACK)) {
+        map_.SetTile(placementCursorX_, placementCursorY_, '0');
+        BuildObjects();
+    }
+    if (input->IsKeyTrigger(DIK_F5)) {
+        if (map_.SaveToJson(stagePath_)) {
+            ++saveCount_;
+        }
+    }
+    if (input->IsKeyTrigger(DIK_F9)) {
+        if (map_.LoadFromJson(stagePath_)) {
+            ++loadCount_;
+            placementTileSize_ = map_.GetTileSize();
+            BuildObjects();
+            ResetPlayerToSpawn();
+        }
+    }
+}
+
+void GridPlacementTest::UpdateObjectTuning() {
+    placementTileSize_ = (std::max)(0.25f, placementTileSize_);
+    map_.SetTileSize(placementTileSize_);
+    const float tileSize = map_.GetTileSize();
+
+    for (PlacementObject &object : objects_) {
+        if (object.kind == PlacementObjectKind::Floor) {
+            object.transform.position =
+                map_.GetCellCenter(object.gridX, object.gridY, kFloorHeight);
+            object.transform.scale = {tileSize * floorScale_,
+                                      tileSize * floorScale_, 1.0f};
+        } else if (object.kind == PlacementObjectKind::Wall) {
+            object.transform.position = map_.GetCellCenter(object.gridX,
+                                                           object.gridY, 0.05f);
+            object.transform.scale = {tileSize * wallScale_,
+                                      tileSize * wallHeight_,
+                                      tileSize * wallScale_};
+        } else if (object.kind == PlacementObjectKind::EnemyMarker) {
+            object.transform.position =
+                map_.GetCellCenter(object.gridX, object.gridY, kMarkerHeight);
+            object.transform.scale = {tileSize * markerScale_,
+                                      tileSize * (markerScale_ * 2.4f),
+                                      tileSize * markerScale_};
+        }
+    }
 }
 
 void GridPlacementTest::DrawGBuffer(const SceneContext &ctx,
@@ -236,56 +397,112 @@ void GridPlacementTest::DrawObjects(ModelRenderer *renderer,
                            environmentTextureId);
         }
     }
+    DrawPlayer(renderer, ctx, camera, gBuffer, environmentTextureId);
 
     renderer->PostDraw();
 }
 
-void GridPlacementTest::DrawDebugUI(Camera &camera) {
-#ifdef _DEBUG
-    if (ImGui::Begin("Grid Placement Test")) {
-        ImGui::Text("Map Size: %d x %d", map_.GetWidth(), map_.GetHeight());
-        ImGui::Text("Tile Size: %.2f", map_.GetTileSize());
-        ImGui::Text("Placed Objects: %zu", objects_.size());
-        const XMFLOAT3 &cameraPosition = camera.GetPosition();
-        ImGui::Text("Camera Position: %.2f, %.2f, %.2f", cameraPosition.x,
-                    cameraPosition.y, cameraPosition.z);
-        ImGui::Text("Camera Target: %.2f, %.2f, %.2f", cameraTarget_.x,
-                    cameraTarget_.y, cameraTarget_.z);
-        ImGui::Separator();
-        ImGui::TextUnformatted("WASD: Move target");
-        ImGui::TextUnformatted("Q/E: Zoom");
-        ImGui::TextUnformatted("Arrow Left/Right: Rotate");
-        ImGui::TextUnformatted("Arrow Up/Down: Height");
-        ImGui::TextUnformatted("Tab / Shift+Tab: Select object");
-        ImGui::Separator();
-
-        if (!objects_.empty()) {
-            selectedIndex_ =
-                (std::clamp)(selectedIndex_, 0, static_cast<int>(objects_.size()) - 1);
-            PlacementObject &selected = objects_[static_cast<size_t>(selectedIndex_)];
-            ImGui::Text("Selected: %d / %zu", selectedIndex_ + 1,
-                        objects_.size());
-            ImGui::Text("Name: %s", selected.name.c_str());
-            ImGui::Text("Kind: %s", GetKindName(selected.kind));
-            ImGui::Text("Map Code: %c  Grid: (%d, %d)", selected.mapCode,
-                        selected.gridX, selected.gridY);
-            ImGui::DragFloat3("Position", &selected.transform.position.x,
-                              0.05f);
-            ImGui::DragFloat3("Scale", &selected.transform.scale.x, 0.02f,
-                              0.01f, 20.0f);
-            if (ImGui::Button("Previous")) {
-                SelectObject(-1);
-            }
-            ImGui::SameLine();
-            if (ImGui::Button("Next")) {
-                SelectObject(1);
-            }
-        }
+void GridPlacementTest::DrawPlayer(ModelRenderer *renderer,
+                                   const SceneContext &ctx,
+                                   const Camera &camera, bool gBuffer,
+                                   uint32_t environmentTextureId) {
+    if (!renderer || !ctx.assets.model || playerModelId_ == 0) {
+        return;
     }
-    ImGui::End();
+
+    const Model *model = ctx.assets.model->GetModel(playerModelId_);
+    if (!model) {
+        return;
+    }
+
+    if (gBuffer) {
+        renderer->DrawGBuffer(*model, playerTransform_, camera);
+    } else {
+        renderer->Draw(*model, playerTransform_, camera, environmentTextureId);
+    }
+}
+
+void GridPlacementTest::RegisterDebugUI() {
+#ifdef _DEBUG
+    DebugUIRegistry &registry = DebugUIRegistry::GetInstance();
+    registry.RegisterFloat("Player", "Move Speed", &playerMoveSpeed_, 0.5f,
+                           12.0f, true);
+    registry.RegisterFloat("Player", "Jump Strength", &playerJumpStrength_,
+                           1.0f, 14.0f, true);
+    registry.RegisterFloat("Camera", "Distance", &cameraDistance_, 3.0f,
+                           22.0f, true);
+    registry.RegisterFloat("Camera", "Height", &cameraHeight_, 2.0f, 16.0f,
+                           true);
+    registry.RegisterFloat("Camera", "Follow Speed", &cameraFollowSpeed_,
+                           1.0f, 20.0f, true);
+    registry.RegisterFloat("Camera", "Free Move Speed", &freeCameraMoveSpeed_,
+                           1.0f, 12.0f, true);
+    registry.RegisterFloat("Placement", "Tile Size", &placementTileSize_, 0.5f,
+                           3.0f, true);
+    registry.RegisterFloat("Placement", "Floor Scale", &floorScale_, 0.5f,
+                           1.5f, true);
+    registry.RegisterFloat("Placement", "Wall Width", &wallScale_, 0.2f,
+                           1.5f, true);
+    registry.RegisterFloat("Placement", "Wall Height", &wallHeight_, 0.2f,
+                           4.0f, true);
+    registry.RegisterFloat("Placement", "Marker Scale", &markerScale_, 0.2f,
+                           1.5f, true);
+    registry.RegisterInt("Placement", "Cursor X", &placementCursorX_, 0,
+                         map_.GetWidth() - 1, false);
+    registry.RegisterInt("Placement", "Cursor Y", &placementCursorY_, 0,
+                         map_.GetHeight() - 1, false);
+    registry.RegisterCombo("Placement", "Brush", &placementBrush_,
+                           {"Floor", "Wall", "Player Start", "Goal Marker"},
+                           false);
+    registry.RegisterReadonlyInt("Placement", "Object Count", [this]() {
+        return static_cast<int>(objects_.size());
+    });
+    registry.RegisterReadonlyInt("Placement", "Stage Saves",
+                                 [this]() { return saveCount_; });
+    registry.RegisterReadonlyInt("Placement", "Stage Loads",
+                                 [this]() { return loadCount_; });
+#endif // _DEBUG
+}
+
+void GridPlacementTest::RegisterInspectorObjects(const Camera &camera) {
+#ifdef _DEBUG
+    Inspector &inspector = Inspector::GetInstance();
+    inspector.RegisterCameraInfo("Gameplay Camera", &camera);
+    inspector.RegisterTransform("Player", &playerTransform_);
+    if (!objects_.empty()) {
+        selectedIndex_ =
+            (std::clamp)(selectedIndex_, 0, static_cast<int>(objects_.size()) - 1);
+        PlacementObject &selected = objects_[static_cast<size_t>(selectedIndex_)];
+        inspector.RegisterTransform("Selected Placement", &selected.transform);
+    }
 #else
     (void)camera;
 #endif // _DEBUG
+}
+
+void GridPlacementTest::ResetPlayerToSpawn() {
+    playerTransform_.position = playerSpawn_;
+    playerTransform_.rotation = MakeQuaternion(0.0f, XM_PI, 0.0f);
+    playerTransform_.scale = {0.34f, 0.34f, 0.34f};
+    playerVelocityY_ = 0.0f;
+    playerOnGround_ = true;
+    cameraTarget_ = playerSpawn_;
+}
+
+bool GridPlacementTest::IsBlocked(float worldX, float worldZ) const {
+    const float tileSize = map_.GetTileSize();
+    if (tileSize <= 0.0f) {
+        return false;
+    }
+
+    const float originX = -static_cast<float>(map_.GetWidth() - 1) * tileSize * 0.5f;
+    const float originZ = -static_cast<float>(map_.GetHeight() - 1) * tileSize * 0.5f;
+    const int x =
+        static_cast<int>(std::round((worldX - originX) / tileSize));
+    const int y =
+        static_cast<int>(std::round((worldZ - originZ) / tileSize));
+    const char tile = map_.GetTile(x, y);
+    return tile == '0' || tile == '2';
 }
 
 void GridPlacementTest::SelectObject(int offset) {
@@ -310,6 +527,21 @@ const char *GridPlacementTest::GetKindName(PlacementObjectKind kind) {
         return "Enemy Marker";
     default:
         return "Unknown";
+    }
+}
+
+char GridPlacementTest::GetBrushTile(int brush) {
+    switch (brush) {
+    case 0:
+        return '1';
+    case 1:
+        return '2';
+    case 2:
+        return '3';
+    case 3:
+        return '4';
+    default:
+        return '1';
     }
 }
 

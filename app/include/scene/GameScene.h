@@ -25,6 +25,8 @@ class GameScene : public BaseScene {
     void OnResize(int width, int height) override;
 
   private:
+    void RegisterDebugUI();
+    void ApplyTuning();
     void DrawGBufferScene();
     void DrawOffscreenScene();
 
@@ -35,4 +37,9 @@ class GameScene : public BaseScene {
     int renderWidth_ = 0;
     int renderHeight_ = 0;
     bool useDeferredRendering_ = true;
+    float radialBlurStrength_ = 0.0f;
+    float randomStrength_ = 0.0f;
+    float pointLight0Intensity_ = 1.8f;
+    float pointLight1Intensity_ = 1.2f;
+    float ambientStrength_ = 0.20f;
 };

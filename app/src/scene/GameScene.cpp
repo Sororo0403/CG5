@@ -1,8 +1,10 @@
 #include "GameScene.h"
 #include "DeferredRenderer.h"
 #include "DirectXCommon.h"
+#include "DebugUIRegistry.h"
 #include "EngineRuntime.h"
 #include "GBuffer.h"
+#include "Inspector.h"
 #include "Input.h"
 #include "LightManager.h"
 #include "ModelRenderer.h"
@@ -14,6 +16,10 @@
 
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
+#ifdef _DEBUG
+    DebugUIRegistry::GetInstance().Clear();
+    Inspector::GetInstance().Clear();
+#endif // _DEBUG
 
     if (!ctx_->renderer.renderTexture || !ctx_->renderer.gBuffer ||
         !ctx_->renderer.deferredRenderer || !ctx_->renderer.postEffectRenderer ||
@@ -77,6 +83,12 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->renderer.model->SetEnvironmentTexture(environmentTextureId_);
 
     gridPlacementTest_.Initialize(*ctx_);
+    RegisterDebugUI();
+#ifdef _DEBUG
+    DebugUIRegistry::GetInstance().LoadFromJson(
+        "resources/settings/debug_tuning.json");
+#endif // _DEBUG
+    ApplyTuning();
 }
 
 void GameScene::Update() {
@@ -87,6 +99,7 @@ void GameScene::Update() {
 #endif // _DEBUG
 
     gridPlacementTest_.Update(*ctx_, camera_);
+    ApplyTuning();
     if (ctx_->renderer.postEffectRenderer) {
         ctx_->renderer.postEffectRenderer->SetDepthParameters(camera_.GetNearZ(),
                                                               camera_.GetFarZ());
@@ -94,8 +107,6 @@ void GameScene::Update() {
 }
 
 void GameScene::Draw() {
-    gridPlacementTest_.DrawDebugUI(camera_);
-
     if (!ctx_->renderer.renderTexture || !ctx_->renderer.postEffectRenderer) {
         return;
     }
@@ -127,6 +138,54 @@ void GameScene::Draw() {
         ctx_->renderer.renderTexture->GetGpuHandle(),
         ctx_->core.dxCommon->GetDepthStencilGpuHandle());
     ctx_->core.dxCommon->TransitionDepthToWrite();
+
+#ifdef _DEBUG
+    DebugUIRegistry::GetInstance().Draw();
+    Inspector::GetInstance().Draw();
+#endif // _DEBUG
+}
+
+void GameScene::RegisterDebugUI() {
+#ifdef _DEBUG
+    DebugUIRegistry &registry = DebugUIRegistry::GetInstance();
+    registry.RegisterBool("Renderer", "Use Deferred Rendering",
+                          &useDeferredRendering_, true);
+    registry.RegisterFloat("Post Effect", "Radial Blur Strength",
+                           &radialBlurStrength_, 0.0f, 0.15f, true);
+    registry.RegisterFloat("Post Effect", "Random Strength", &randomStrength_,
+                           0.0f, 0.35f, true);
+    registry.RegisterFloat("Lighting", "Point Light 0 Intensity",
+                           &pointLight0Intensity_, 0.0f, 5.0f, true);
+    registry.RegisterFloat("Lighting", "Point Light 1 Intensity",
+                           &pointLight1Intensity_, 0.0f, 5.0f, true);
+    registry.RegisterFloat("Lighting", "Ambient Strength", &ambientStrength_,
+                           0.0f, 1.0f, true);
+#endif // _DEBUG
+}
+
+void GameScene::ApplyTuning() {
+    if (ctx_->renderer.postEffectRenderer) {
+        ctx_->renderer.postEffectRenderer->SetRadialBlurStrength(
+            radialBlurStrength_);
+        ctx_->renderer.postEffectRenderer->SetRandomStrength(randomStrength_);
+        ctx_->renderer.postEffectRenderer->SetRandomMode(
+            randomStrength_ > 0.0f
+                ? PostEffectRenderer::RandomMode::OverlayNoise
+                                   : PostEffectRenderer::RandomMode::None);
+    }
+
+    if (ctx_->renderer.light) {
+        ctx_->renderer.light->SetPointLight(
+            0, {{-2.0f, 3.5f, -2.5f, 9.0f},
+                {1.0f, 0.82f, 0.62f, pointLight0Intensity_}});
+        ctx_->renderer.light->SetPointLight(
+            1, {{3.0f, 2.4f, 2.0f, 7.0f},
+                {0.42f, 0.65f, 1.0f, pointLight1Intensity_}});
+        SceneLighting &lighting =
+            ctx_->renderer.light->GetMutableSceneLighting();
+        lighting.ambientColor = {ambientStrength_, ambientStrength_ * 1.1f,
+                                 ambientStrength_ * 1.2f, 1.0f};
+    }
 }
 
 void GameScene::DrawGBufferScene() {

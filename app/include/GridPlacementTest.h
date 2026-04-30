@@ -34,7 +34,8 @@ class GridPlacementTest {
     void DrawGBuffer(const SceneContext &ctx, const Camera &camera);
     void DrawForward(const SceneContext &ctx, const Camera &camera,
                      uint32_t environmentTextureId);
-    void DrawDebugUI(Camera &camera);
+    void RegisterDebugUI();
+    void RegisterInspectorObjects(const Camera &camera);
 
     const PlacementMap &GetMap() const { return map_; }
     size_t GetObjectCount() const { return objects_.size(); }
@@ -44,11 +45,21 @@ class GridPlacementTest {
     void CreateModels(const SceneContext &ctx);
     void BuildObjects();
     void UpdateCamera(const SceneContext &ctx, Camera &camera);
+    void UpdateTuningMode(const SceneContext &ctx, Camera &camera);
+    void UpdatePlayMode(const SceneContext &ctx, Camera &camera);
+    void UpdatePlacementInput(const SceneContext &ctx);
+    void UpdateObjectTuning();
     void DrawObjects(ModelRenderer *renderer, const SceneContext &ctx,
                      const Camera &camera, bool gBuffer,
                      uint32_t environmentTextureId);
+    void DrawPlayer(ModelRenderer *renderer, const SceneContext &ctx,
+                    const Camera &camera, bool gBuffer,
+                    uint32_t environmentTextureId);
+    void ResetPlayerToSpawn();
+    bool IsBlocked(float worldX, float worldZ) const;
     void SelectObject(int offset);
     static const char *GetKindName(PlacementObjectKind kind);
+    static char GetBrushTile(int brush);
     static DirectX::XMFLOAT4 MakeQuaternion(float pitch, float yaw, float roll);
 
     PlacementMap map_;
@@ -62,4 +73,25 @@ class GridPlacementTest {
     float cameraYaw_ = 0.0f;
     float cameraDistance_ = 9.5f;
     float cameraHeight_ = 7.0f;
+    Transform playerTransform_;
+    DirectX::XMFLOAT3 playerSpawn_{0.0f, 0.0f, 0.0f};
+    float playerVelocityY_ = 0.0f;
+    bool playerOnGround_ = true;
+    float playerMoveSpeed_ = 4.0f;
+    float playerJumpStrength_ = 6.0f;
+    float cameraFollowSpeed_ = 8.0f;
+    float freeCameraMoveSpeed_ = 4.5f;
+    float freeCameraZoomSpeed_ = 7.0f;
+    float freeCameraRotateSpeed_ = 1.6f;
+    float placementTileSize_ = 1.0f;
+    float floorScale_ = 1.0f;
+    float wallScale_ = 0.82f;
+    float wallHeight_ = 0.9f;
+    float markerScale_ = 0.5f;
+    int placementCursorX_ = 1;
+    int placementCursorY_ = 1;
+    int placementBrush_ = 1;
+    int saveCount_ = 0;
+    int loadCount_ = 0;
+    std::string stagePath_ = "resources/levels/game_stage.json";
 };

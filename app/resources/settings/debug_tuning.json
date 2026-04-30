@@ -1,26 +1,31 @@
 {
-  "Dissolve": {
-    "Auto Animate": true,
-    "Edge Color": [
-      1.0,
-      0.3199999928474426,
-      0.0,
-      1.0
-    ],
-    "Edge Width": 0.05999999865889549,
-    "Enabled": true,
-    "Threshold": 0.526913583278656
+  "Camera": {
+    "Distance": 9.5,
+    "Follow Speed": 12.458999633789063,
+    "Free Move Speed": 4.5,
+    "Height": 10.190999984741211
   },
   "Lighting": {
-    "Animate Point Lights": true
+    "Ambient Strength": 0.20000000298023224,
+    "Point Light 0 Intensity": 2.6549999713897705,
+    "Point Light 1 Intensity": 5.0
   },
-  "Random": {
-    "Animate": true,
-    "Scale": 360.0,
-    "Strength": 0.11999999731779099
+  "Placement": {
+    "Floor Scale": 1.0,
+    "Marker Scale": 0.5,
+    "Tile Size": 1.0729999542236328,
+    "Wall Height": 0.9150000214576721,
+    "Wall Width": 0.8199999928474426
+  },
+  "Player": {
+    "Jump Strength": 6.0,
+    "Move Speed": 4.0
+  },
+  "Post Effect": {
+    "Radial Blur Strength": 0.15000000596046448,
+    "Random Strength": 0.0
   },
   "Renderer": {
-    "GBuffer Debug View": 0,
     "Use Deferred Rendering": true
   }
 }
