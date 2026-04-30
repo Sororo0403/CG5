@@ -113,6 +113,7 @@ void Inspector::Draw() {
         ImGui::Text("Objects");
         ImGui::Separator();
 
+        ImGui::PushID("ObjectList");
         std::string currentCategory;
         for (int index = 0; index < static_cast<int>(objects_.size());
              ++index) {
@@ -123,19 +124,24 @@ void Inspector::Draw() {
             }
 
             const bool selected = selectedIndex_ == index;
+            ImGui::PushID(index);
             if (ImGui::Selectable(object.name.c_str(), selected)) {
                 selectedIndex_ = index;
             }
+            ImGui::PopID();
         }
+        ImGui::PopID();
 
         ImGui::Separator();
         const InspectorObject &selectedObject = objects_[selectedIndex_];
         ImGui::Text("Selected: %s", selectedObject.name.c_str());
         ImGui::Separator();
 
+        ImGui::PushID("SelectedObjectDetails");
         if (selectedObject.drawFunc) {
             selectedObject.drawFunc();
         }
+        ImGui::PopID();
     }
     ImGui::End();
 #endif // _DEBUG
@@ -144,11 +150,13 @@ void Inspector::Draw() {
 void Inspector::DrawTransform(const std::string &label,
                               Transform &transform) {
 #ifdef _DEBUG
+    ImGui::PushID(label.c_str());
     if (ImGui::CollapsingHeader(label.c_str(), ImGuiTreeNodeFlags_DefaultOpen)) {
         ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
         // rotationはQuaternionのため、ここでは直接編集しない。
         ImGui::DragFloat3("Scale", &transform.scale.x, 0.01f);
     }
+    ImGui::PopID();
 #else
     (void)label;
     (void)transform;

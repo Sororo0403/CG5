@@ -124,7 +124,7 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" (
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)app\src\scene\GameScene.cpp" />
-    <ClCompile Include="$(SolutionDir)app\src\main.cpp" />
+    <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)app\include\scene\GameScene.h" />

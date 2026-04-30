@@ -475,16 +475,21 @@ void DebugUIRegistry::Draw() {
         ImGui::Separator();
 
         for (const std::string &group : groups_) {
+            ImGui::PushID(group.c_str());
             if (!ImGui::CollapsingHeader(group.c_str(),
                                          ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::PopID();
                 continue;
             }
 
-            for (const DebugUIItem &item : items_) {
+            for (int itemIndex = 0; itemIndex < static_cast<int>(items_.size());
+                 ++itemIndex) {
+                const DebugUIItem &item = items_[itemIndex];
                 if (item.group != group) {
                     continue;
                 }
 
+                ImGui::PushID(itemIndex);
                 switch (item.type) {
                 case DebugUIValueType::Bool:
                     if (item.value) {
@@ -586,7 +591,9 @@ void DebugUIRegistry::Draw() {
                     }
                     break;
                 }
+                ImGui::PopID();
             }
+            ImGui::PopID();
         }
     }
     ImGui::End();

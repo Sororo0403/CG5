@@ -15,12 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(SolutionDir)app\src\main.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="$(SolutionDir)app\src\scene\GameScene.cpp">
       <Filter>src\scene</Filter>
     </ClCompile>
+    <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)app\include\scene\GameScene.h">
