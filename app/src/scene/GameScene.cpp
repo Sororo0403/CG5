@@ -165,7 +165,8 @@ void GameScene::Draw() {
     ctx_->core.dxCommon->TransitionDepthToWrite();
 
 #ifdef _DEBUG
-    editorLayer_.Draw(&gridPlacementTest_, ctx_->renderer.renderTexture);
+    editorLayer_.Draw(&gridPlacementTest_, ctx_->renderer.renderTexture,
+                      &camera_);
 #endif // _DEBUG
 }
 

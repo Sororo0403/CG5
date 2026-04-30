@@ -13,8 +13,12 @@ class ViewportPanel {
     bool IsFocused() const { return focused_; }
 
   private:
+    void DrawGizmo(EditorContext &context);
+
     ImVec2 position_{0.0f, 0.0f};
     ImVec2 size_{0.0f, 0.0f};
     bool hovered_ = false;
     bool focused_ = false;
+    int gizmoOperation_ = 0;
+    int gizmoMode_ = 1;
 };

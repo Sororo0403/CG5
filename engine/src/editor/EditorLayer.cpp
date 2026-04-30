@@ -14,11 +14,13 @@ constexpr float kConsoleHeight = 170.0f;
 
 } // namespace
 
-void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture) {
+void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture,
+                       const Camera *camera) {
 #ifdef _DEBUG
     EditorContext context{};
     context.scene = scene;
     context.console = &console_;
+    context.camera = camera;
     context.renderTexture = renderTexture;
     context.gameplayMode = EngineRuntime::GetInstance().IsGameplayMode();
     context.readOnly = context.gameplayMode;
@@ -56,6 +58,7 @@ void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture) {
 #else
     (void)scene;
     (void)renderTexture;
+    (void)camera;
 #endif // _DEBUG
 }
 
@@ -71,6 +74,7 @@ void EditorLayer::ApplyViewportInputState(const EditorContext &context) {
     settings.viewportMouseX = context.viewportMousePosition.x;
     settings.viewportMouseY = context.viewportMousePosition.y;
     settings.viewportClicked = context.viewportClicked;
+    settings.viewportGizmoUsing = context.viewportGizmoUsing;
 #else
     (void)context;
 #endif // _DEBUG

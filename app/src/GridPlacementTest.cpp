@@ -135,7 +135,9 @@ bool IsViewportAcceptingInput() {
 }
 
 bool CanUseGameInput() {
-    return IsViewportAcceptingInput() && !IsImGuiCapturingInput();
+    const EngineRuntimeSettings &settings = EngineRuntime::GetInstance().Settings();
+    return IsViewportAcceptingInput() && !settings.viewportGizmoUsing &&
+           !IsImGuiCapturingInput();
 }
 
 Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {

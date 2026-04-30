@@ -7,11 +7,13 @@
 #include "panels/ViewportPanel.h"
 
 class IEditableScene;
+class Camera;
 class RenderTexture;
 
 class EditorLayer {
   public:
-    void Draw(IEditableScene *scene, RenderTexture *renderTexture);
+    void Draw(IEditableScene *scene, RenderTexture *renderTexture,
+              const Camera *camera);
 
   private:
     void DrawToolbar(EditorContext &context);

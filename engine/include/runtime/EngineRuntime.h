@@ -38,6 +38,7 @@ struct EngineRuntimeSettings {
     float viewportMouseX = 0.0f;
     float viewportMouseY = 0.0f;
     bool viewportClicked = false;
+    bool viewportGizmoUsing = false;
 };
 
 /// <summary>

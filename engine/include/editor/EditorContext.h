@@ -3,11 +3,13 @@
 
 class EditorConsole;
 class IEditableScene;
+class Camera;
 class RenderTexture;
 
 struct EditorContext {
     IEditableScene *scene = nullptr;
     EditorConsole *console = nullptr;
+    const Camera *camera = nullptr;
     RenderTexture *renderTexture = nullptr;
     bool gameplayMode = false;
     bool readOnly = false;
@@ -19,4 +21,5 @@ struct EditorContext {
     ImVec2 viewportImageSize{0.0f, 0.0f};
     ImVec2 viewportMousePosition{0.0f, 0.0f};
     bool viewportClicked = false;
+    bool viewportGizmoUsing = false;
 };

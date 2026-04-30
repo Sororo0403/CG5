@@ -1,10 +1,99 @@
 #include "panels/ViewportPanel.h"
+#include "Camera.h"
+#include "EngineRuntime.h"
 #include "EditorContext.h"
+#include "IEditableObject.h"
+#include "IEditableScene.h"
 #include "RenderTexture.h"
+#include "ImGuizmo/ImGuizmo.h"
 #include "imgui.h"
+#include <DirectXMath.h>
 #include <algorithm>
+#include <cmath>
+
+namespace {
+
+constexpr float kMaxPosition = 10000.0f;
+constexpr float kMaxScale = 10000.0f;
+
+DirectX::XMFLOAT4X4 TransformToMatrix(const EditableTransform &transform) {
+    DirectX::XMVECTOR rotation =
+        DirectX::XMQuaternionNormalize(DirectX::XMLoadFloat4(&transform.rotation));
+    DirectX::XMMATRIX matrix =
+        DirectX::XMMatrixScaling(transform.scale.x, transform.scale.y,
+                                 transform.scale.z) *
+        DirectX::XMMatrixRotationQuaternion(rotation) *
+        DirectX::XMMatrixTranslation(transform.position.x,
+                                     transform.position.y,
+                                     transform.position.z);
+
+    DirectX::XMFLOAT4X4 result{};
+    DirectX::XMStoreFloat4x4(&result, matrix);
+    return result;
+}
+
+float SanitizeFloat(float value, float minValue, float maxValue,
+                    float fallback) {
+    if (!std::isfinite(value)) {
+        return fallback;
+    }
+    return (std::clamp)(value, minValue, maxValue);
+}
+
+EditableTransform MatrixToTransform(const DirectX::XMFLOAT4X4 &matrix,
+                                    const EditableTransform &fallback) {
+    DirectX::XMVECTOR scale{};
+    DirectX::XMVECTOR rotation{};
+    DirectX::XMVECTOR translation{};
+    if (!DirectX::XMMatrixDecompose(
+            &scale, &rotation, &translation, DirectX::XMLoadFloat4x4(&matrix))) {
+        return fallback;
+    }
+
+    EditableTransform result = fallback;
+    DirectX::XMStoreFloat3(&result.position, translation);
+    DirectX::XMStoreFloat4(
+        &result.rotation, DirectX::XMQuaternionNormalize(rotation));
+    DirectX::XMStoreFloat3(&result.scale, scale);
+
+    result.position.x =
+        SanitizeFloat(result.position.x, -kMaxPosition, kMaxPosition,
+                      fallback.position.x);
+    result.position.y =
+        SanitizeFloat(result.position.y, -kMaxPosition, kMaxPosition,
+                      fallback.position.y);
+    result.position.z =
+        SanitizeFloat(result.position.z, -kMaxPosition, kMaxPosition,
+                      fallback.position.z);
+    result.scale.x =
+        SanitizeFloat(result.scale.x, 0.01f, kMaxScale, fallback.scale.x);
+    result.scale.y =
+        SanitizeFloat(result.scale.y, 0.01f, kMaxScale, fallback.scale.y);
+    result.scale.z =
+        SanitizeFloat(result.scale.z, 0.01f, kMaxScale, fallback.scale.z);
+    return result;
+}
+
+bool MatrixChanged(const DirectX::XMFLOAT4X4 &a,
+                   const DirectX::XMFLOAT4X4 &b) {
+    const float *lhs = &a.m[0][0];
+    const float *rhs = &b.m[0][0];
+    for (int i = 0; i < 16; ++i) {
+        if (std::abs(lhs[i] - rhs[i]) > 0.0001f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
 
 void ViewportPanel::Draw(EditorContext &context) {
+    if (gizmoOperation_ == 0) {
+        gizmoOperation_ = ImGuizmo::TRANSLATE;
+        gizmoMode_ = ImGuizmo::WORLD;
+    }
+
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
                              ImGuiWindowFlags_NoCollapse;
     if (!ImGui::Begin("Viewport", nullptr, flags)) {
@@ -91,7 +180,81 @@ void ViewportPanel::Draw(EditorContext &context) {
     context.viewportClicked =
         ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
+    DrawGizmo(context);
+
     // TODO: Use viewportMousePosition with camera projection data to build
     // screen-to-world picking for object selection and placement.
     ImGui::End();
+}
+
+void ViewportPanel::DrawGizmo(EditorContext &context) {
+    context.viewportGizmoUsing = false;
+
+    const bool viewportActive = context.viewportHovered || context.viewportFocused;
+    const bool canUseGizmo = viewportActive && !context.gameplayMode &&
+                             context.scene && context.camera &&
+                             context.viewportImageSize.x > 0.0f &&
+                             context.viewportImageSize.y > 0.0f;
+    if (!canUseGizmo) {
+        return;
+    }
+
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.WantTextInput) {
+        if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+            gizmoOperation_ = ImGuizmo::TRANSLATE;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+            gizmoOperation_ = ImGuizmo::ROTATE;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+            gizmoOperation_ = ImGuizmo::SCALE;
+        }
+    }
+
+    IEditableScene *scene = context.scene;
+    const int selectedIndex = scene->GetSelectedEditableObjectIndex();
+    if (selectedIndex < 0) {
+        return;
+    }
+
+    IEditableObject *object =
+        scene->GetEditableObject(static_cast<size_t>(selectedIndex));
+    if (!object) {
+        return;
+    }
+
+    const EditableObjectDesc desc = object->GetEditorDesc();
+    if (!desc.editable || !scene->CanEditObjects()) {
+        return;
+    }
+
+    EditableTransform transform = object->GetEditorTransform();
+    DirectX::XMFLOAT4X4 matrix = TransformToMatrix(transform);
+    const DirectX::XMFLOAT4X4 beforeMatrix = matrix;
+
+    DirectX::XMFLOAT4X4 view{};
+    DirectX::XMFLOAT4X4 projection{};
+    DirectX::XMStoreFloat4x4(&view, context.camera->GetView());
+    DirectX::XMStoreFloat4x4(&projection, context.camera->GetProj());
+
+    ImGuizmo::BeginFrame();
+    ImGuizmo::SetDrawlist(ImGui::GetWindowDrawList());
+    ImGuizmo::SetOrthographic(false);
+    ImGuizmo::SetRect(context.viewportImagePosition.x,
+                      context.viewportImagePosition.y,
+                      context.viewportImageSize.x, context.viewportImageSize.y);
+
+    const bool manipulated = ImGuizmo::Manipulate(
+        &view.m[0][0], &projection.m[0][0],
+        static_cast<ImGuizmo::OPERATION>(gizmoOperation_),
+        static_cast<ImGuizmo::MODE>(gizmoMode_), &matrix.m[0][0]);
+
+    context.viewportGizmoUsing = ImGuizmo::IsUsing();
+    if (!manipulated || !MatrixChanged(beforeMatrix, matrix)) {
+        return;
+    }
+
+    object->SetEditorTransform(MatrixToTransform(matrix, transform));
+    scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
 }
