@@ -1,6 +1,7 @@
 #include "panels/ViewportPanel.h"
 #include "Camera.h"
 #include "EditorCommand.h"
+#include "EditorConsole.h"
 #include "EngineRuntime.h"
 #include "EditorContext.h"
 #include "IEditableObject.h"
@@ -11,6 +12,7 @@
 #include <DirectXMath.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 
 namespace {
@@ -104,6 +106,74 @@ void PushSceneCommand(EditorContext &context, IEditableScene &scene,
     }
     context.commands->PushExecuted(std::make_unique<SceneStateCommand>(
         scene, name, beforeState, afterState));
+}
+
+EditableRay BuildViewportRay(const EditorContext &context) {
+    EditableRay ray{};
+    if (!context.camera || context.viewportImageSize.x <= 0.0f ||
+        context.viewportImageSize.y <= 0.0f) {
+        return ray;
+    }
+
+    const DirectX::XMVECTOR nearPoint = DirectX::XMVector3Unproject(
+        DirectX::XMVectorSet(context.viewportMousePosition.x,
+                             context.viewportMousePosition.y, 0.0f, 1.0f),
+        0.0f, 0.0f, context.viewportImageSize.x,
+        context.viewportImageSize.y, 0.0f, 1.0f, context.camera->GetProj(),
+        context.camera->GetView(), DirectX::XMMatrixIdentity());
+    const DirectX::XMVECTOR farPoint = DirectX::XMVector3Unproject(
+        DirectX::XMVectorSet(context.viewportMousePosition.x,
+                             context.viewportMousePosition.y, 1.0f, 1.0f),
+        0.0f, 0.0f, context.viewportImageSize.x,
+        context.viewportImageSize.y, 0.0f, 1.0f, context.camera->GetProj(),
+        context.camera->GetView(), DirectX::XMMatrixIdentity());
+    const DirectX::XMVECTOR direction =
+        DirectX::XMVector3Normalize(
+            DirectX::XMVectorSubtract(farPoint, nearPoint));
+
+    ray.origin = context.camera->GetPosition();
+    DirectX::XMStoreFloat3(&ray.direction, direction);
+    return ray;
+}
+
+void LogSelection(EditorContext &context, uint64_t selectedId) {
+    if (!context.console || !context.scene) {
+        return;
+    }
+    if (selectedId == 0) {
+        context.console->AddLog("Selection cleared");
+        return;
+    }
+
+    const int selectedIndex = context.scene->GetSelectedEditableObjectIndex();
+    const IEditableObject *object =
+        selectedIndex >= 0
+            ? context.scene->GetEditableObject(
+                  static_cast<size_t>(selectedIndex))
+            : nullptr;
+    if (!object) {
+        context.console->AddLog("Selected object");
+        return;
+    }
+
+    const EditableObjectDesc desc = object->GetEditorDesc();
+    context.console->AddLog("Selected: " + desc.name);
+}
+
+void HandleViewportPicking(EditorContext &context) {
+    if (!context.viewportClicked || context.gameplayMode || !context.scene ||
+        !context.camera || context.viewportGizmoUsing || ImGuizmo::IsUsing() ||
+        ImGuizmo::IsOver()) {
+        return;
+    }
+
+    const uint64_t previousId = context.scene->GetSelectedObjectId();
+    const uint64_t pickedId =
+        context.scene->PickEditableObject(BuildViewportRay(context));
+    context.scene->SetSelectedObjectById(pickedId);
+    if (pickedId != previousId) {
+        LogSelection(context, pickedId);
+    }
 }
 
 } // namespace
@@ -201,9 +271,8 @@ void ViewportPanel::Draw(EditorContext &context) {
         ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
 
     DrawGizmo(context);
+    HandleViewportPicking(context);
 
-    // TODO: Use viewportMousePosition with camera projection data to build
-    // screen-to-world picking for object selection and placement.
     ImGui::End();
 }
 

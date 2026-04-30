@@ -62,6 +62,7 @@ class GridPlacementTest : public IEditableScene {
     const IEditableObject *GetEditableObject(size_t index) const override;
     uint64_t GetSelectedObjectId() const override;
     void SetSelectedObjectById(uint64_t id) override;
+    uint64_t PickEditableObject(const EditableRay &ray) const override;
     int GetSelectedEditableObjectIndex() const override;
     void SetSelectedEditableObjectIndex(int index) override;
     void OnEditableObjectChanged(size_t index) override;

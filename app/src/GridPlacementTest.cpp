@@ -157,6 +157,52 @@ Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
     return material;
 }
 
+float GetPickRadius(const PlacementObject &object) {
+    const float maxScale =
+        (std::max)({std::abs(object.transform.scale.x),
+                    std::abs(object.transform.scale.y),
+                    std::abs(object.transform.scale.z)});
+    switch (object.kind) {
+    case PlacementObjectKind::Floor:
+        return (std::max)(0.25f, maxScale * 0.5f);
+    case PlacementObjectKind::Wall:
+        return (std::max)(0.45f, maxScale * 0.65f);
+    case PlacementObjectKind::PlayerStart:
+        return (std::max)(0.35f, maxScale * 1.25f);
+    case PlacementObjectKind::GoalMarker:
+        return (std::max)(0.35f, maxScale * 0.85f);
+    default:
+        return (std::max)(0.35f, maxScale * 0.65f);
+    }
+}
+
+bool IntersectRaySphere(const EditableRay &ray, const XMFLOAT3 &center,
+                        float radius, float &distance) {
+    const XMVECTOR origin = XMLoadFloat3(&ray.origin);
+    const XMVECTOR direction =
+        XMVector3Normalize(XMLoadFloat3(&ray.direction));
+    const XMVECTOR sphereCenter = XMLoadFloat3(&center);
+    const XMVECTOR offset = origin - sphereCenter;
+
+    const float b = XMVectorGetX(XMVector3Dot(offset, direction));
+    const float c = XMVectorGetX(XMVector3Dot(offset, offset)) -
+                    radius * radius;
+    if (c > 0.0f && b > 0.0f) {
+        return false;
+    }
+
+    const float discriminant = b * b - c;
+    if (discriminant < 0.0f) {
+        return false;
+    }
+
+    distance = -b - std::sqrt(discriminant);
+    if (distance < 0.0f) {
+        distance = 0.0f;
+    }
+    return true;
+}
+
 } // namespace
 
 EditableObjectDesc PlacementObject::GetEditorDesc() const {
@@ -700,6 +746,29 @@ uint64_t GridPlacementTest::GetSelectedObjectId() const {
 
 void GridPlacementTest::SetSelectedObjectById(uint64_t id) {
     selectedObjectId_ = FindObjectIndexById(id) >= 0 ? id : 0;
+}
+
+uint64_t GridPlacementTest::PickEditableObject(const EditableRay &ray) const {
+    uint64_t pickedId = 0;
+    float closestDistance = (std::numeric_limits<float>::max)();
+
+    for (const PlacementObject &object : objects_) {
+        if (!object.visible) {
+            continue;
+        }
+
+        float distance = 0.0f;
+        if (!IntersectRaySphere(ray, object.transform.position,
+                                GetPickRadius(object), distance)) {
+            continue;
+        }
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            pickedId = object.id;
+        }
+    }
+
+    return pickedId;
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {

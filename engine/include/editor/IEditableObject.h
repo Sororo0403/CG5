@@ -9,6 +9,11 @@ struct EditableTransform {
     DirectX::XMFLOAT3 scale{1.0f, 1.0f, 1.0f};
 };
 
+struct EditableRay {
+    DirectX::XMFLOAT3 origin{0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 direction{0.0f, 0.0f, 1.0f};
+};
+
 struct EditableObjectDesc {
     uint64_t id = 0;
     std::string name;

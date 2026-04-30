@@ -14,6 +14,10 @@ class IEditableScene {
 
     virtual uint64_t GetSelectedObjectId() const = 0;
     virtual void SetSelectedObjectById(uint64_t id) = 0;
+    virtual uint64_t PickEditableObject(const EditableRay &ray) const {
+        (void)ray;
+        return 0;
+    }
 
     virtual int GetSelectedEditableObjectIndex() const = 0;
     virtual void SetSelectedEditableObjectIndex(int index) = 0;
