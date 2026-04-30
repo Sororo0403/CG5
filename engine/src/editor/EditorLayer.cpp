@@ -14,11 +14,12 @@ constexpr float kConsoleHeight = 170.0f;
 
 } // namespace
 
-void EditorLayer::Draw(IEditableScene *scene) {
+void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture) {
 #ifdef _DEBUG
     EditorContext context{};
     context.scene = scene;
     context.console = &console_;
+    context.renderTexture = renderTexture;
     context.gameplayMode = EngineRuntime::GetInstance().IsGameplayMode();
     context.readOnly = context.gameplayMode;
 
@@ -41,6 +42,7 @@ void EditorLayer::Draw(IEditableScene *scene) {
         {(std::max)(0.0f, size.x - kHierarchyWidth - kInspectorWidth),
          (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});
     viewportPanel_.Draw(context);
+    ApplyViewportInputState(context);
 
     ImGui::SetNextWindowPos(
         {origin.x + size.x - kInspectorWidth, origin.y + kToolbarHeight});
@@ -53,6 +55,24 @@ void EditorLayer::Draw(IEditableScene *scene) {
     consolePanel_.Draw(console_);
 #else
     (void)scene;
+    (void)renderTexture;
+#endif // _DEBUG
+}
+
+void EditorLayer::ApplyViewportInputState(const EditorContext &context) {
+#ifdef _DEBUG
+    EngineRuntimeSettings &settings = EngineRuntime::GetInstance().Settings();
+    settings.viewportInputEnabled =
+        context.viewportHovered || context.viewportFocused;
+    settings.viewportX = context.viewportImagePosition.x;
+    settings.viewportY = context.viewportImagePosition.y;
+    settings.viewportWidth = context.viewportImageSize.x;
+    settings.viewportHeight = context.viewportImageSize.y;
+    settings.viewportMouseX = context.viewportMousePosition.x;
+    settings.viewportMouseY = context.viewportMousePosition.y;
+    settings.viewportClicked = context.viewportClicked;
+#else
+    (void)context;
 #endif // _DEBUG
 }
 

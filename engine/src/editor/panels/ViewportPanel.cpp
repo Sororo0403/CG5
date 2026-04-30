@@ -1,6 +1,8 @@
 #include "panels/ViewportPanel.h"
 #include "EditorContext.h"
+#include "RenderTexture.h"
 #include "imgui.h"
+#include <algorithm>
 
 void ViewportPanel::Draw(EditorContext &context) {
     ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
@@ -37,33 +39,59 @@ void ViewportPanel::Draw(EditorContext &context) {
                             IM_COL32(28, 31, 36, 235));
     drawList->AddRect(contentMin, contentMax, IM_COL32(95, 105, 118, 255));
 
-    ImGui::Text("Mode: %s", context.gameplayMode ? "Gameplay" : "Engine");
-    ImGui::Text("Viewport size: %.0f x %.0f", contentSize.x, contentSize.y);
-    ImGui::Text("Hovered: %s  Focused: %s", hovered_ ? "yes" : "no",
-                focused_ ? "yes" : "no");
-    ImGui::Separator();
-    if (context.gameplayMode) {
-        ImGui::TextWrapped(
-            "Gameplay Mode: WASD: Move player  Space: Jump  R: Reset player  F1: Toggle mode");
-    } else {
-        ImGui::TextWrapped(
-            "Engine Mode: WASD: Move camera target  Q/E: Zoom  Arrow Keys: Rotate/Height");
-        ImGui::TextWrapped(
-            "I/J/K/L: Move placement cursor  Enter: Place  Backspace: Remove tile  F5: Save  F9: Load  Tab: Select next object");
+    context.viewportImagePosition = contentMin;
+    context.viewportImageSize = {0.0f, 0.0f};
+    context.viewportMousePosition = {0.0f, 0.0f};
+    context.viewportClicked = false;
+
+    RenderTexture *renderTexture = context.renderTexture;
+    if (!renderTexture || renderTexture->GetWidth() <= 0 ||
+        renderTexture->GetHeight() <= 0 || contentSize.x <= 0.0f ||
+        contentSize.y <= 0.0f) {
+        ImGui::End();
+        return;
     }
 
-    const char *title = "Scene Viewport";
-    const char *todo = "RenderTexture display TODO";
-    const ImVec2 titleSize = ImGui::CalcTextSize(title);
-    const ImVec2 todoSize = ImGui::CalcTextSize(todo);
-    const float centerX = contentMin.x + contentSize.x * 0.5f;
-    const float centerY = contentMin.y + contentSize.y * 0.5f;
-    drawList->AddText({centerX - titleSize.x * 0.5f, centerY - 16.0f},
-                      IM_COL32(220, 226, 235, 255), title);
-    drawList->AddText({centerX - todoSize.x * 0.5f, centerY + 6.0f},
-                      IM_COL32(150, 158, 170, 255), todo);
+    const float textureAspect =
+        static_cast<float>(renderTexture->GetWidth()) /
+        static_cast<float>(renderTexture->GetHeight());
+    ImVec2 imageSize = contentSize;
+    if (textureAspect > 0.0f) {
+        const float contentAspect = contentSize.x / contentSize.y;
+        if (contentAspect > textureAspect) {
+            imageSize.x = contentSize.y * textureAspect;
+        } else {
+            imageSize.y = contentSize.x / textureAspect;
+        }
+    }
 
-    // TODO: Feed a RenderTexture SRV handle here and draw it with ImGui::Image.
-    // TODO: Scene input can later be restricted to viewportHovered/focused.
+    imageSize.x = (std::max)(1.0f, imageSize.x);
+    imageSize.y = (std::max)(1.0f, imageSize.y);
+
+    const ImVec2 imagePos = {
+        contentMin.x + (contentSize.x - imageSize.x) * 0.5f,
+        contentMin.y + (contentSize.y - imageSize.y) * 0.5f};
+
+    context.viewportPosition = imagePos;
+    context.viewportSize = imageSize;
+    context.viewportImagePosition = imagePos;
+    context.viewportImageSize = imageSize;
+
+    ImGui::SetCursorScreenPos(imagePos);
+    const D3D12_GPU_DESCRIPTOR_HANDLE textureHandle =
+        renderTexture->GetGpuHandle();
+    ImGui::Image(static_cast<ImTextureID>(textureHandle.ptr), imageSize);
+
+    hovered_ = hovered_ || ImGui::IsItemHovered();
+    context.viewportHovered = hovered_;
+
+    const ImVec2 mousePos = ImGui::GetMousePos();
+    context.viewportMousePosition = {mousePos.x - imagePos.x,
+                                     mousePos.y - imagePos.y};
+    context.viewportClicked =
+        ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+
+    // TODO: Use viewportMousePosition with camera projection data to build
+    // screen-to-world picking for object selection and placement.
     ImGui::End();
 }

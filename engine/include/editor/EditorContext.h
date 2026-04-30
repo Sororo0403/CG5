@@ -3,14 +3,20 @@
 
 class EditorConsole;
 class IEditableScene;
+class RenderTexture;
 
 struct EditorContext {
     IEditableScene *scene = nullptr;
     EditorConsole *console = nullptr;
+    RenderTexture *renderTexture = nullptr;
     bool gameplayMode = false;
     bool readOnly = false;
     ImVec2 viewportPosition{0.0f, 0.0f};
     ImVec2 viewportSize{0.0f, 0.0f};
     bool viewportHovered = false;
     bool viewportFocused = false;
+    ImVec2 viewportImagePosition{0.0f, 0.0f};
+    ImVec2 viewportImageSize{0.0f, 0.0f};
+    ImVec2 viewportMousePosition{0.0f, 0.0f};
+    bool viewportClicked = false;
 };

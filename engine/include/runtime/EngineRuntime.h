@@ -29,6 +29,15 @@ struct EngineRuntimeSettings {
     /// ゲーム進行に掛ける時間倍率。
     /// </summary>
     float timeScale = 1.0f;
+
+    bool viewportInputEnabled = true;
+    float viewportX = 0.0f;
+    float viewportY = 0.0f;
+    float viewportWidth = 0.0f;
+    float viewportHeight = 0.0f;
+    float viewportMouseX = 0.0f;
+    float viewportMouseY = 0.0f;
+    bool viewportClicked = false;
 };
 
 /// <summary>

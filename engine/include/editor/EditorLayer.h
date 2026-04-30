@@ -7,13 +7,15 @@
 #include "panels/ViewportPanel.h"
 
 class IEditableScene;
+class RenderTexture;
 
 class EditorLayer {
   public:
-    void Draw(IEditableScene *scene);
+    void Draw(IEditableScene *scene, RenderTexture *renderTexture);
 
   private:
     void DrawToolbar(EditorContext &context);
+    void ApplyViewportInputState(const EditorContext &context);
 
     EditorConsole console_;
     HierarchyPanel hierarchyPanel_;

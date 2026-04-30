@@ -126,6 +126,18 @@ bool IsImGuiCapturingInput() {
 #endif
 }
 
+bool IsViewportAcceptingInput() {
+#ifdef _DEBUG
+    return EngineRuntime::GetInstance().Settings().viewportInputEnabled;
+#else
+    return true;
+#endif
+}
+
+bool CanUseGameInput() {
+    return IsViewportAcceptingInput() && !IsImGuiCapturingInput();
+}
+
 Material MakeMaterial(const XMFLOAT4 &color, float reflection = 0.08f) {
     Material material{};
     material.color = color;
@@ -277,7 +289,7 @@ void GridPlacementTest::UpdateCamera(const SceneContext &ctx, Camera &camera) {
     if (!input) {
         return;
     }
-    if (IsImGuiCapturingInput()) {
+    if (!CanUseGameInput()) {
         return;
     }
 
@@ -342,6 +354,9 @@ void GridPlacementTest::UpdatePlayMode(const SceneContext &ctx, Camera &camera) 
         return;
     }
     if (gameplayPaused_) {
+        return;
+    }
+    if (!CanUseGameInput()) {
         return;
     }
 
@@ -411,7 +426,7 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
     if (!input) {
         return;
     }
-    if (IsImGuiCapturingInput()) {
+    if (!CanUseGameInput()) {
         return;
     }
 
