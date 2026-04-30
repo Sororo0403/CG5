@@ -1,5 +1,6 @@
 #include "GameScene.h"
 #include "Camera.h"
+#include "DebugUIRegistry.h"
 #include "DeferredRenderer.h"
 #include "DirectXCommon.h"
 #include "EngineRuntime.h"
@@ -93,6 +94,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     ctx_->renderer.model->SetEnvironmentTexture(environmentTextureId_);
     ctx_->renderer.model->SetDissolveNoiseTexture(dissolveNoiseTextureId_);
     ApplyDissolveMaterial();
+    RegisterDebugUI();
 }
 
 void GameScene::Update() {
@@ -171,7 +173,39 @@ void GameScene::ApplyDissolveMaterial() {
     }
 }
 
+void GameScene::RegisterDebugUI() {
+    DebugUIRegistry &debugUI = DebugUIRegistry::GetInstance();
+    // Registryは変数ポインタを保持するため、Scene初期化時に古い登録を消してから再登録する。
+    debugUI.Clear();
+
+    debugUI.RegisterBool("Random", "Animate", &randomNoiseAnimate_);
+    debugUI.RegisterFloat("Random", "Strength", &randomNoiseStrength_, 0.0f,
+                          1.0f);
+    debugUI.RegisterFloat("Random", "Scale", &randomNoiseScale_, 1.0f,
+                          1024.0f);
+
+    debugUI.RegisterBool("Dissolve", "Enabled", &dissolveEnabled_);
+    debugUI.RegisterBool("Dissolve", "Auto Animate", &dissolveAutoAnimate_);
+    debugUI.RegisterFloat("Dissolve", "Threshold", &dissolveThreshold_, 0.0f,
+                          1.0f);
+    debugUI.RegisterFloat("Dissolve", "Edge Width", &dissolveEdgeWidth_,
+                          0.001f, 0.25f);
+    debugUI.RegisterColor4("Dissolve", "Edge Color", dissolveEdgeColor_);
+
+    debugUI.RegisterBool("Lighting", "Animate Point Lights",
+                         &pointLightAnimate_);
+
+    debugUI.RegisterBool("Renderer", "Use Deferred Rendering",
+                         &useDeferredRendering_);
+    debugUI.RegisterCombo("Renderer", "GBuffer Debug View",
+                          &gBufferDebugView_,
+                          {"Final", "GBuffer Albedo", "GBuffer Normal",
+                           "GBuffer Material"});
+}
+
 void GameScene::Draw() {
+    DebugUIRegistry::GetInstance().Draw();
+
     if (ShouldDrawDevelopmentUI()) {
         DrawPostEffectControls();
     }
@@ -330,9 +364,6 @@ void GameScene::DrawPostEffectControls() {
         ctx_->renderer.postEffectRenderer->GetRadialBlurSampleCount();
     int randomMode =
         static_cast<int>(ctx_->renderer.postEffectRenderer->GetRandomMode());
-    float randomStrength =
-        ctx_->renderer.postEffectRenderer->GetRandomStrength();
-    float randomScale = ctx_->renderer.postEffectRenderer->GetRandomScale();
     if (ImGui::Begin("Post Effect")) {
         ImGui::RadioButton("None", &colorMode, 0);
         ImGui::RadioButton("Grayscale", &colorMode, 1);
@@ -362,23 +393,6 @@ void GameScene::DrawPostEffectControls() {
         ImGui::RadioButton("No Random", &randomMode, 0);
         ImGui::RadioButton("Grayscale Random", &randomMode, 1);
         ImGui::RadioButton("Overlay Random", &randomMode, 2);
-        ImGui::Checkbox("Random Animate", &randomNoiseAnimate_);
-        ImGui::SliderFloat("Random Strength", &randomStrength, 0.0f, 1.0f);
-        ImGui::SliderFloat("Random Scale", &randomScale, 1.0f, 1024.0f);
-        ImGui::Separator();
-        ImGui::Checkbox("Dissolve", &dissolveEnabled_);
-        ImGui::Checkbox("Dissolve Auto", &dissolveAutoAnimate_);
-        ImGui::SliderFloat("Dissolve Threshold", &dissolveThreshold_, 0.0f,
-                           1.0f);
-        ImGui::SliderFloat("Dissolve Edge Width", &dissolveEdgeWidth_, 0.001f,
-                           0.25f);
-        ImGui::ColorEdit4("Dissolve Edge Color", dissolveEdgeColor_);
-        ImGui::Separator();
-        ImGui::Checkbox("Deferred Rendering", &useDeferredRendering_);
-        const char *debugViews[] = {"Final", "GBuffer Albedo", "GBuffer Normal",
-                                    "GBuffer Material"};
-        ImGui::Combo("Debug View", &gBufferDebugView_, debugViews,
-                     _countof(debugViews));
     }
     ImGui::End();
 
@@ -386,7 +400,6 @@ void GameScene::DrawPostEffectControls() {
         if (ImGui::Begin("Lighting")) {
             SceneLighting &lighting =
                 ctx_->renderer.light->GetMutableSceneLighting();
-            ImGui::Checkbox("Animate Point Lights", &pointLightAnimate_);
             int pointLightCount = static_cast<int>(lighting.pointLightCount);
             ImGui::SliderInt("Point Light Count", &pointLightCount, 0,
                              static_cast<int>(kMaxForwardPointLights));
@@ -436,8 +449,6 @@ void GameScene::DrawPostEffectControls() {
     ctx_->renderer.postEffectRenderer->SetRadialBlurStrength(radialBlurStrength);
     ctx_->renderer.postEffectRenderer->SetRadialBlurSampleCount(
         radialBlurSampleCount);
-    randomNoiseStrength_ = randomStrength;
-    randomNoiseScale_ = randomScale;
     ctx_->renderer.postEffectRenderer->SetRandomMode(
         static_cast<PostEffectRenderer::RandomMode>(randomMode));
     ctx_->renderer.postEffectRenderer->SetRandomStrength(randomNoiseStrength_);

@@ -28,6 +28,7 @@ class GameScene : public BaseScene {
     void UpdatePostEffectControls();
     void UpdateLighting();
     void ApplyDissolveMaterial();
+    void RegisterDebugUI();
     bool ShouldDrawDevelopmentUI() const;
     void DrawRuntimeControls();
     void DrawPostEffectControls();

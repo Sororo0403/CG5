@@ -85,6 +85,7 @@
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\imgui\DebugUIRegistry.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DeferredRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\GBuffer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp" />
@@ -125,6 +126,7 @@
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\camera\DebugCamera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\runtime\EngineRuntime.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\imgui\DebugUIRegistry.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\Animator.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\AnimationSampler.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\AssimpAnimationLoader.h" />

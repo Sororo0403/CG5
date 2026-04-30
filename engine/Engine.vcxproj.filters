@@ -129,6 +129,9 @@
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp">
       <Filter>src\runtime</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\imgui\DebugUIRegistry.cpp">
+      <Filter>src\imgui</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp">
       <Filter>src\graphics</Filter>
     </ClCompile>
@@ -244,6 +247,9 @@
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\runtime\EngineRuntime.h">
       <Filter>include\runtime</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\imgui\DebugUIRegistry.h">
+      <Filter>include\imgui</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h">
       <Filter>include\graphics</Filter>
