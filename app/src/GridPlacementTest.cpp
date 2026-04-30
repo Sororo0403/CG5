@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <limits>
 #include <string>
 #include <utility>
@@ -207,11 +208,12 @@ void GridPlacementTest::Initialize(const SceneContext &ctx) {
     RegisterEditableObjectTypes();
     EditableSceneDocument document{};
     std::string loadMessage;
-    if (!SceneSerializer::Load(stagePath_, document, &loadMessage) ||
+    if (!SceneSerializer::Load(currentScenePath_, document, &loadMessage) ||
         !ApplySceneDocument(document, &loadMessage)) {
         placementTileSize_ = map_.GetTileSize();
         BuildObjects();
     }
+    SetCurrentScenePath(currentScenePath_);
     RecomputePlayerSpawnFromObjects();
     ResetPlayerToSpawn();
     ClearSceneDirty();
@@ -478,7 +480,7 @@ void GridPlacementTest::UpdatePlacementInput(const SceneContext &ctx) {
     if (input->IsKeyTrigger(DIK_F5)) {
         SaveScene(nullptr);
     }
-    if (input->IsKeyTrigger(DIK_F9)) {
+    if (input->IsKeyTrigger(DIK_F9) && !IsSceneDirty()) {
         LoadScene(nullptr);
     }
 }
@@ -682,8 +684,22 @@ void GridPlacementTest::SetSelectedObjectById(uint64_t id) {
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {
-    const EditableSceneDocument document = BuildSceneDocument();
-    if (SceneSerializer::Save(stagePath_, document, message)) {
+    return SaveSceneAs(currentScenePath_, message);
+}
+
+bool GridPlacementTest::LoadScene(std::string *message) {
+    return LoadSceneFromPath(currentScenePath_, message);
+}
+
+bool GridPlacementTest::SaveSceneAs(const std::string &path,
+                                    std::string *message) {
+    EditableSceneDocument document = BuildSceneDocument();
+    const std::string targetName = std::filesystem::path(path).stem().string();
+    if (!targetName.empty()) {
+        document.name = targetName;
+    }
+    if (SceneSerializer::Save(path, document, message)) {
+        SetCurrentScenePath(path);
         ++saveCount_;
         ClearSceneDirty();
         return true;
@@ -691,9 +707,10 @@ bool GridPlacementTest::SaveScene(std::string *message) {
     return false;
 }
 
-bool GridPlacementTest::LoadScene(std::string *message) {
+bool GridPlacementTest::LoadSceneFromPath(const std::string &path,
+                                          std::string *message) {
     EditableSceneDocument document{};
-    if (!SceneSerializer::Load(stagePath_, document, message)) {
+    if (!SceneSerializer::Load(path, document, message)) {
         return false;
     }
 
@@ -707,8 +724,17 @@ bool GridPlacementTest::LoadScene(std::string *message) {
     lastAppliedWallScale_ = wallScale_;
     lastAppliedWallHeight_ = wallHeight_;
     lastAppliedMarkerScale_ = markerScale_;
+    SetCurrentScenePath(path);
     ++loadCount_;
     return true;
+}
+
+std::string GridPlacementTest::GetCurrentScenePath() const {
+    return currentScenePath_;
+}
+
+std::string GridPlacementTest::GetCurrentSceneName() const {
+    return currentSceneName_;
 }
 
 bool GridPlacementTest::IsSceneDirty() const {
@@ -920,7 +946,7 @@ EditableSceneDocument GridPlacementTest::BuildSceneDocument() const {
     document.version = 1;
     document.hasVersion = true;
     document.hasObjects = true;
-    document.name = "game_stage";
+    document.name = currentSceneName_;
     document.tileSize = map_.GetTileSize();
     document.rows = map_.GetRows();
     for (const PlacementObject &object : objects_) {
@@ -1002,6 +1028,15 @@ bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document
     ClampSelectedIndex();
     RecomputePlayerSpawnFromObjects();
     return true;
+}
+
+void GridPlacementTest::SetCurrentScenePath(const std::string &path) {
+    currentScenePath_ = path.empty() ? "resources/levels/game_stage.json" : path;
+    std::filesystem::path scenePath(currentScenePath_);
+    currentSceneName_ = scenePath.stem().string();
+    if (currentSceneName_.empty()) {
+        currentSceneName_ = "Untitled";
+    }
 }
 
 void GridPlacementTest::RegisterEditableObjectTypes() {

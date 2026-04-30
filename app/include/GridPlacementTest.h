@@ -67,6 +67,11 @@ class GridPlacementTest : public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
+    bool SaveSceneAs(const std::string &path, std::string *message) override;
+    bool LoadSceneFromPath(const std::string &path,
+                           std::string *message) override;
+    std::string GetCurrentScenePath() const override;
+    std::string GetCurrentSceneName() const override;
     bool IsSceneDirty() const override;
     void MarkSceneDirty() override;
     void ClearSceneDirty() override;
@@ -104,6 +109,7 @@ class GridPlacementTest : public IEditableScene {
     EditableSceneDocument BuildSceneDocument() const;
     bool ApplySceneDocument(const EditableSceneDocument &document,
                             std::string *message);
+    void SetCurrentScenePath(const std::string &path);
     void RegisterEditableObjectTypes();
     IEditableObject *CreateEditableObjectFromFactory(const std::string &type);
     PlacementObject CreatePlacementObject(PlacementObjectKind kind, int gridX,
@@ -159,7 +165,8 @@ class GridPlacementTest : public IEditableScene {
     int saveCount_ = 0;
     int loadCount_ = 0;
     uint64_t nextObjectId_ = 1;
-    std::string stagePath_ = "resources/levels/game_stage.json";
+    std::string currentScenePath_ = "resources/levels/game_stage.json";
+    std::string currentSceneName_ = "game_stage";
     float lastAppliedTileSize_ = 1.0f;
     float lastAppliedFloorScale_ = 1.0f;
     float lastAppliedWallScale_ = 0.82f;

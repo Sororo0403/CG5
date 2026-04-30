@@ -21,6 +21,17 @@ class IEditableScene {
 
     virtual bool SaveScene(std::string *message) = 0;
     virtual bool LoadScene(std::string *message) = 0;
+    virtual bool SaveSceneAs(const std::string &path, std::string *message) {
+        (void)path;
+        return SaveScene(message);
+    }
+    virtual bool LoadSceneFromPath(const std::string &path,
+                                   std::string *message) {
+        (void)path;
+        return LoadScene(message);
+    }
+    virtual std::string GetCurrentScenePath() const { return {}; }
+    virtual std::string GetCurrentSceneName() const { return {}; }
 
     virtual bool IsSceneDirty() const { return false; }
     virtual void MarkSceneDirty() {}

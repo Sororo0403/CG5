@@ -6,7 +6,7 @@
     "3": "player_start",
     "4": "goal_marker"
   },
-  "name": "game_stage",
+  "name": "test",
   "objects": [
     {
       "collider": "Walkable",

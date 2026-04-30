@@ -103,7 +103,8 @@ bool SceneSerializer::Load(const std::filesystem::path &path,
     try {
         file >> root;
     } catch (const nlohmann::json::exception &e) {
-        SetMessage(message, std::string("Invalid scene json: ") + e.what());
+        SetMessage(message, "Invalid scene json in " + path.generic_string() +
+                                ": " + e.what());
         return false;
     }
 
@@ -121,8 +122,11 @@ bool SceneSerializer::Load(const std::filesystem::path &path,
         document.hasVersion = true;
         document.version = root["version"].get<int>();
         if (document.version > kCurrentSceneVersion) {
-            SetMessage(message, "Unsupported scene version: " +
-                                    std::to_string(document.version));
+            SetMessage(message, "Unsupported scene version " +
+                                    std::to_string(document.version) +
+                                    " in " + path.generic_string() +
+                                    " (current: " +
+                                    std::to_string(kCurrentSceneVersion) + ")");
             return false;
         }
     }
@@ -175,7 +179,14 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
                            const EditableSceneDocument &document,
                            std::string *message) {
     if (path.has_parent_path()) {
-        std::filesystem::create_directories(path.parent_path());
+        std::error_code error;
+        std::filesystem::create_directories(path.parent_path(), error);
+        if (error) {
+            SetMessage(message, "Failed to create scene directory: " +
+                                    path.parent_path().generic_string() +
+                                    " (" + error.message() + ")");
+            return false;
+        }
     }
 
     nlohmann::json root;
@@ -224,6 +235,10 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
     }
 
     file << root.dump(2);
+    if (!file) {
+        SetMessage(message, "Failed to write file: " + path.generic_string());
+        return false;
+    }
     SetMessage(message, "Saved scene: " + path.generic_string());
     return true;
 }
