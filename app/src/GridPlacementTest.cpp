@@ -79,6 +79,10 @@ std::string GetPlacementKindDisplayName(PlacementObjectKind kind) {
     }
 }
 
+std::string GetDefaultCollider(PlacementObjectKind kind) {
+    return kind == PlacementObjectKind::Wall ? "Blocked" : "Walkable";
+}
+
 char GetDefaultMapCode(PlacementObjectKind kind) {
     switch (kind) {
     case PlacementObjectKind::Floor:
@@ -158,18 +162,29 @@ EditableObjectDesc PlacementObject::GetEditorDesc() const {
     desc.id = id;
     desc.name = name;
     desc.type = GetPlacementKindName(kind);
-    if (kind == PlacementObjectKind::Wall) {
-        desc.collider = "blocked grid tile";
-    } else if (kind == PlacementObjectKind::Floor ||
-               kind == PlacementObjectKind::PlayerStart ||
-               kind == PlacementObjectKind::GoalMarker) {
-        desc.collider = "walkable grid tile";
-    }
+    desc.collider = collider.empty() ? GetDefaultCollider(kind) : collider;
+    desc.locked = locked;
+    desc.visible = visible;
     return desc;
 }
 
 void PlacementObject::SetEditorName(const std::string &newName) {
     name = newName;
+}
+
+bool PlacementObject::SetEditorCollider(const std::string &newCollider) {
+    collider = newCollider;
+    return true;
+}
+
+bool PlacementObject::SetEditorLocked(bool newLocked) {
+    locked = newLocked;
+    return true;
+}
+
+bool PlacementObject::SetEditorVisible(bool newVisible) {
+    visible = newVisible;
+    return true;
 }
 
 EditableTransform PlacementObject::GetEditorTransform() const {
@@ -929,6 +944,11 @@ EditableSceneDocument GridPlacementTest::BuildSceneDocument() const {
         sceneObject.gridX = object.gridX;
         sceneObject.gridY = object.gridY;
         sceneObject.mapCode = object.mapCode;
+        sceneObject.collider =
+            object.collider.empty() ? GetDefaultCollider(object.kind)
+                                    : object.collider;
+        sceneObject.locked = object.locked;
+        sceneObject.visible = object.visible;
         sceneObject.transform.position = object.transform.position;
         sceneObject.transform.rotation = object.transform.rotation;
         sceneObject.transform.scale = object.transform.scale;
@@ -973,6 +993,11 @@ bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document
         object.mapCode = sceneObject.mapCode == '0'
                              ? GetDefaultMapCode(object.kind)
                              : sceneObject.mapCode;
+        object.collider = sceneObject.collider.empty()
+                              ? GetDefaultCollider(object.kind)
+                              : sceneObject.collider;
+        object.locked = sceneObject.locked;
+        object.visible = sceneObject.visible;
         object.transform.position = sceneObject.transform.position;
         object.transform.rotation = sceneObject.transform.rotation;
         object.transform.scale = sceneObject.transform.scale;
@@ -1002,6 +1027,7 @@ PlacementObject GridPlacementTest::CreatePlacementObject(PlacementObjectKind kin
     object.gridX = gridX;
     object.gridY = gridY;
     object.name = GetPlacementKindDisplayName(kind);
+    object.collider = GetDefaultCollider(kind);
 
     const float tileSize = map_.GetTileSize();
     switch (kind) {
@@ -1156,6 +1182,9 @@ void GridPlacementTest::AssignRuntimeFields(PlacementObject &object) const {
 
     object.mapCode = object.mapCode == '0' ? GetDefaultMapCode(object.kind)
                                            : object.mapCode;
+    if (object.collider.empty()) {
+        object.collider = GetDefaultCollider(object.kind);
+    }
     NormalizeQuaternion(object.transform.rotation);
     object.transform.scale.x = (std::max)(0.01f, object.transform.scale.x);
     object.transform.scale.y = (std::max)(0.01f, object.transform.scale.y);

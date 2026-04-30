@@ -29,9 +29,15 @@ struct PlacementObject : public IEditableObject {
     uint32_t modelId = 0;
     Transform transform;
     std::string name;
+    std::string collider;
+    bool locked = false;
+    bool visible = true;
 
     EditableObjectDesc GetEditorDesc() const override;
     void SetEditorName(const std::string &name) override;
+    bool SetEditorCollider(const std::string &collider) override;
+    bool SetEditorLocked(bool locked) override;
+    bool SetEditorVisible(bool visible) override;
     EditableTransform GetEditorTransform() const override;
     void SetEditorTransform(const EditableTransform &transform) override;
 };

@@ -15,6 +15,8 @@ struct EditableObjectDesc {
     std::string type;
     std::string collider;
     bool editable = true;
+    bool locked = false;
+    bool visible = true;
     std::string warning;
 };
 
@@ -24,6 +26,18 @@ class IEditableObject {
 
     virtual EditableObjectDesc GetEditorDesc() const = 0;
     virtual void SetEditorName(const std::string &name) = 0;
+    virtual bool SetEditorCollider(const std::string &collider) {
+        (void)collider;
+        return false;
+    }
+    virtual bool SetEditorLocked(bool locked) {
+        (void)locked;
+        return false;
+    }
+    virtual bool SetEditorVisible(bool visible) {
+        (void)visible;
+        return false;
+    }
     virtual EditableTransform GetEditorTransform() const = 0;
     virtual void SetEditorTransform(const EditableTransform &transform) = 0;
 };

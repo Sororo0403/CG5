@@ -60,6 +60,9 @@ bool LoadObject(const nlohmann::json &objectJson, EditableSceneObject &object,
     object.kind = objectJson.value("kind", std::string{});
     object.gridX = objectJson.value("gridX", 0);
     object.gridY = objectJson.value("gridY", 0);
+    object.collider = objectJson.value("collider", std::string{});
+    object.locked = objectJson.value("locked", false);
+    object.visible = objectJson.value("visible", true);
 
     const std::string mapCode =
         objectJson.value("mapCode", std::string{"0"});
@@ -197,6 +200,9 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
         objectJson["gridX"] = object.gridX;
         objectJson["gridY"] = object.gridY;
         objectJson["mapCode"] = std::string(1, object.mapCode);
+        objectJson["collider"] = object.collider;
+        objectJson["locked"] = object.locked;
+        objectJson["visible"] = object.visible;
         objectJson["transform"] = {
             {"position",
              {object.transform.position.x, object.transform.position.y,

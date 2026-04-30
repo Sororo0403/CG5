@@ -18,6 +18,9 @@ struct EditableSceneObject {
     int gridX = 0;
     int gridY = 0;
     char mapCode = '0';
+    std::string collider;
+    bool locked = false;
+    bool visible = true;
     EditableSceneTransform transform;
 };
 

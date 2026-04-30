@@ -9,10 +9,12 @@
   "name": "game_stage",
   "objects": [
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 1,
       "id": 1,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "4",
       "name": "Floor",
       "transform": {
@@ -32,18 +34,21 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "None",
       "gridX": 1,
       "gridY": 1,
       "id": 2,
       "kind": "Wall",
+      "locked": true,
       "mapCode": "4",
       "name": "Wall",
       "transform": {
         "position": [
-          -3.755499839782715,
+          -0.45500001311302185,
           0.05000000074505806,
           -2.1459999084472656
         ],
@@ -58,13 +63,16 @@
           0.9817949533462524,
           0.879859983921051
         ]
-      }
+      },
+      "visible": false
     },
     {
+      "collider": "Walkable",
       "gridX": 2,
       "gridY": 1,
       "id": 3,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -84,13 +92,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 3,
       "gridY": 1,
       "id": 4,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -110,13 +121,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 1,
       "id": 5,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -136,13 +150,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 5,
       "gridY": 1,
       "id": 6,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -162,13 +179,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 6,
       "gridY": 1,
       "id": 7,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -188,13 +208,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 7,
       "gridY": 1,
       "id": 8,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -214,13 +237,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 2,
       "id": 9,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -240,13 +266,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 2,
       "gridY": 2,
       "id": 10,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "2",
       "name": "Floor",
       "transform": {
@@ -266,13 +295,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Blocked",
       "gridX": 2,
       "gridY": 2,
       "id": 11,
       "kind": "Wall",
+      "locked": false,
       "mapCode": "2",
       "name": "Wallaaa",
       "transform": {
@@ -283,22 +315,25 @@
         ],
         "rotation": [
           0.0,
-          0.3826834261417389,
+          0.38268348574638367,
           0.0,
-          0.9238795042037964
+          0.9238796234130859
         ],
         "scale": [
           0.879859983921051,
           0.9817949533462524,
           0.879859983921051
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 6,
       "gridY": 2,
       "id": 12,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "2",
       "name": "Floor",
       "transform": {
@@ -318,13 +353,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Blocked",
       "gridX": 6,
       "gridY": 2,
       "id": 13,
       "kind": "Wall",
+      "locked": false,
       "mapCode": "2",
       "name": "Wall",
       "transform": {
@@ -335,22 +373,25 @@
         ],
         "rotation": [
           0.0,
-          0.3826834261417389,
+          0.38268348574638367,
           0.0,
-          0.9238795042037964
+          0.9238796234130859
         ],
         "scale": [
           0.879859983921051,
           0.9817949533462524,
           0.879859983921051
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 7,
       "gridY": 2,
       "id": 14,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -370,13 +411,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 3,
       "id": 15,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -396,13 +440,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 3,
       "id": 16,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "3",
       "name": "Floor",
       "transform": {
@@ -422,13 +469,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 3,
       "id": 17,
       "kind": "PlayerStart",
+      "locked": false,
       "mapCode": "3",
       "name": "Player Start",
       "transform": {
@@ -448,13 +498,16 @@
           0.23999999463558197,
           0.23999999463558197
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 7,
       "gridY": 3,
       "id": 18,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -474,13 +527,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 4,
       "id": 19,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -500,13 +556,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 4,
       "id": 20,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "4",
       "name": "Floor",
       "transform": {
@@ -526,13 +585,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 4,
       "id": 21,
       "kind": "GoalMarker",
+      "locked": false,
       "mapCode": "4",
       "name": "afaefawefwaf",
       "transform": {
@@ -552,13 +614,16 @@
           1.287600040435791,
           0.5364999771118164
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 7,
       "gridY": 4,
       "id": 22,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -578,13 +643,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 5,
       "id": 23,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -604,13 +672,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 2,
       "gridY": 5,
       "id": 24,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -630,13 +701,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 3,
       "gridY": 5,
       "id": 25,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -656,13 +730,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 4,
       "gridY": 5,
       "id": 26,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -682,13 +759,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 5,
       "gridY": 5,
       "id": 27,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -708,13 +788,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 6,
       "gridY": 5,
       "id": 28,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -734,13 +817,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 7,
       "gridY": 5,
       "id": 29,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "1",
       "name": "Floor",
       "transform": {
@@ -760,13 +846,16 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 1,
       "id": 31,
       "kind": "GoalMarker",
+      "locked": false,
       "mapCode": "4",
       "name": "afaefawefwaf Copy",
       "transform": {
@@ -786,13 +875,16 @@
           1.287600040435791,
           0.5364999771118164
         ]
-      }
+      },
+      "visible": true
     },
     {
+      "collider": "Walkable",
       "gridX": 1,
       "gridY": 1,
       "id": 32,
       "kind": "Floor",
+      "locked": false,
       "mapCode": "4",
       "name": "Floorafaefawe",
       "transform": {
@@ -812,7 +904,8 @@
           1.0729999542236328,
           1.0
         ]
-      }
+      },
+      "visible": true
     }
   ],
   "rows": [

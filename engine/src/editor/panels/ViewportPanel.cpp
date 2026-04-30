@@ -227,7 +227,7 @@ void ViewportPanel::DrawGizmo(EditorContext &context) {
     }
 
     const EditableObjectDesc desc = object->GetEditorDesc();
-    if (!desc.editable || !scene->CanEditObjects()) {
+    if (!desc.editable || desc.locked || !scene->CanEditObjects()) {
         return;
     }
 

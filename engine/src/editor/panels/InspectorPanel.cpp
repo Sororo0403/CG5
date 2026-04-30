@@ -1,11 +1,13 @@
 #include "panels/InspectorPanel.h"
 #include "EditorContext.h"
 #include "IEditableScene.h"
-#include <DirectXMath.h>
 #include "imgui.h"
+#include <DirectXMath.h>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <iterator>
 
 namespace {
 
@@ -13,6 +15,8 @@ constexpr float kRadToDeg = 57.29577951308232f;
 constexpr float kDegToRad = 0.017453292519943295f;
 constexpr float kMaxPosition = 10000.0f;
 constexpr float kMaxScale = 10000.0f;
+
+constexpr const char *kColliderOptions[] = {"None", "Walkable", "Blocked"};
 
 void NormalizeQuaternion(DirectX::XMFLOAT4 &rotation) {
     const float lengthSq = rotation.x * rotation.x + rotation.y * rotation.y +
@@ -91,6 +95,15 @@ void SanitizeTransform(EditableTransform &transform) {
         SanitizeFloat(transform.scale.z, 0.01f, kMaxScale, 1.0f);
 }
 
+int ColliderIndex(const std::string &collider) {
+    for (int i = 0; i < static_cast<int>(std::size(kColliderOptions)); ++i) {
+        if (collider == kColliderOptions[i]) {
+            return i;
+        }
+    }
+    return 0;
+}
+
 } // namespace
 
 void InspectorPanel::Draw(EditorContext &context) {
@@ -127,56 +140,111 @@ void InspectorPanel::Draw(EditorContext &context) {
     }
 
     const EditableObjectDesc desc = object->GetEditorDesc();
+    SyncNameBuffer(desc);
+
+    const bool readOnly = context.readOnly || !desc.editable;
+    if (context.readOnly) {
+        ImGui::TextDisabled("Read Only - Gameplay Mode");
+    } else if (!desc.editable) {
+        ImGui::TextDisabled("Read Only - Object is not editable");
+    }
+
+    if (readOnly) {
+        ImGui::BeginDisabled();
+    }
+
+    ImGui::SeparatorText("Basic");
+    ImGui::SetNextItemWidth(-1.0f);
+    const bool nameEnter = ImGui::InputText(
+        "Name", nameBuffer_, static_cast<size_t>(std::size(nameBuffer_)),
+        ImGuiInputTextFlags_EnterReturnsTrue);
+    if (nameEnter || ImGui::IsItemDeactivatedAfterEdit()) {
+        CommitName(*scene, *object, static_cast<size_t>(selectedIndex));
+    }
+    ImGui::Text("Type: %s", desc.type.c_str());
+    ImGui::Text("ID: %llu", static_cast<unsigned long long>(desc.id));
+
+    ImGui::SeparatorText("Properties");
+    bool locked = desc.locked;
+    if (ImGui::Checkbox("Locked", &locked)) {
+        if (object->SetEditorLocked(locked)) {
+            scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+        }
+    }
+    bool visible = desc.visible;
+    if (ImGui::Checkbox("Visible", &visible)) {
+        if (object->SetEditorVisible(visible)) {
+            scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+        }
+    }
+
+    int colliderIndex = ColliderIndex(desc.collider);
+    ImGui::SetNextItemWidth(-1.0f);
+    if (ImGui::Combo("Collider", &colliderIndex, kColliderOptions,
+                     static_cast<int>(std::size(kColliderOptions)))) {
+        if (object->SetEditorCollider(kColliderOptions[colliderIndex])) {
+            scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
+        }
+    }
+
+    ImGui::SeparatorText("Transform");
+    if (desc.locked) {
+        ImGui::BeginDisabled();
+    }
     EditableTransform transform = object->GetEditorTransform();
     DirectX::XMFLOAT3 eulerDegrees =
         QuaternionToEulerDegrees(transform.rotation);
-    if (context.readOnly) {
-        ImGui::TextDisabled("Read Only - Gameplay Mode");
-        ImGui::Text("Name: %s", desc.name.c_str());
-        ImGui::Text("Type: %s", desc.type.c_str());
-        ImGui::Text("ID: %llu", static_cast<unsigned long long>(desc.id));
-        ImGui::Separator();
-        ImGui::Text("Position: %.3f, %.3f, %.3f", transform.position.x,
-                    transform.position.y, transform.position.z);
-        ImGui::Text("Rotation: %.2f, %.2f, %.2f deg", eulerDegrees.x,
-                    eulerDegrees.y, eulerDegrees.z);
-        ImGui::Text("Scale: %.3f, %.3f, %.3f", transform.scale.x,
-                    transform.scale.y, transform.scale.z);
-    } else {
-        char nameBuffer[128]{};
-        std::snprintf(nameBuffer, sizeof(nameBuffer), "%s", desc.name.c_str());
-        if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer))) {
-            object->SetEditorName(nameBuffer);
-            scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
-        }
-
-        ImGui::Text("Type: %s", desc.type.c_str());
-        ImGui::Text("ID: %llu", static_cast<unsigned long long>(desc.id));
-        ImGui::Separator();
-
-        bool changed = false;
-        changed |= ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
-        if (ImGui::DragFloat3("Rotation", &eulerDegrees.x, 0.25f)) {
-            transform.rotation = EulerDegreesToQuaternion(eulerDegrees);
-            changed = true;
-        }
-        changed |= ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f);
-        if (changed) {
-            SanitizeTransform(transform);
-            object->SetEditorTransform(transform);
-            scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
-        }
+    bool transformChanged = false;
+    transformChanged |= ImGui::DragFloat3("Position", &transform.position.x, 0.05f);
+    if (ImGui::DragFloat3("Rotation", &eulerDegrees.x, 0.25f)) {
+        transform.rotation = EulerDegreesToQuaternion(eulerDegrees);
+        transformChanged = true;
+    }
+    transformChanged |= ImGui::DragFloat3("Scale", &transform.scale.x, 0.02f);
+    if (desc.locked) {
+        ImGui::EndDisabled();
+    }
+    if (transformChanged && !desc.locked) {
+        SanitizeTransform(transform);
+        object->SetEditorTransform(transform);
+        scene->OnEditableObjectChanged(static_cast<size_t>(selectedIndex));
     }
 
-    ImGui::Separator();
+    if (readOnly) {
+        ImGui::EndDisabled();
+    }
+
+    ImGui::SeparatorText("Debug");
     if (!desc.warning.empty()) {
+        const ImVec4 warningColor{1.0f, 0.24f, 0.18f, 1.0f};
+        ImGui::PushStyleColor(ImGuiCol_Text, warningColor);
         ImGui::TextWrapped("Warning: %s", desc.warning.c_str());
-    }
-    if (!desc.collider.empty()) {
-        ImGui::Text("Collider: %s", desc.collider.c_str());
+        ImGui::PopStyleColor();
     } else {
-        ImGui::Text("Collider: none");
+        ImGui::TextDisabled("Warning: none");
     }
+    ImGui::Text("Editable: %s", desc.editable ? "true" : "false");
+    ImGui::Text("Selected index: %d", selectedIndex);
+    ImGui::Text("Collider: %s", desc.collider.empty() ? "None"
+                                                       : desc.collider.c_str());
 
     ImGui::End();
+}
+
+void InspectorPanel::SyncNameBuffer(const EditableObjectDesc &desc) {
+    if (editingObjectId_ == desc.id) {
+        return;
+    }
+    editingObjectId_ = desc.id;
+    std::snprintf(nameBuffer_, sizeof(nameBuffer_), "%s", desc.name.c_str());
+}
+
+void InspectorPanel::CommitName(IEditableScene &scene, IEditableObject &object,
+                                size_t selectedIndex) {
+    const EditableObjectDesc desc = object.GetEditorDesc();
+    if (std::strcmp(nameBuffer_, desc.name.c_str()) == 0) {
+        return;
+    }
+    object.SetEditorName(nameBuffer_);
+    scene.OnEditableObjectChanged(selectedIndex);
 }
