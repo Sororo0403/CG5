@@ -96,8 +96,7 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
             std::string message;
             const bool saved =
                 context.scene && context.scene->SaveScene(&message);
-            console_.AddLog(saved ? "Saved scene: " + message
-                                  : "Failed to save scene: " + message);
+            console_.AddLog(saved ? message : "Failed to save scene: " + message);
         }
 
         ImGui::SameLine();
@@ -105,8 +104,7 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
             std::string message;
             const bool loaded =
                 context.scene && context.scene->LoadScene(&message);
-            console_.AddLog(loaded ? "Loaded scene: " + message
-                                   : "Failed to load scene: " + message);
+            console_.AddLog(loaded ? message : "Failed to load scene: " + message);
         }
     }
 

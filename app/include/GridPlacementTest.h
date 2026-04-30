@@ -4,6 +4,7 @@
 #include "IEditableScene.h"
 #include "PlacementMap.h"
 #include "SceneContext.h"
+#include "SceneSerializer.h"
 #include "Transform.h"
 #include <DirectXMath.h>
 #include <cstdint>
@@ -89,8 +90,9 @@ class GridPlacementTest : public IEditableScene {
                     uint32_t environmentTextureId);
     void ResetPlayerToSpawn();
     void RecomputePlayerSpawnFromObjects();
-    bool LoadObjectsFromJson(const std::string &path, bool *hasObjects);
-    bool SaveSceneToJson(const std::string &path) const;
+    EditableSceneDocument BuildSceneDocument() const;
+    bool ApplySceneDocument(const EditableSceneDocument &document,
+                            std::string *message);
     PlacementObject CreatePlacementObject(PlacementObjectKind kind, int gridX,
                                           int gridY);
     void EnsureFloorObjectAtCell(int gridX, int gridY);

@@ -16,10 +16,7 @@
 #include <array>
 #include <cmath>
 #include <cstdio>
-#include <filesystem>
-#include <fstream>
 #include <limits>
-#include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
 
@@ -95,28 +92,6 @@ char GetDefaultMapCode(PlacementObjectKind kind) {
     default:
         return '0';
     }
-}
-
-template <typename T>
-bool ReadFloatArray(const nlohmann::json &json, T &value) {
-    if (!json.is_array() || json.size() != 3) {
-        return false;
-    }
-    value.x = json[0].get<float>();
-    value.y = json[1].get<float>();
-    value.z = json[2].get<float>();
-    return true;
-}
-
-bool ReadRotationArray(const nlohmann::json &json, XMFLOAT4 &value) {
-    if (!json.is_array() || json.size() != 4) {
-        return false;
-    }
-    value.x = json[0].get<float>();
-    value.y = json[1].get<float>();
-    value.z = json[2].get<float>();
-    value.w = json[3].get<float>();
-    return true;
 }
 
 void NormalizeQuaternion(XMFLOAT4 &rotation) {
@@ -198,10 +173,11 @@ void PlacementObject::SetEditorTransform(const EditableTransform &editable) {
 
 void GridPlacementTest::Initialize(const SceneContext &ctx) {
     CreateModels(ctx);
-    map_.LoadFromJson(stagePath_);
-    placementTileSize_ = map_.GetTileSize();
-    bool hasObjects = false;
-    if (!LoadObjectsFromJson(stagePath_, &hasObjects) || !hasObjects) {
+    EditableSceneDocument document{};
+    std::string loadMessage;
+    if (!SceneSerializer::Load(stagePath_, document, &loadMessage) ||
+        !ApplySceneDocument(document, &loadMessage)) {
+        placementTileSize_ = map_.GetTileSize();
         BuildObjects();
     }
     RecomputePlayerSpawnFromObjects();
@@ -661,11 +637,8 @@ void GridPlacementTest::SetSelectedEditableObjectIndex(int index) {
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {
-    if (message) {
-        *message = stagePath_;
-    }
-
-    if (SaveSceneToJson(stagePath_)) {
+    const EditableSceneDocument document = BuildSceneDocument();
+    if (SceneSerializer::Save(stagePath_, document, message)) {
         ++saveCount_;
         return true;
     }
@@ -673,30 +646,21 @@ bool GridPlacementTest::SaveScene(std::string *message) {
 }
 
 bool GridPlacementTest::LoadScene(std::string *message) {
-    if (message) {
-        *message = stagePath_;
-    }
-
-    if (!map_.LoadFromJson(stagePath_)) {
+    EditableSceneDocument document{};
+    if (!SceneSerializer::Load(stagePath_, document, message)) {
         return false;
     }
 
-    ++loadCount_;
-    placementTileSize_ = map_.GetTileSize();
-    bool hasObjects = false;
-    if (!LoadObjectsFromJson(stagePath_, &hasObjects)) {
+    if (!ApplySceneDocument(document, message)) {
         return false;
     }
-    if (!hasObjects) {
-        BuildObjects();
-    }
-    RecomputePlayerSpawnFromObjects();
     ResetPlayerToSpawn();
     lastAppliedTileSize_ = placementTileSize_;
     lastAppliedFloorScale_ = floorScale_;
     lastAppliedWallScale_ = wallScale_;
     lastAppliedWallHeight_ = wallHeight_;
     lastAppliedMarkerScale_ = markerScale_;
+    ++loadCount_;
     return true;
 }
 
@@ -895,94 +859,69 @@ void GridPlacementTest::RecomputePlayerSpawnFromObjects() {
     }
 }
 
-bool GridPlacementTest::LoadObjectsFromJson(const std::string &path,
-                                            bool *hasObjects) {
-    if (hasObjects) {
-        *hasObjects = false;
+EditableSceneDocument GridPlacementTest::BuildSceneDocument() const {
+    EditableSceneDocument document{};
+    document.version = 1;
+    document.hasVersion = true;
+    document.hasObjects = true;
+    document.name = "game_stage";
+    document.tileSize = map_.GetTileSize();
+    document.rows = map_.GetRows();
+    for (const PlacementObject &object : objects_) {
+        EditableSceneObject sceneObject{};
+        sceneObject.id = object.id;
+        sceneObject.name = object.name;
+        sceneObject.kind = GetPlacementKindName(object.kind);
+        sceneObject.gridX = object.gridX;
+        sceneObject.gridY = object.gridY;
+        sceneObject.mapCode = object.mapCode;
+        sceneObject.transform.position = object.transform.position;
+        sceneObject.transform.rotation = object.transform.rotation;
+        sceneObject.transform.scale = object.transform.scale;
+        document.objects.push_back(sceneObject);
     }
+    return document;
+}
 
-    std::ifstream file(path);
-    if (!file) {
+bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document,
+                                           std::string *message) {
+    if (document.rows.empty()) {
+        if (message) {
+            *message = "Invalid scene document: rows must not be empty";
+        }
         return false;
     }
 
-    nlohmann::json root;
-    try {
-        file >> root;
-    } catch (const nlohmann::json::exception &) {
-        return false;
-    }
+    map_.SetRows(document.rows);
+    map_.SetTileSize((std::max)(0.25f, document.tileSize));
+    placementTileSize_ = map_.GetTileSize();
 
-    if (!root.contains("objects")) {
+    if (!document.hasObjects || document.objects.empty()) {
+        BuildObjects();
         return true;
-    }
-    if (!root["objects"].is_array()) {
-        return false;
-    }
-    if (hasObjects) {
-        *hasObjects = true;
     }
 
     std::vector<PlacementObject> loadedObjects;
     uint64_t maxId = 0;
-    for (const nlohmann::json &objectJson : root["objects"]) {
-        if (!objectJson.is_object()) {
+    for (const EditableSceneObject &sceneObject : document.objects) {
+        PlacementObject object{};
+        object.id = sceneObject.id;
+        if (!IsPlacementObjectKind(sceneObject.kind, &object.kind)) {
+            if (message) {
+                *message = "Invalid scene object kind: " + sceneObject.kind;
+            }
             return false;
         }
 
-        PlacementObject object{};
-        object.id = objectJson.value("id", 0ull);
-
-        const std::string kindName = objectJson.value("kind", std::string{});
-        if (!kindName.empty()) {
-            if (!IsPlacementObjectKind(kindName, &object.kind)) {
-                return false;
-            }
-        } else {
-            const std::string mapCode = objectJson.value("mapCode", std::string{"1"});
-            switch (mapCode.empty() ? '1' : mapCode[0]) {
-            case '2':
-                object.kind = PlacementObjectKind::Wall;
-                break;
-            case '3':
-                object.kind = PlacementObjectKind::PlayerStart;
-                break;
-            case '4':
-                object.kind = PlacementObjectKind::GoalMarker;
-                break;
-            default:
-                object.kind = PlacementObjectKind::Floor;
-                break;
-            }
-        }
-
-        object.name = objectJson.value("name", std::string{});
-        object.gridX = objectJson.value("gridX", 0);
-        object.gridY = objectJson.value("gridY", 0);
-        const std::string mapCode =
-            objectJson.value("mapCode", std::string{1, GetDefaultMapCode(object.kind)});
-        object.mapCode = mapCode.empty() ? GetDefaultMapCode(object.kind) : mapCode[0];
-
-        if (objectJson.contains("transform")) {
-            const nlohmann::json &transformJson = objectJson["transform"];
-            if (!transformJson.is_object()) {
-                return false;
-            }
-            if (transformJson.contains("position") &&
-                !ReadFloatArray(transformJson["position"], object.transform.position)) {
-                return false;
-            }
-            if (transformJson.contains("rotation") &&
-                !ReadRotationArray(transformJson["rotation"], object.transform.rotation)) {
-                return false;
-            }
-            if (transformJson.contains("scale") &&
-                !ReadFloatArray(transformJson["scale"], object.transform.scale)) {
-                return false;
-            }
-        } else {
-            object.transform.position = map_.GetCellCenter(object.gridX, object.gridY);
-        }
+        object.name = sceneObject.name;
+        object.gridX = sceneObject.gridX;
+        object.gridY = sceneObject.gridY;
+        object.mapCode = sceneObject.mapCode == '0'
+                             ? GetDefaultMapCode(object.kind)
+                             : sceneObject.mapCode;
+        object.transform.position = sceneObject.transform.position;
+        object.transform.rotation = sceneObject.transform.rotation;
+        object.transform.scale = sceneObject.transform.scale;
 
         if (object.id == 0 || object.id <= maxId) {
             object.id = maxId + 1;
@@ -994,59 +933,8 @@ bool GridPlacementTest::LoadObjectsFromJson(const std::string &path,
 
     objects_ = std::move(loadedObjects);
     nextObjectId_ = maxId + 1;
-    if (selectedIndex_ >= static_cast<int>(objects_.size())) {
-        selectedIndex_ = objects_.empty() ? 0 : static_cast<int>(objects_.size()) - 1;
-    }
-    return true;
-}
-
-bool GridPlacementTest::SaveSceneToJson(const std::string &path) const {
-    std::filesystem::path scenePath(path);
-    if (scenePath.has_parent_path()) {
-        std::filesystem::create_directories(scenePath.parent_path());
-    }
-
-    nlohmann::json root;
-    root["name"] = "game_stage";
-    root["tileSize"] = map_.GetTileSize();
-    root["legend"] = {
-        {"0", "empty"},
-        {"1", "floor"},
-        {"2", "wall"},
-        {"3", "player_start"},
-        {"4", "goal_marker"},
-    };
-    root["rows"] = map_.GetRows();
-    root["objects"] = nlohmann::json::array();
-
-    for (const PlacementObject &object : objects_) {
-        nlohmann::json objectJson;
-        objectJson["id"] = object.id;
-        objectJson["name"] = object.name;
-        objectJson["kind"] = GetPlacementKindName(object.kind);
-        objectJson["gridX"] = object.gridX;
-        objectJson["gridY"] = object.gridY;
-        objectJson["mapCode"] = std::string(1, object.mapCode);
-        objectJson["transform"] = {
-            {"position",
-             {object.transform.position.x, object.transform.position.y,
-              object.transform.position.z}},
-            {"rotation",
-             {object.transform.rotation.x, object.transform.rotation.y,
-              object.transform.rotation.z, object.transform.rotation.w}},
-            {"scale",
-             {object.transform.scale.x, object.transform.scale.y,
-              object.transform.scale.z}},
-        };
-        root["objects"].push_back(objectJson);
-    }
-
-    std::ofstream file(scenePath);
-    if (!file) {
-        return false;
-    }
-
-    file << root.dump(2);
+    ClampSelectedIndex();
+    RecomputePlayerSpawnFromObjects();
     return true;
 }
 

@@ -21,6 +21,9 @@
     <ClCompile Include="$(SolutionDir)app\src\PlacementMap.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)app\src\SceneSerializer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)app\src\scene\GameScene.cpp">
       <Filter>src\scene</Filter>
     </ClCompile>
@@ -31,6 +34,9 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)app\include\PlacementMap.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)app\include\SceneSerializer.h">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)app\include\scene\GameScene.h">
