@@ -54,6 +54,8 @@ class GridPlacementTest : public IEditableScene {
     size_t GetEditableObjectCount() const override;
     IEditableObject *GetEditableObject(size_t index) override;
     const IEditableObject *GetEditableObject(size_t index) const override;
+    uint64_t GetSelectedObjectId() const override;
+    void SetSelectedObjectById(uint64_t id) override;
     int GetSelectedEditableObjectIndex() const override;
     void SetSelectedEditableObjectIndex(int index) override;
     void OnEditableObjectChanged(size_t index) override;
@@ -102,6 +104,8 @@ class GridPlacementTest : public IEditableScene {
     void RemoveExistingPlayerStarts();
     void SyncMapCellFromObjects(int gridX, int gridY);
     void ClampSelectedIndex();
+    int FindObjectIndexById(uint64_t id) const;
+    void EnsureSelectedObjectValid();
     void AssignRuntimeFields(PlacementObject &object) const;
     uint64_t AllocateObjectId();
     bool IsBlocked(float worldX, float worldZ) const;
@@ -111,7 +115,7 @@ class GridPlacementTest : public IEditableScene {
 
     PlacementMap map_;
     std::vector<PlacementObject> objects_;
-    int selectedIndex_ = 0;
+    uint64_t selectedObjectId_ = 0;
     uint32_t floorModelId_ = 0;
     uint32_t wallModelId_ = 0;
     uint32_t playerModelId_ = 0;

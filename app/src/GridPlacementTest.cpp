@@ -616,10 +616,9 @@ void GridPlacementTest::RegisterInspectorObjects(const Camera &camera) {
     Inspector &inspector = Inspector::GetInstance();
     inspector.RegisterCameraInfo("Gameplay Camera", &camera);
     inspector.RegisterTransform("Player", &playerTransform_);
-    if (!objects_.empty()) {
-        selectedIndex_ =
-            (std::clamp)(selectedIndex_, 0, static_cast<int>(objects_.size()) - 1);
-        PlacementObject &selected = objects_[static_cast<size_t>(selectedIndex_)];
+    const int selectedIndex = GetSelectedEditableObjectIndex();
+    if (selectedIndex >= 0) {
+        PlacementObject &selected = objects_[static_cast<size_t>(selectedIndex)];
         inspector.RegisterTransform("Selected Placement", &selected.transform);
     }
 #else
@@ -646,15 +645,23 @@ const IEditableObject *GridPlacementTest::GetEditableObject(size_t index) const 
 }
 
 int GridPlacementTest::GetSelectedEditableObjectIndex() const {
-    return selectedIndex_;
+    return FindObjectIndexById(selectedObjectId_);
 }
 
 void GridPlacementTest::SetSelectedEditableObjectIndex(int index) {
-    if (objects_.empty()) {
-        selectedIndex_ = 0;
+    if (index < 0 || index >= static_cast<int>(objects_.size())) {
+        selectedObjectId_ = 0;
         return;
     }
-    selectedIndex_ = (std::clamp)(index, 0, static_cast<int>(objects_.size()) - 1);
+    selectedObjectId_ = objects_[static_cast<size_t>(index)].id;
+}
+
+uint64_t GridPlacementTest::GetSelectedObjectId() const {
+    return FindObjectIndexById(selectedObjectId_) >= 0 ? selectedObjectId_ : 0;
+}
+
+void GridPlacementTest::SetSelectedObjectById(uint64_t id) {
+    selectedObjectId_ = FindObjectIndexById(id) >= 0 ? id : 0;
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {
@@ -732,7 +739,7 @@ bool GridPlacementTest::AddEditableObject(const std::string &type,
     PlacementObject object =
         CreatePlacementObject(kind, placementCursorX_, placementCursorY_);
     objects_.push_back(object);
-    selectedIndex_ = static_cast<int>(objects_.size()) - 1;
+    selectedObjectId_ = object.id;
     SyncMapCellFromObjects(object.gridX, object.gridY);
     RecomputePlayerSpawnFromObjects();
     MarkSceneDirty();
@@ -752,8 +759,8 @@ bool GridPlacementTest::DeleteSelectedEditableObject(std::string *message) {
         }
         return false;
     }
-    if (selectedIndex_ < 0 ||
-        selectedIndex_ >= static_cast<int>(objects_.size())) {
+    const int selectedIndex = GetSelectedEditableObjectIndex();
+    if (selectedIndex < 0) {
         if (message) {
             *message = "No object selected";
         }
@@ -761,9 +768,13 @@ bool GridPlacementTest::DeleteSelectedEditableObject(std::string *message) {
     }
 
     const PlacementObject removed =
-        objects_[static_cast<size_t>(selectedIndex_)];
-    objects_.erase(objects_.begin() + selectedIndex_);
-    ClampSelectedIndex();
+        objects_[static_cast<size_t>(selectedIndex)];
+    objects_.erase(objects_.begin() + selectedIndex);
+    if (selectedIndex < static_cast<int>(objects_.size())) {
+        selectedObjectId_ = objects_[static_cast<size_t>(selectedIndex)].id;
+    } else {
+        selectedObjectId_ = 0;
+    }
     SyncMapCellFromObjects(removed.gridX, removed.gridY);
     RecomputePlayerSpawnFromObjects();
     MarkSceneDirty();
@@ -781,8 +792,8 @@ bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
         }
         return false;
     }
-    if (selectedIndex_ < 0 ||
-        selectedIndex_ >= static_cast<int>(objects_.size())) {
+    const int selectedIndex = GetSelectedEditableObjectIndex();
+    if (selectedIndex < 0) {
         if (message) {
             *message = "No object selected";
         }
@@ -790,7 +801,7 @@ bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
     }
 
     const PlacementObject source =
-        objects_[static_cast<size_t>(selectedIndex_)];
+        objects_[static_cast<size_t>(selectedIndex)];
     if (source.kind == PlacementObjectKind::PlayerStart) {
         RemoveExistingPlayerStarts();
     }
@@ -813,7 +824,7 @@ bool GridPlacementTest::DuplicateSelectedEditableObject(std::string *message) {
     AssignRuntimeFields(object);
 
     objects_.push_back(object);
-    selectedIndex_ = static_cast<int>(objects_.size()) - 1;
+    selectedObjectId_ = object.id;
     SyncMapCellFromObjects(object.gridX, object.gridY);
     RecomputePlayerSpawnFromObjects();
     MarkSceneDirty();
@@ -1093,12 +1104,26 @@ void GridPlacementTest::SyncMapCellFromObjects(int gridX, int gridY) {
 }
 
 void GridPlacementTest::ClampSelectedIndex() {
-    if (objects_.empty()) {
-        selectedIndex_ = 0;
+    EnsureSelectedObjectValid();
+}
+
+int GridPlacementTest::FindObjectIndexById(uint64_t id) const {
+    if (id == 0) {
+        return -1;
+    }
+    for (int index = 0; index < static_cast<int>(objects_.size()); ++index) {
+        if (objects_[static_cast<size_t>(index)].id == id) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+void GridPlacementTest::EnsureSelectedObjectValid() {
+    if (FindObjectIndexById(selectedObjectId_) >= 0) {
         return;
     }
-    selectedIndex_ =
-        (std::clamp)(selectedIndex_, 0, static_cast<int>(objects_.size()) - 1);
+    selectedObjectId_ = objects_.empty() ? 0 : objects_.front().id;
 }
 
 void GridPlacementTest::AssignRuntimeFields(PlacementObject &object) const {
@@ -1168,12 +1193,17 @@ bool GridPlacementTest::IsBlocked(float worldX, float worldZ) const {
 
 void GridPlacementTest::SelectObject(int offset) {
     if (objects_.empty()) {
-        selectedIndex_ = 0;
+        selectedObjectId_ = 0;
         return;
     }
 
     const int count = static_cast<int>(objects_.size());
-    selectedIndex_ = (selectedIndex_ + offset + count) % count;
+    int selectedIndex = GetSelectedEditableObjectIndex();
+    if (selectedIndex < 0) {
+        selectedIndex = 0;
+    }
+    selectedIndex = (selectedIndex + offset + count) % count;
+    selectedObjectId_ = objects_[static_cast<size_t>(selectedIndex)].id;
 }
 
 const char *GridPlacementTest::GetKindName(PlacementObjectKind kind) {

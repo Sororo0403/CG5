@@ -213,13 +213,15 @@ void ViewportPanel::DrawGizmo(EditorContext &context) {
     }
 
     IEditableScene *scene = context.scene;
-    const int selectedIndex = scene->GetSelectedEditableObjectIndex();
-    if (selectedIndex < 0) {
+    if (scene->GetSelectedObjectId() == 0) {
         return;
     }
 
-    IEditableObject *object =
-        scene->GetEditableObject(static_cast<size_t>(selectedIndex));
+    const int selectedIndex = scene->GetSelectedEditableObjectIndex();
+    IEditableObject *object = selectedIndex >= 0
+                                  ? scene->GetEditableObject(
+                                        static_cast<size_t>(selectedIndex))
+                                  : nullptr;
     if (!object) {
         return;
     }

@@ -108,15 +108,18 @@ void InspectorPanel::Draw(EditorContext &context) {
         return;
     }
 
-    const int selectedIndex = scene->GetSelectedEditableObjectIndex();
-    if (selectedIndex < 0) {
+    const uint64_t selectedObjectId = scene->GetSelectedObjectId();
+    if (selectedObjectId == 0) {
         ImGui::Text("No object selected");
         ImGui::End();
         return;
     }
 
-    IEditableObject *object =
-        scene->GetEditableObject(static_cast<size_t>(selectedIndex));
+    const int selectedIndex = scene->GetSelectedEditableObjectIndex();
+    IEditableObject *object = selectedIndex >= 0
+                                  ? scene->GetEditableObject(
+                                        static_cast<size_t>(selectedIndex))
+                                  : nullptr;
     if (!object) {
         ImGui::Text("No object selected");
         ImGui::End();
