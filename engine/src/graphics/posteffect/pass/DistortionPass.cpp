@@ -1,7 +1,5 @@
 #include "posteffect/pass/DistortionPass.h"
-#ifndef IMGUI_DISABLED
-#include "imgui.h"
-#endif
+#include "SpriteRenderer.h"
 #include <algorithm>
 #include <cmath>
 
@@ -26,26 +24,19 @@ void DistortionPass::Request(const DistortionEffectParams &params) {
 }
 
 void DistortionPass::Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
-                            D3D12_GPU_DESCRIPTOR_HANDLE depthTexture) const {
+                            D3D12_GPU_DESCRIPTOR_HANDLE depthTexture,
+                            SpriteRenderer *spriteRenderer) const {
     (void)sourceTexture;
     (void)depthTexture;
-#ifndef IMGUI_DISABLED
-    if (!requested_ || (!params_.hasOrigin && !params_.hasTarget)) {
+    if (!requested_ || (!params_.hasOrigin && !params_.hasTarget) ||
+        spriteRenderer == nullptr) {
         return;
     }
 
-    ImGuiViewport *mainViewport = ImGui::GetMainViewport();
-    if (mainViewport == nullptr) {
-        return;
-    }
-
-    ImDrawList *drawList = ImGui::GetBackgroundDrawList();
-    if (drawList == nullptr) {
-        return;
-    }
-
-    const ImVec2 targetScreen(params_.targetScreen.x, params_.targetScreen.y);
-    const ImVec2 originScreen(params_.originScreen.x, params_.originScreen.y);
+    const DirectX::XMFLOAT2 targetScreen{params_.targetScreen.x,
+                                         params_.targetScreen.y};
+    const DirectX::XMFLOAT2 originScreen{params_.originScreen.x,
+                                         params_.originScreen.y};
     int brightR = 255;
     int brightG = 48;
     int brightB = 108;
@@ -105,20 +96,25 @@ void DistortionPass::Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
         break;
     }
 
-    const ImU32 bright = IM_COL32(
-        brightR, brightG, brightB, static_cast<int>(255.0f * params_.alpha));
-    const ImU32 soft = IM_COL32(
-        softR, softG, softB, static_cast<int>(255.0f * (params_.alpha * 0.82f)));
-    const ImU32 slash = IM_COL32(
-        accentR, accentG, accentB,
-        static_cast<int>(255.0f * (params_.alpha * 0.78f)));
+    auto makeColor = [](int r, int g, int b, float a) {
+        return DirectX::XMFLOAT4{static_cast<float>(r) / 255.0f,
+                                 static_cast<float>(g) / 255.0f,
+                                 static_cast<float>(b) / 255.0f,
+                                 std::clamp(a, 0.0f, 1.0f)};
+    };
+    const DirectX::XMFLOAT4 bright =
+        makeColor(brightR, brightG, brightB, params_.alpha);
+    const DirectX::XMFLOAT4 soft =
+        makeColor(softR, softG, softB, params_.alpha * 0.82f);
+    const DirectX::XMFLOAT4 slash =
+        makeColor(accentR, accentG, accentB, params_.alpha * 0.78f);
     const bool isStart = params_.phase == DistortionPhase::Start;
     const bool isSustain = params_.phase == DistortionPhase::Sustain;
 
-    auto drawDistortionAt = [&](const ImVec2 &center, float radiusScale,
-                                float rotationBias) {
+    auto drawDistortionAt = [&](const DirectX::XMFLOAT2 &center,
+                                float radiusScale, float rotationBias) {
         constexpr int kSegments = 28;
-        ImVec2 points[kSegments + 1];
+        DirectX::XMFLOAT2 points[kSegments + 1];
         for (int i = 0; i <= kSegments; ++i) {
             const float ratio =
                 static_cast<float>(i) / static_cast<float>(kSegments);
@@ -127,16 +123,16 @@ void DistortionPass::Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
             const float wave =
                 std::sinf(angle * 3.0f + params_.time * 17.0f) * params_.jitter;
             const float radius = params_.baseRadius * radiusScale + wave;
-            points[i] = ImVec2(center.x + std::cosf(angle) * radius,
-                               center.y + std::sinf(angle) * radius);
+            points[i] = {center.x + std::cosf(angle) * radius,
+                         center.y + std::sinf(angle) * radius};
         }
 
-        drawList->AddPolyline(points, kSegments + 1, soft, true,
-                              params_.thickness);
-        drawList->AddCircle(center, params_.baseRadius * radiusScale * 0.62f,
-                            bright, 24, params_.thickness * 0.7f);
-        drawList->AddCircle(center, params_.baseRadius * radiusScale * 0.82f,
-                            bright, 28, params_.thickness * 0.42f);
+        spriteRenderer->DrawPolyline(points, kSegments + 1, soft, true,
+                                     params_.thickness);
+        spriteRenderer->DrawCircle(center, params_.baseRadius * radiusScale * 0.62f,
+                                  bright, params_.thickness * 0.7f, 24);
+        spriteRenderer->DrawCircle(center, params_.baseRadius * radiusScale * 0.82f,
+                                  bright, params_.thickness * 0.42f, 28);
 
         for (int i = 0; i < 8; ++i) {
             const float ratio = static_cast<float>(i) / 8.0f;
@@ -147,30 +143,31 @@ void DistortionPass::Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
                 inner + params_.lineLength *
                             (0.75f + 0.25f *
                                          std::sinf(params_.time * 18.0f + i));
-            const ImVec2 a(center.x + std::cosf(angle) * inner,
-                           center.y + std::sinf(angle) * inner);
-            const ImVec2 b(center.x + std::cosf(angle) * outer,
-                           center.y + std::sinf(angle) * outer);
-            drawList->AddLine(a, b, bright, 1.6f);
+            const DirectX::XMFLOAT2 a{center.x + std::cosf(angle) * inner,
+                                      center.y + std::sinf(angle) * inner};
+            const DirectX::XMFLOAT2 b{center.x + std::cosf(angle) * outer,
+                                      center.y + std::sinf(angle) * outer};
+            spriteRenderer->DrawLine(a, b, bright, 1.6f);
         }
     };
 
     if (isStart && params_.hasOrigin) {
-        ImVec2 sourceFoot = originScreen;
+        DirectX::XMFLOAT2 sourceFoot = originScreen;
         sourceFoot.y += params_.footOffset;
         drawDistortionAt(sourceFoot, 0.88f, 0.0f);
     }
 
     if (isSustain && params_.hasOrigin && params_.hasTarget) {
-        const ImVec2 mid((originScreen.x + targetScreen.x) * 0.5f,
-                         (originScreen.y + targetScreen.y) * 0.5f +
-                             params_.footOffset * 0.78f);
+        const DirectX::XMFLOAT2 mid{
+            (originScreen.x + targetScreen.x) * 0.5f,
+            (originScreen.y + targetScreen.y) * 0.5f +
+                params_.footOffset * 0.78f};
         drawDistortionAt(mid, 0.72f, 0.6f);
-        drawList->AddLine(originScreen, targetScreen, soft, 0.8f);
+        spriteRenderer->DrawLine(originScreen, targetScreen, soft, 0.8f);
     }
 
     if (params_.hasTarget) {
-        ImVec2 arrivalCenter = targetScreen;
+        DirectX::XMFLOAT2 arrivalCenter = targetScreen;
         arrivalCenter.y += params_.footOffset -
                            params_.previewOffset * (isStart ? 0.55f : 0.18f);
         drawDistortionAt(arrivalCenter, isSustain ? 1.12f : 1.0f, 1.2f);
@@ -198,32 +195,34 @@ void DistortionPass::Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
     const float branchOffset = params_.baseRadius * 0.28f;
 
     if (params_.hasTarget) {
-        ImVec2 arrivalCenter = targetScreen;
+        DirectX::XMFLOAT2 arrivalCenter = targetScreen;
         arrivalCenter.y -= params_.previewOffset * (isStart ? 0.55f : 0.18f);
-        const ImVec2 slashA(arrivalCenter.x - perpX * slashLen,
-                            arrivalCenter.y - perpY * slashLen);
-        const ImVec2 slashB(arrivalCenter.x + perpX * slashLen,
-                            arrivalCenter.y + perpY * slashLen);
-        const ImVec2 slashC(arrivalCenter.x - perpX * branchLen +
-                                dirX * branchOffset,
-                            arrivalCenter.y - perpY * branchLen +
-                                dirY * branchOffset);
-        const ImVec2 slashD(arrivalCenter.x + perpX * branchLen +
-                                dirX * branchOffset,
-                            arrivalCenter.y + perpY * branchLen +
-                                dirY * branchOffset);
-        const ImVec2 slashE(arrivalCenter.x - perpX * (branchLen * 0.58f) -
-                                dirX * branchOffset * 0.72f,
-                            arrivalCenter.y - perpY * (branchLen * 0.58f) -
-                                dirY * branchOffset * 0.72f);
-        const ImVec2 slashF(arrivalCenter.x + perpX * (branchLen * 0.58f) -
-                                dirX * branchOffset * 0.72f,
-                            arrivalCenter.y + perpY * (branchLen * 0.58f) -
-                                dirY * branchOffset * 0.72f);
+        const DirectX::XMFLOAT2 slashA{arrivalCenter.x - perpX * slashLen,
+                                       arrivalCenter.y - perpY * slashLen};
+        const DirectX::XMFLOAT2 slashB{arrivalCenter.x + perpX * slashLen,
+                                       arrivalCenter.y + perpY * slashLen};
+        const DirectX::XMFLOAT2 slashC{
+            arrivalCenter.x - perpX * branchLen + dirX * branchOffset,
+            arrivalCenter.y - perpY * branchLen + dirY * branchOffset};
+        const DirectX::XMFLOAT2 slashD{
+            arrivalCenter.x + perpX * branchLen + dirX * branchOffset,
+            arrivalCenter.y + perpY * branchLen + dirY * branchOffset};
+        const DirectX::XMFLOAT2 slashE{
+            arrivalCenter.x - perpX * (branchLen * 0.58f) -
+                dirX * branchOffset * 0.72f,
+            arrivalCenter.y - perpY * (branchLen * 0.58f) -
+                dirY * branchOffset * 0.72f};
+        const DirectX::XMFLOAT2 slashF{
+            arrivalCenter.x + perpX * (branchLen * 0.58f) -
+                dirX * branchOffset * 0.72f,
+            arrivalCenter.y + perpY * (branchLen * 0.58f) -
+                dirY * branchOffset * 0.72f};
 
-        drawList->AddLine(slashA, slashB, slash, params_.thickness * 0.82f);
-        drawList->AddLine(slashC, slashD, bright, params_.thickness * 0.55f);
-        drawList->AddLine(slashE, slashF, soft, params_.thickness * 0.42f);
+        spriteRenderer->DrawLine(slashA, slashB, slash,
+                                 params_.thickness * 0.82f);
+        spriteRenderer->DrawLine(slashC, slashD, bright,
+                                 params_.thickness * 0.55f);
+        spriteRenderer->DrawLine(slashE, slashF, soft,
+                                 params_.thickness * 0.42f);
     }
-#endif
 }

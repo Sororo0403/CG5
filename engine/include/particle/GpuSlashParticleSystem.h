@@ -9,12 +9,6 @@ class DirectXCommon;
 class SrvManager;
 class TextureManager;
 
-#ifndef IMGUI_DISABLED
-#include "Camera.h"
-#include "imgui.h"
-#include <cmath>
-#endif
-
 class [[deprecated("Use EffectParticleSystem/EffectSystem particle presets instead.")]]
 GpuSlashParticleSystem {
   public:
@@ -110,7 +104,6 @@ inline void GpuSlashParticleSystem::PlayParticle(
 
 inline void GpuSlashParticleSystem::Render(const Camera &camera,
                                            float deltaTime) {
-#ifndef IMGUI_DISABLED
     for (Burst &burst : bursts_) {
         burst.age += deltaTime;
     }
@@ -120,31 +113,6 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
                                  }),
                   bursts_.end());
 
-    ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImDrawList *drawList = ImGui::GetForegroundDrawList();
-    if (viewport == nullptr || drawList == nullptr) {
-        return;
-    }
-    auto project = [&](const DirectX::XMFLOAT3 &world, ImVec2 &out) {
-        using namespace DirectX;
-        XMVECTOR pos = XMVectorSet(world.x, world.y, world.z, 1.0f);
-        XMVECTOR clip =
-            XMVector4Transform(pos, camera.GetView() * camera.GetProj());
-        const float w = XMVectorGetW(clip);
-        if (w <= 0.0001f) {
-            return false;
-        }
-        const float ndcX = XMVectorGetX(clip) / w;
-        const float ndcY = XMVectorGetY(clip) / w;
-        const float ndcZ = XMVectorGetZ(clip) / w;
-        if (ndcZ < 0.0f || ndcZ > 1.0f) {
-            return false;
-        }
-        out.x = viewport->Pos.x + (ndcX * 0.5f + 0.5f) * viewport->Size.x;
-        out.y = viewport->Pos.y + (-ndcY * 0.5f + 0.5f) * viewport->Size.y;
-        return true;
-    };
-
     for (PointBurst &burst : pointBursts_) {
         burst.age += deltaTime;
     }
@@ -153,82 +121,6 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
                                           return burst.age > burst.lifeTime;
                                       }),
                        pointBursts_.end());
-
-    for (const PointBurst &burst : pointBursts_) {
-        ImVec2 center{};
-        if (!project(burst.position, center)) {
-            continue;
-        }
-
-        const float normalizedAge =
-            burst.lifeTime > 0.0001f ? burst.age / burst.lifeTime : 1.0f;
-        const float fade = std::clamp(1.0f - normalizedAge, 0.0f, 1.0f);
-        const bool isExplosion = burst.type == EffectType::Explosion;
-        const bool isCharge = burst.type == EffectType::Charge;
-        const int sparks = isExplosion ? 18 : (isCharge ? 10 : 12);
-        const float radius = (isExplosion ? 62.0f : (isCharge ? 34.0f : 42.0f)) *
-                             (0.35f + normalizedAge);
-        const ImU32 coreColor =
-            isCharge ? IM_COL32(120, 190, 255, static_cast<int>(fade * 190.0f))
-                     : IM_COL32(255, 92, 72, static_cast<int>(fade * 220.0f));
-        const ImU32 glowColor =
-            isCharge ? IM_COL32(80, 160, 255, static_cast<int>(fade * 70.0f))
-                     : IM_COL32(255, 190, 80, static_cast<int>(fade * 90.0f));
-
-        drawList->AddCircleFilled(center, 10.0f + radius * 0.12f, glowColor);
-        drawList->AddCircleFilled(center, 4.0f + fade * 5.0f, coreColor);
-
-        for (int i = 0; i < sparks; ++i) {
-            const float ratio = static_cast<float>(i) / static_cast<float>(sparks);
-            const float angle = ratio * DirectX::XM_2PI + burst.age * 13.0f;
-            const float inner = radius * 0.22f;
-            const float outer = radius * (0.68f + 0.18f * std::sinf(angle * 1.7f));
-            ImVec2 a(center.x + std::cosf(angle) * inner,
-                     center.y + std::sinf(angle) * inner);
-            ImVec2 b(center.x + std::cosf(angle) * outer,
-                     center.y + std::sinf(angle) * outer);
-            drawList->AddLine(a, b, coreColor, 1.0f + fade * 2.2f);
-        }
-    }
-
-    for (const Burst &burst : bursts_) {
-        ImVec2 start{}, end{};
-        if (!project(burst.start, start) || !project(burst.end, end)) {
-            continue;
-        }
-        const float fade = std::clamp(1.0f - burst.age / 0.34f, 0.0f, 1.0f);
-        const float dx = end.x - start.x;
-        const float dy = end.y - start.y;
-        const float len = std::sqrt(dx * dx + dy * dy);
-        if (len <= 0.001f) {
-            continue;
-        }
-        const float invLen = 1.0f / len;
-        const float dirX = dx * invLen;
-        const float dirY = dy * invLen;
-        const float perpX = -dirY;
-        const float perpY = dirX;
-        const int sparks = static_cast<int>(std::min<uint32_t>(burst.count, 32));
-        for (int i = 0; i < sparks; ++i) {
-            const float t = static_cast<float>(i) / static_cast<float>(sparks);
-            const float phase = burst.age * 18.0f + t * 23.0f;
-            const float along = len * (0.15f + 0.75f * t);
-            const float side = std::sin(phase) * (burst.isSweep ? 52.0f : 32.0f) *
-                               burst.scale * fade;
-            ImVec2 a(start.x + dirX * along + perpX * side,
-                     start.y + dirY * along + perpY * side);
-            ImVec2 b(a.x + dirX * (18.0f + 18.0f * fade) +
-                         perpX * std::cos(phase) * 12.0f,
-                     a.y + dirY * (18.0f + 18.0f * fade) +
-                         perpY * std::cos(phase) * 12.0f);
-            drawList->AddLine(
-                a, b, IM_COL32(255, 80, 120, static_cast<int>(fade * 210.0f)),
-                1.0f + fade * 2.0f);
-        }
-    }
-#else
     (void)camera;
-    (void)deltaTime;
-#endif
 }
 

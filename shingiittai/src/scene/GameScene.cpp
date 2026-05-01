@@ -1,4 +1,5 @@
 #include "GameScene.h"
+#include "BillboardRenderer.h"
 #include "DirectXCommon.h"
 #include "EffectSystem.h"
 #include "EngineRuntime.h"
@@ -7,13 +8,10 @@
 #include "PlayerTuningPresetIO.h"
 #include "PostEffectRenderer.h"
 #include "SceneManager.h"
+#include "SpriteRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
 #include <string>
-#ifndef IMGUI_DISABLED
-#include "imgui.h"
-#include "imgui_internal.h"
-#endif
 #include "EnemyTuningPresetIO.h"
 #include <algorithm>
 #include <cmath>
@@ -843,16 +841,8 @@ void GameScene::UpdateEnemySwordTrail() {
 }
 
 void GameScene::DrawWarpSmokePass() {
-#ifdef IMGUI_DISABLED
-    return;
-#else
-    if (enemy_.GetActionKind() != ActionKind::Warp) {
-        return;
-    }
-
-    ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImDrawList *drawList = ImGui::GetBackgroundDrawList(viewport);
-    if (viewport == nullptr || drawList == nullptr) {
+    if (ctx_ == nullptr || ctx_->renderer.billboard == nullptr ||
+        enemy_.GetActionKind() != ActionKind::Warp) {
         return;
     }
 
@@ -872,49 +862,71 @@ void GameScene::DrawWarpSmokePass() {
         return;
     }
 
-    XMFLOAT2 targetScreenF{};
-    bool hasTarget =
-        ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
-    XMFLOAT2 sourceScreenF{};
-    bool hasSource =
-        enemy_.HasWarpDeparturePos() &&
-        ProjectWorldToScreen(enemy_.GetWarpDeparturePos(), sourceScreenF);
+    const XMFLOAT3 targetWorld = enemy_.GetWarpTargetPos();
+    XMFLOAT3 sourceWorld{};
+    const bool hasSource = enemy_.HasWarpDeparturePos();
+    if (hasSource) {
+        sourceWorld = enemy_.GetWarpDeparturePos();
+    }
 
-    auto drawSmoke = [&](const XMFLOAT2 &center, float scale, float alpha,
+    XMMATRIX billboard = camera_.GetView();
+    billboard.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+    billboard = XMMatrixInverse(nullptr, billboard);
+    XMFLOAT3 cameraRight{};
+    XMFLOAT3 cameraUp{};
+    XMStoreFloat3(&cameraRight, billboard.r[0]);
+    XMStoreFloat3(&cameraUp, billboard.r[1]);
+
+    auto addOffset = [](const XMFLOAT3 &origin, const XMFLOAT3 &axis,
+                        float amount) {
+        return XMFLOAT3{origin.x + axis.x * amount, origin.y + axis.y * amount,
+                        origin.z + axis.z * amount};
+    };
+
+    ctx_->renderer.billboard->PreDraw(camera_);
+
+    auto drawSmoke = [&](const XMFLOAT3 &center, float scale, float alpha,
                          bool arrival) {
         const float time = enemy_.GetCurrentActionTimePublic();
         const int blobs = arrival ? 9 : 6;
         for (int i = 0; i < blobs; ++i) {
             const float r = static_cast<float>(i) / static_cast<float>(blobs);
             const float angle = time * (2.0f + r) + r * DirectX::XM_2PI * 1.7f;
-            const float drift = (arrival ? 56.0f : 34.0f) * scale * (0.25f + r);
-            const ImVec2 pos(center.x + std::cosf(angle) * drift,
-                             center.y - 34.0f * scale +
-                                 std::sinf(angle * 1.25f) * drift * 0.45f);
+            const float drift = (arrival ? 0.56f : 0.34f) * scale * (0.25f + r);
+            XMFLOAT3 pos =
+                addOffset(center, cameraRight, std::cosf(angle) * drift);
+            pos = addOffset(pos, cameraUp,
+                            -0.34f * scale +
+                                std::sinf(angle * 1.25f) * drift * 0.45f);
             const float radius =
-                (arrival ? 72.0f : 48.0f) * scale * (0.65f + 0.55f * r);
-            const int a = static_cast<int>(
-                std::clamp(alpha * (1.0f - r * 0.18f), 0.0f, 1.0f) * 115.0f);
-            const ImU32 dark = IM_COL32(18, 6, 12, a);
-            const ImU32 red =
-                IM_COL32(180, 18, 38, static_cast<int>(a * 0.48f));
-            drawList->AddCircleFilled(pos, radius, dark, 40);
+                (arrival ? 0.72f : 0.48f) * scale * (0.65f + 0.55f * r);
+            const float a =
+                std::clamp(alpha * (1.0f - r * 0.18f), 0.0f, 1.0f);
+            const XMFLOAT4 dark{18.0f / 255.0f, 6.0f / 255.0f,
+                                12.0f / 255.0f, a * (115.0f / 255.0f)};
+            const XMFLOAT4 red{180.0f / 255.0f, 18.0f / 255.0f,
+                               38.0f / 255.0f,
+                               a * (115.0f / 255.0f) * 0.48f};
+            ctx_->renderer.billboard->DrawDisc(pos, radius, dark,
+                                               angle * 0.35f);
             if ((i % 2) == 0) {
-                drawList->AddCircle(pos, radius * 0.72f, red, 36, 2.0f);
+                ctx_->renderer.billboard->DrawDisc(pos, radius * 0.72f, red,
+                                                   angle * -0.25f);
             }
         }
     };
 
     if (hasSource &&
         (warpStep == ActionStep::Start || warpStep == ActionStep::Move)) {
-        drawSmoke(sourceScreenF, warpSourceSmokeBloomScale_, stepAlpha, false);
+        XMFLOAT3 sourceCenter = sourceWorld;
+        sourceCenter.y += 1.05f;
+        drawSmoke(sourceCenter, warpSourceSmokeBloomScale_, stepAlpha, false);
     }
-    if (hasTarget) {
-        XMFLOAT2 arrival = targetScreenF;
-        arrival.y -= (warpStep == ActionStep::End) ? 18.0f : 46.0f;
-        drawSmoke(arrival, warpArrivalSmokeDenseScale_, stepAlpha, true);
-    }
-#endif
+    XMFLOAT3 arrival = targetWorld;
+    arrival.y += (warpStep == ActionStep::End) ? 0.85f : 1.25f;
+    drawSmoke(arrival, warpArrivalSmokeDenseScale_, stepAlpha, true);
+
+    ctx_->renderer.billboard->PostDraw();
 }
 
 void GameScene::DrawWarpDistortionPass() {

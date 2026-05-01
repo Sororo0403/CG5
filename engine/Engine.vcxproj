@@ -91,6 +91,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\BillboardRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\collision\DebugDraw.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\imgui\DebugUIRegistry.cpp" />
@@ -144,6 +145,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableObject.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\BillboardRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h" />
@@ -254,6 +256,18 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\billboard\BillboardPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\billboard\BillboardVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
@@ -308,6 +322,10 @@
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="$(SolutionDir)engine\resources\shaders\billboard\Billboard.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
     <None Include="$(SolutionDir)engine\resources\shaders\model\Model.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>

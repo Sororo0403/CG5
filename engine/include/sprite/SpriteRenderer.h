@@ -1,6 +1,7 @@
 #pragma once
 #include "Sprite.h"
 #include <DirectXMath.h>
+#include <cstddef>
 #include <d3d12.h>
 #include <wrl.h>
 
@@ -29,6 +30,20 @@ class SpriteRenderer {
     /// </summary>
     /// <param name="sprite">描画するスプライト</param>
     void Draw(const Sprite &sprite);
+
+    void DrawFilledCircle(const DirectX::XMFLOAT2 &center, float radius,
+                          const DirectX::XMFLOAT4 &color,
+                          uint32_t segments = 48);
+    void DrawCircle(const DirectX::XMFLOAT2 &center, float radius,
+                    const DirectX::XMFLOAT4 &color, float thickness,
+                    uint32_t segments = 48);
+    void DrawLine(const DirectX::XMFLOAT2 &start, const DirectX::XMFLOAT2 &end,
+                  const DirectX::XMFLOAT4 &color, float thickness);
+    void DrawPolyline(const DirectX::XMFLOAT2 *points, size_t pointCount,
+                      const DirectX::XMFLOAT4 &color, bool closed,
+                      float thickness);
+    void DrawConvexPolygon(const DirectX::XMFLOAT2 *points, size_t pointCount,
+                           const DirectX::XMFLOAT4 &color);
 
     /// <summary>
     /// 描画前処理
@@ -64,6 +79,15 @@ class SpriteRenderer {
     /// 定数バッファを生成する
     /// </summary>
     void CreateConstantBuffer();
+    void DrawPrimitiveTriangle(const DirectX::XMFLOAT2 &a,
+                               const DirectX::XMFLOAT2 &b,
+                               const DirectX::XMFLOAT2 &c,
+                               const DirectX::XMFLOAT4 &color);
+    void DrawPrimitiveQuad(const DirectX::XMFLOAT2 &a,
+                           const DirectX::XMFLOAT2 &b,
+                           const DirectX::XMFLOAT2 &c,
+                           const DirectX::XMFLOAT2 &d,
+                           const DirectX::XMFLOAT4 &color);
 
     DirectXCommon *dxCommon_ = nullptr;
     TextureManager *textureManager_ = nullptr;

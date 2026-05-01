@@ -3,15 +3,18 @@
 #include "DxHelpers.h"
 #include "DxUtils.h"
 #include "ShaderCompiler.h"
+#include "SpriteRenderer.h"
 #include "SrvManager.h"
 
 using namespace DxUtils;
 
 void PostEffectRenderer::Initialize(DirectXCommon *dxCommon,
-                                    SrvManager *srvManager, int width,
+                                    SrvManager *srvManager,
+                                    SpriteRenderer *spriteRenderer, int width,
                                     int height) {
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
+    spriteRenderer_ = spriteRenderer;
 
     CreateRootSignature();
     CreatePipelineState();
@@ -185,8 +188,13 @@ void PostEffectRenderer::UpdateScreenEffects(float deltaTime,
 }
 
 void PostEffectRenderer::DrawScreenOverlays() const {
-    distortionPass_.Render({}, {});
-    overlayPass_.Render();
+    if (spriteRenderer_ == nullptr) {
+        return;
+    }
+    spriteRenderer_->PreDraw();
+    distortionPass_.Render({}, {}, spriteRenderer_);
+    overlayPass_.Render(spriteRenderer_);
+    spriteRenderer_->PostDraw();
 }
 
 const ElectricRingParamGPU &PostEffectRenderer::GetElectricRingParam() const {

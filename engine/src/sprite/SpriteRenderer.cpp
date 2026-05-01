@@ -6,6 +6,8 @@
 #include "Sprite.h"
 #include "SrvManager.h"
 #include "TextureManager.h"
+#include <algorithm>
+#include <cmath>
 
 using namespace DirectX;
 using namespace DxUtils;
@@ -66,6 +68,92 @@ void SpriteRenderer::Draw(const Sprite &sprite) {
     cmd->DrawInstanced(6, 1, 0, 0);
 }
 
+void SpriteRenderer::DrawFilledCircle(const XMFLOAT2 &center, float radius,
+                                      const XMFLOAT4 &color,
+                                      uint32_t segments) {
+    if (radius <= 0.0f) {
+        return;
+    }
+    segments = (std::max)(segments, 3u);
+    constexpr float kTwoPi = 6.28318530717958647692f;
+    for (uint32_t i = 0; i < segments; ++i) {
+        const float a0 = kTwoPi * static_cast<float>(i) /
+                         static_cast<float>(segments);
+        const float a1 = kTwoPi * static_cast<float>(i + 1) /
+                         static_cast<float>(segments);
+        DrawPrimitiveTriangle(
+            center, {center.x + std::cosf(a0) * radius,
+                     center.y + std::sinf(a0) * radius},
+            {center.x + std::cosf(a1) * radius,
+             center.y + std::sinf(a1) * radius},
+            color);
+    }
+}
+
+void SpriteRenderer::DrawCircle(const XMFLOAT2 &center, float radius,
+                                const XMFLOAT4 &color, float thickness,
+                                uint32_t segments) {
+    if (radius <= 0.0f || thickness <= 0.0f) {
+        return;
+    }
+    segments = (std::max)(segments, 3u);
+    constexpr float kTwoPi = 6.28318530717958647692f;
+    XMFLOAT2 prev{center.x + radius, center.y};
+    for (uint32_t i = 1; i <= segments; ++i) {
+        const float angle = kTwoPi * static_cast<float>(i) /
+                            static_cast<float>(segments);
+        XMFLOAT2 next{center.x + std::cosf(angle) * radius,
+                      center.y + std::sinf(angle) * radius};
+        DrawLine(prev, next, color, thickness);
+        prev = next;
+    }
+}
+
+void SpriteRenderer::DrawLine(const XMFLOAT2 &start, const XMFLOAT2 &end,
+                              const XMFLOAT4 &color, float thickness) {
+    const float dx = end.x - start.x;
+    const float dy = end.y - start.y;
+    const float length = std::sqrtf(dx * dx + dy * dy);
+    if (length <= 0.0001f || thickness <= 0.0f) {
+        return;
+    }
+
+    const float half = thickness * 0.5f;
+    const float nx = -dy / length * half;
+    const float ny = dx / length * half;
+
+    DrawPrimitiveQuad({start.x + nx, start.y + ny}, {end.x + nx, end.y + ny},
+                      {end.x - nx, end.y - ny}, {start.x - nx, start.y - ny},
+                      color);
+}
+
+void SpriteRenderer::DrawPolyline(const XMFLOAT2 *points, size_t pointCount,
+                                  const XMFLOAT4 &color, bool closed,
+                                  float thickness) {
+    if (points == nullptr || pointCount < 2) {
+        return;
+    }
+
+    for (size_t i = 1; i < pointCount; ++i) {
+        DrawLine(points[i - 1], points[i], color, thickness);
+    }
+    if (closed) {
+        DrawLine(points[pointCount - 1], points[0], color, thickness);
+    }
+}
+
+void SpriteRenderer::DrawConvexPolygon(const XMFLOAT2 *points,
+                                       size_t pointCount,
+                                       const XMFLOAT4 &color) {
+    if (points == nullptr || pointCount < 3) {
+        return;
+    }
+
+    for (size_t i = 2; i < pointCount; ++i) {
+        DrawPrimitiveTriangle(points[0], points[i - 1], points[i], color);
+    }
+}
+
 void SpriteRenderer::PreDraw() {
     auto cmd = dxCommon_->GetCommandList();
 
@@ -83,6 +171,52 @@ void SpriteRenderer::PreDraw() {
 }
 
 void SpriteRenderer::PostDraw() {}
+
+void SpriteRenderer::DrawPrimitiveTriangle(const XMFLOAT2 &a, const XMFLOAT2 &b,
+                                           const XMFLOAT2 &c,
+                                           const XMFLOAT4 &color) {
+    auto cmd = dxCommon_->GetCommandList();
+
+    SpriteVertex vertices[6] = {
+        {{a.x, a.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
+        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
+        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
+    };
+
+    SpriteVertex *mapped = nullptr;
+    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
+    memcpy(mapped, vertices, sizeof(vertices));
+    vertexBuffer_->Unmap(0, nullptr);
+
+    cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
+    cmd->DrawInstanced(3, 1, 0, 0);
+}
+
+void SpriteRenderer::DrawPrimitiveQuad(const XMFLOAT2 &a, const XMFLOAT2 &b,
+                                       const XMFLOAT2 &c, const XMFLOAT2 &d,
+                                       const XMFLOAT4 &color) {
+    auto cmd = dxCommon_->GetCommandList();
+
+    SpriteVertex vertices[6] = {
+        {{a.x, a.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{d.x, d.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{d.x, d.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
+        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, color},
+    };
+
+    SpriteVertex *mapped = nullptr;
+    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
+    memcpy(mapped, vertices, sizeof(vertices));
+    vertexBuffer_->Unmap(0, nullptr);
+
+    cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
+    cmd->DrawInstanced(6, 1, 0, 0);
+}
 
 void SpriteRenderer::CreateVertexBuffer() {
     UINT size = sizeof(SpriteVertex) * 6;

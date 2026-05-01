@@ -14,6 +14,7 @@
 class Camera;
 class DirectXCommon;
 class SrvManager;
+class SpriteRenderer;
 
 /// <summary>
 /// テクスチャを画面全体へ描画するポストエフェクト用レンダラー
@@ -36,8 +37,8 @@ class PostEffectRenderer {
     /// <summary>
     /// 初期化処理
     /// </summary>
-    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager, int width,
-                    int height);
+    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
+                    SpriteRenderer *spriteRenderer, int width, int height);
 
     /// <summary>
     /// 描画領域を更新する
@@ -206,6 +207,7 @@ class PostEffectRenderer {
 
     DirectXCommon *dxCommon_ = nullptr;
     SrvManager *srvManager_ = nullptr;
+    SpriteRenderer *spriteRenderer_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;

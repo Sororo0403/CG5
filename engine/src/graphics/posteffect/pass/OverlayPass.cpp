@@ -1,8 +1,6 @@
 #include "posteffect/pass/OverlayPass.h"
 #include "Camera.h"
-#ifndef IMGUI_DISABLED
-#include "imgui.h"
-#endif
+#include "SpriteRenderer.h"
 #include <algorithm>
 #include <cmath>
 
@@ -154,24 +152,22 @@ void OverlayPass::Update(float deltaTime, const Camera &camera, int width,
     electricRingParam_.enabled = 1.0f;
 }
 
-void OverlayPass::Render() const {
-#ifndef IMGUI_DISABLED
+void OverlayPass::Render(SpriteRenderer *spriteRenderer) const {
+    if (spriteRenderer == nullptr) {
+        return;
+    }
+
     auto drawVignette = [](const DirectX::XMFLOAT3 &color, float intensity,
-                           float innerRadius, float power) {
+                           float innerRadius, float power, int width,
+                           int height, SpriteRenderer *renderer) {
         if (intensity <= 0.001f) {
             return;
         }
-        ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImDrawList *drawList = ImGui::GetForegroundDrawList();
-        if (viewport == nullptr || drawList == nullptr) {
-            return;
-        }
 
-        const ImVec2 center(viewport->Pos.x + viewport->Size.x * 0.5f,
-                            viewport->Pos.y + viewport->Size.y * 0.5f);
+        const DirectX::XMFLOAT2 center{static_cast<float>(width) * 0.5f,
+                                       static_cast<float>(height) * 0.5f};
         const float maxRadius =
-            std::sqrt(viewport->Size.x * viewport->Size.x +
-                      viewport->Size.y * viewport->Size.y) *
+            std::sqrt(static_cast<float>(width * width + height * height)) *
             0.5f;
         constexpr int kLayers = 18;
 
@@ -184,13 +180,12 @@ void OverlayPass::Render() const {
             if (alpha <= 0.001f) {
                 continue;
             }
-            drawList->AddCircleFilled(
+            renderer->DrawFilledCircle(
                 center, maxRadius * t,
-                IM_COL32(
-                    static_cast<int>(std::clamp(color.x, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(color.y, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(color.z, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(alpha, 0.0f, 1.0f) * 255.0f)),
+                {std::clamp(color.x, 0.0f, 1.0f),
+                 std::clamp(color.y, 0.0f, 1.0f),
+                 std::clamp(color.z, 0.0f, 1.0f),
+                 std::clamp(alpha, 0.0f, 1.0f)},
                 96);
         }
     };
@@ -198,34 +193,35 @@ void OverlayPass::Render() const {
     if (demoPlayIndicatorVisible_) {
         const float pulse = 0.5f + 0.5f * std::sinf(demoPlayEffectTime_ * 2.6f);
         drawVignette({0.02f, 0.05f, 0.10f}, 0.28f + pulse * 0.24f, 0.28f,
-                     1.7f);
+                     1.7f, width_, height_, spriteRenderer);
     }
 
     if (counterVignetteAlpha_ > 0.001f) {
         drawVignette({0.06f, 0.0f, 0.0f}, counterVignetteAlpha_ * 0.78f,
-                     0.34f, 1.9f);
+                     0.34f, 1.9f, width_, height_, spriteRenderer);
     }
 
     if (electricRingParam_.enabled > 0.5f) {
-        ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImDrawList *drawList = ImGui::GetForegroundDrawList();
-        if (viewport != nullptr && drawList != nullptr) {
-            const ImVec2 center(
-                viewport->Pos.x + electricRingParam_.center.x * viewport->Size.x,
-                viewport->Pos.y + electricRingParam_.center.y * viewport->Size.y);
-            const float radius =
-                electricRingParam_.radius *
-                (std::min)(viewport->Size.x, viewport->Size.y);
-            const int alpha = static_cast<int>(
-                std::clamp(electricRingParam_.brightness * 72.0f, 0.0f, 180.0f));
-            drawList->AddCircle(
-                center, radius, IM_COL32(70, 190, 255, alpha), 96,
-                (std::max)(2.0f, electricRingParam_.ringWidth * 420.0f));
-            drawList->AddCircle(center, radius * 1.12f,
-                                IM_COL32(255, 80, 180, alpha / 2), 96, 2.0f);
-            drawList->AddCircleFilled(center, radius * 0.12f,
-                                      IM_COL32(190, 240, 255, alpha / 3), 48);
-        }
+        const DirectX::XMFLOAT2 center{
+            electricRingParam_.center.x * static_cast<float>(width_),
+            electricRingParam_.center.y * static_cast<float>(height_)};
+        const float radius =
+            electricRingParam_.radius *
+            static_cast<float>((std::min)(width_, height_));
+        const float alpha =
+            std::clamp(electricRingParam_.brightness * 72.0f, 0.0f, 180.0f) /
+            255.0f;
+        spriteRenderer->DrawCircle(
+            center, radius, {70.0f / 255.0f, 190.0f / 255.0f, 1.0f, alpha},
+            (std::max)(2.0f, electricRingParam_.ringWidth * 420.0f), 96);
+        spriteRenderer->DrawCircle(center, radius * 1.12f,
+                                   {1.0f, 80.0f / 255.0f,
+                                    180.0f / 255.0f, alpha * 0.5f},
+                                   2.0f, 96);
+        spriteRenderer->DrawFilledCircle(center, radius * 0.12f,
+                                         {190.0f / 255.0f,
+                                          240.0f / 255.0f, 1.0f,
+                                          alpha / 3.0f},
+                                         48);
     }
-#endif
 }

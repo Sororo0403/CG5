@@ -4,6 +4,7 @@
 class Camera;
 class DirectXCommon;
 class SrvManager;
+class SpriteRenderer;
 
 struct ElectricRingParamGPU {
     DirectX::XMFLOAT2 center = {0.5f, 0.5f};
@@ -41,7 +42,7 @@ class OverlayPass {
     void SetCounterVignetteActive(bool active);
     void SetDemoPlayIndicatorVisible(bool visible);
     void Update(float deltaTime, const Camera &camera, int width, int height);
-    void Render() const;
+    void Render(SpriteRenderer *spriteRenderer) const;
     const ElectricRingParamGPU &GetElectricRingParam() const {
         return electricRingParam_;
     }

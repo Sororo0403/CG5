@@ -1,3 +1,4 @@
+#include "BillboardRenderer.h"
 #include "DebugDraw.h"
 #include "DirectXCommon.h"
 #include "EffectSystem.h"
@@ -36,6 +37,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         L"engine/resources/shaders/model/SkinningCS.hlsl",
         L"engine/resources/shaders/sprite/SpriteVS.hlsl",
         L"engine/resources/shaders/sprite/SpritePS.hlsl",
+        L"engine/resources/shaders/billboard/BillboardVS.hlsl",
+        L"engine/resources/shaders/billboard/BillboardPS.hlsl",
         L"engine/resources/shaders/debug/SkeletonDebugVS.hlsl",
         L"engine/resources/shaders/debug/SkeletonDebugPS.hlsl",
     });
@@ -61,6 +64,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     SpriteManager spriteManager;
     spriteManager.Initialize(&dxCommon, &textureManager, &srvManager, width,
                              height);
+    BillboardRenderer billboardRenderer;
+    billboardRenderer.Initialize(&dxCommon);
 
     uint32_t boxModelId =
         modelManager.Load(startupUpload, L"shingiittai/resources/model/debug/box.glb");
@@ -69,9 +74,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     textureManager.ReleaseUploadBuffers();
 
     EffectSystem effectSystem;
-    effectSystem.Initialize(&dxCommon, &srvManager, &textureManager, 96, 12);
+    effectSystem.Initialize(&dxCommon, &srvManager, &textureManager,
+                            spriteManager.GetRenderer(), &billboardRenderer,
+                            width, height, 96, 12);
     PostEffectRenderer postEffectRenderer;
-    postEffectRenderer.Initialize(&dxCommon, &srvManager, width, height);
+    postEffectRenderer.Initialize(&dxCommon, &srvManager,
+                                  spriteManager.GetRenderer(), width, height);
     DebugDraw debugDraw;
     debugDraw.Initialize(boxModelId);
 
@@ -88,6 +96,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.assets.texture = &textureManager;
     sceneCtx.renderer.model = modelManager.GetRenderer();
     sceneCtx.renderer.sprite = spriteManager.GetRenderer();
+    sceneCtx.renderer.billboard = &billboardRenderer;
     sceneCtx.renderer.light = &lightManager;
     sceneCtx.renderer.postEffectRenderer = &postEffectRenderer;
 
@@ -130,6 +139,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             if (width > 0 && height > 0) {
                 dxCommon.Resize(width, height);
                 spriteManager.Resize(width, height);
+                effectSystem.Resize(width, height);
                 postEffectRenderer.Resize(width, height);
                 sceneCtx.frame.width = width;
                 sceneCtx.frame.height = height;

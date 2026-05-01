@@ -4,6 +4,7 @@
 
 class DirectXCommon;
 class SrvManager;
+class SpriteRenderer;
 
 enum class DistortionPreset {
     WarpPortal,
@@ -41,7 +42,8 @@ class DistortionPass {
     void Update(float deltaTime);
     void Request(const DistortionEffectParams &params);
     void Render(D3D12_GPU_DESCRIPTOR_HANDLE sourceTexture,
-                D3D12_GPU_DESCRIPTOR_HANDLE depthTexture) const;
+                D3D12_GPU_DESCRIPTOR_HANDLE depthTexture,
+                SpriteRenderer *spriteRenderer) const;
 
   private:
     bool requested_ = false;

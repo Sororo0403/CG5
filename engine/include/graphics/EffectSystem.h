@@ -1,5 +1,6 @@
 #pragma once
 #include "EffectParticleSystem.h"
+#include "SpriteRenderer.h"
 #include "TrailRenderer.h"
 #include <DirectXMath.h>
 #include <algorithm>
@@ -10,6 +11,8 @@ class Camera;
 class DirectXCommon;
 class SrvManager;
 class TextureManager;
+class SpriteRenderer;
+class BillboardRenderer;
 
 enum class EffectPreset {
     SlashArc,
@@ -32,12 +35,19 @@ struct EffectRequest {
 class EffectSystem {
   public:
     void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
-                    TextureManager *textureManager, uint32_t maxTrailPoints,
-                    uint32_t maxParticleBursts) {
+                    TextureManager *textureManager, SpriteRenderer *spriteRenderer,
+                    BillboardRenderer *billboardRenderer, int width, int height,
+                    uint32_t maxTrailPoints, uint32_t maxParticleBursts) {
+        spriteRenderer_ = spriteRenderer;
+        billboardRenderer_ = billboardRenderer;
+        width_ = width > 0 ? width : 1;
+        height_ = height > 0 ? height : 1;
         trailRenderer_.Initialize(dxCommon, srvManager, textureManager,
                                   maxTrailPoints);
         particles_.Initialize(dxCommon, srvManager, textureManager,
                               maxParticleBursts);
+        trailRenderer_.SetScreenRenderer(spriteRenderer_, width_, height_);
+        particles_.SetBillboardRenderer(billboardRenderer_);
     }
 
     void BeginFrame(float deltaTime);
@@ -52,6 +62,7 @@ class EffectSystem {
                        float scale, bool isSweep);
     void SetTrailEnabled(bool enabled) { trailRenderer_.SetEnabled(enabled); }
     void SetTrailLifeTime(float lifeTime) { trailRenderer_.SetLifeTime(lifeTime); }
+    void Resize(int width, int height);
     void Draw(const Camera &camera);
 
   private:
@@ -66,6 +77,10 @@ class EffectSystem {
     TrailRenderer trailRenderer_{};
     EffectParticleSystem particles_{};
     std::vector<ActiveEffect> activeEffects_{};
+    SpriteRenderer *spriteRenderer_ = nullptr;
+    BillboardRenderer *billboardRenderer_ = nullptr;
+    int width_ = 1;
+    int height_ = 1;
     float elapsedTime_ = 0.0f;
 };
 
@@ -115,8 +130,17 @@ inline void EffectSystem::EmitArcSparks(const DirectX::XMFLOAT3 &start,
     particles_.EmitArcSparks(start, end, count, scale, isSweep);
 }
 
+inline void EffectSystem::Resize(int width, int height) {
+    width_ = width > 0 ? width : 1;
+    height_ = height > 0 ? height : 1;
+    trailRenderer_.Resize(width_, height_);
+}
+
 inline void EffectSystem::Draw(const Camera &camera) {
     trailRenderer_.Draw(camera);
+    if (spriteRenderer_ != nullptr) {
+        spriteRenderer_->PreDraw();
+    }
     for (const ActiveEffect &effect : activeEffects_) {
         switch (effect.request.preset) {
         case EffectPreset::SlashArc:
@@ -127,18 +151,17 @@ inline void EffectSystem::Draw(const Camera &camera) {
             break;
         }
     }
+    if (spriteRenderer_ != nullptr) {
+        spriteRenderer_->PostDraw();
+    }
     particles_.Draw(camera);
 }
 
-#ifndef IMGUI_DISABLED
 inline bool ProjectEffectPoint(const Camera &camera,
-                               const DirectX::XMFLOAT3 &world, ImVec2 &out) {
+                               const DirectX::XMFLOAT3 &world,
+                               int width, int height,
+                               DirectX::XMFLOAT2 &out) {
     using namespace DirectX;
-    ImGuiViewport *viewport = ImGui::GetMainViewport();
-    if (viewport == nullptr) {
-        return false;
-    }
-
     XMVECTOR pos = XMVectorSet(world.x, world.y, world.z, 1.0f);
     XMVECTOR clip = XMVector4Transform(pos, camera.GetView() * camera.GetProj());
     const float w = XMVectorGetW(clip);
@@ -153,31 +176,27 @@ inline bool ProjectEffectPoint(const Camera &camera,
         return false;
     }
 
-    out.x = viewport->Pos.x + (ndcX * 0.5f + 0.5f) * viewport->Size.x;
-    out.y = viewport->Pos.y + (-ndcY * 0.5f + 0.5f) * viewport->Size.y;
+    out.x = (ndcX * 0.5f + 0.5f) * static_cast<float>(width);
+    out.y = (-ndcY * 0.5f + 0.5f) * static_cast<float>(height);
     return true;
 }
 
-inline ImU32 EffectColor(float r, float g, float b, float a) {
-    return IM_COL32(static_cast<int>(std::clamp(r, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(g, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(b, 0.0f, 1.0f) * 255.0f),
-                    static_cast<int>(std::clamp(a, 0.0f, 1.0f) * 255.0f));
+inline DirectX::XMFLOAT4 EffectColor(float r, float g, float b, float a) {
+    return {std::clamp(r, 0.0f, 1.0f), std::clamp(g, 0.0f, 1.0f),
+            std::clamp(b, 0.0f, 1.0f), std::clamp(a, 0.0f, 1.0f)};
 }
-#endif
 
 inline void EffectSystem::DrawSlashArc(const Camera &camera,
                                        const ActiveEffect &effect) const {
-#ifndef IMGUI_DISABLED
-    ImDrawList *drawList = ImGui::GetBackgroundDrawList();
-    if (drawList == nullptr) {
+    if (spriteRenderer_ == nullptr) {
         return;
     }
 
-    ImVec2 start{};
-    ImVec2 end{};
-    if (!ProjectEffectPoint(camera, effect.request.start, start) ||
-        !ProjectEffectPoint(camera, effect.request.end, end)) {
+    DirectX::XMFLOAT2 start{};
+    DirectX::XMFLOAT2 end{};
+    if (!ProjectEffectPoint(camera, effect.request.start, width_, height_,
+                            start) ||
+        !ProjectEffectPoint(camera, effect.request.end, width_, height_, end)) {
         return;
     }
 
@@ -200,11 +219,12 @@ inline void EffectSystem::DrawSlashArc(const Camera &camera,
     const float curveOffset =
         (effect.request.sweep ? 52.0f : 30.0f) *
         (0.84f + 0.16f * std::sinf(actionTime * 36.0f));
-    const ImVec2 control((start.x + end.x) * 0.5f + perpX * curveOffset,
-                         (start.y + end.y) * 0.5f + perpY * curveOffset);
+    const DirectX::XMFLOAT2 control{
+        (start.x + end.x) * 0.5f + perpX * curveOffset,
+        (start.y + end.y) * 0.5f + perpY * curveOffset};
 
     constexpr int kSegments = 18;
-    ImVec2 path[kSegments + 1];
+    DirectX::XMFLOAT2 path[kSegments + 1];
     const float outerThickness =
         18.0f * sweepScale * (0.86f + phaseAlpha * 0.28f);
     const float coreThickness = 8.0f * (0.82f + phaseAlpha * 0.24f);
@@ -221,13 +241,18 @@ inline void EffectSystem::DrawSlashArc(const Camera &camera,
         widths[i] = outerThickness * (0.25f + 0.75f * taper);
     }
 
-    const ImU32 shadow = EffectColor(0.03f, 0.01f, 0.02f, phaseAlpha * 0.96f);
-    const ImU32 darkRim = EffectColor(0.17f, 0.01f, 0.04f, phaseAlpha * 0.82f);
-    const ImU32 hot = EffectColor(0.96f, 0.12f, 0.30f, phaseAlpha * 0.68f);
-    const ImU32 core = EffectColor(1.00f, 0.95f, 0.97f, phaseAlpha * 0.94f);
-    const ImU32 bloom = EffectColor(0.74f, 0.58f, 1.00f, phaseAlpha * 0.35f);
+    const DirectX::XMFLOAT4 shadow =
+        EffectColor(0.03f, 0.01f, 0.02f, phaseAlpha * 0.96f);
+    const DirectX::XMFLOAT4 darkRim =
+        EffectColor(0.17f, 0.01f, 0.04f, phaseAlpha * 0.82f);
+    const DirectX::XMFLOAT4 hot =
+        EffectColor(0.96f, 0.12f, 0.30f, phaseAlpha * 0.68f);
+    const DirectX::XMFLOAT4 core =
+        EffectColor(1.00f, 0.95f, 0.97f, phaseAlpha * 0.94f);
+    const DirectX::XMFLOAT4 bloom =
+        EffectColor(0.74f, 0.58f, 1.00f, phaseAlpha * 0.35f);
 
-    ImVec2 ribbon[(kSegments + 1) * 2];
+    DirectX::XMFLOAT2 ribbon[(kSegments + 1) * 2];
     for (int i = 0; i <= kSegments; ++i) {
         const int prevIndex = (i == 0) ? i : i - 1;
         const int nextIndex = (i == kSegments) ? i : i + 1;
@@ -244,30 +269,32 @@ inline void EffectSystem::DrawSlashArc(const Camera &camera,
         const float normalX = -tangentY;
         const float normalY = tangentX;
         const float width = widths[i];
-        ribbon[i] =
-            ImVec2(path[i].x + normalX * width, path[i].y + normalY * width);
-        ribbon[(kSegments + 1) * 2 - 1 - i] =
-            ImVec2(path[i].x - normalX * width * 0.65f,
-                   path[i].y - normalY * width * 0.65f);
+        ribbon[i] = {path[i].x + normalX * width,
+                     path[i].y + normalY * width};
+        ribbon[(kSegments + 1) * 2 - 1 - i] = {
+            path[i].x - normalX * width * 0.65f,
+            path[i].y - normalY * width * 0.65f};
     }
 
-    drawList->AddConvexPolyFilled(ribbon, (kSegments + 1) * 2, shadow);
-    drawList->AddPolyline(path, kSegments + 1, bloom, false,
-                          outerThickness * 1.55f);
-    drawList->AddPolyline(path, kSegments + 1, shadow, false, outerThickness);
-    drawList->AddPolyline(path, kSegments + 1, darkRim, false,
-                          outerThickness * 0.72f);
-    drawList->AddPolyline(path, kSegments + 1, hot, false,
-                          outerThickness * 0.34f);
-    drawList->AddPolyline(path, kSegments + 1, core, false, coreThickness);
+    spriteRenderer_->DrawConvexPolygon(ribbon, (kSegments + 1) * 2, shadow);
+    spriteRenderer_->DrawPolyline(path, kSegments + 1, bloom, false,
+                                  outerThickness * 1.55f);
+    spriteRenderer_->DrawPolyline(path, kSegments + 1, shadow, false,
+                                  outerThickness);
+    spriteRenderer_->DrawPolyline(path, kSegments + 1, darkRim, false,
+                                  outerThickness * 0.72f);
+    spriteRenderer_->DrawPolyline(path, kSegments + 1, hot, false,
+                                  outerThickness * 0.34f);
+    spriteRenderer_->DrawPolyline(path, kSegments + 1, core, false,
+                                  coreThickness);
 
-    const ImVec2 impact = path[kSegments];
+    const DirectX::XMFLOAT2 impact = path[kSegments];
     const float branchLen = length * (effect.request.sweep ? 0.82f : 0.68f) * 0.22f;
     const float branchForward = length * 0.08f;
-    drawList->AddLine(
-        ImVec2(impact.x - perpX * branchLen, impact.y - perpY * branchLen),
-        ImVec2(impact.x + perpX * branchLen + dirX * branchForward,
-               impact.y + perpY * branchLen + dirY * branchForward),
+    spriteRenderer_->DrawLine(
+        {impact.x - perpX * branchLen, impact.y - perpY * branchLen},
+        {impact.x + perpX * branchLen + dirX * branchForward,
+         impact.y + perpY * branchLen + dirY * branchForward},
         core, coreThickness * 0.46f);
 
     constexpr int kSparkCount = 12;
@@ -278,38 +305,34 @@ inline void EffectSystem::DrawSlashArc(const Camera &camera,
         const float sparkLen = 70.0f * (0.28f + 0.72f * (1.0f - ratio)) *
                                (0.84f + 0.18f * pulse);
         const float offset = 70.0f * 0.20f * ratio;
-        ImVec2 sparkStart(impact.x + dirX * offset + std::cosf(angle) * 8.0f,
-                          impact.y + dirY * offset +
-                              std::sinf(angle * 1.2f) * 8.0f);
-        ImVec2 sparkEnd(sparkStart.x + std::cosf(angle) * sparkLen +
-                            perpX * sparkLen * 0.12f,
-                        sparkStart.y + std::sinf(angle) * sparkLen +
-                            perpY * sparkLen * 0.12f);
-        drawList->AddLine(sparkStart, sparkEnd, hot,
-                          1.2f + (1.0f - ratio) * 1.8f);
+        DirectX::XMFLOAT2 sparkStart{
+            impact.x + dirX * offset + std::cosf(angle) * 8.0f,
+            impact.y + dirY * offset + std::sinf(angle * 1.2f) * 8.0f};
+        DirectX::XMFLOAT2 sparkEnd{
+            sparkStart.x + std::cosf(angle) * sparkLen +
+                perpX * sparkLen * 0.12f,
+            sparkStart.y + std::sinf(angle) * sparkLen +
+                perpY * sparkLen * 0.12f};
+        spriteRenderer_->DrawLine(sparkStart, sparkEnd, hot,
+                                  1.2f + (1.0f - ratio) * 1.8f);
     }
 
-    drawList->AddCircleFilled(impact, 11.0f + phaseAlpha * 8.0f, core);
-    drawList->AddCircleFilled(impact, 21.0f + phaseAlpha * 12.0f,
-                              EffectColor(0.96f, 0.12f, 0.30f,
-                                          phaseAlpha * 0.18f));
-#else
-    (void)camera;
-    (void)effect;
-#endif
+    spriteRenderer_->DrawFilledCircle(impact, 11.0f + phaseAlpha * 8.0f, core,
+                                      32);
+    spriteRenderer_->DrawFilledCircle(
+        impact, 21.0f + phaseAlpha * 12.0f,
+        EffectColor(0.96f, 0.12f, 0.30f, phaseAlpha * 0.18f), 40);
 }
 
 inline void EffectSystem::DrawMagneticField(const Camera &camera,
                                             const ActiveEffect &effect) const {
-#ifndef IMGUI_DISABLED
-    ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImDrawList *drawList = ImGui::GetForegroundDrawList();
-    if (viewport == nullptr || drawList == nullptr) {
+    if (spriteRenderer_ == nullptr) {
         return;
     }
 
-    ImVec2 center{};
-    if (!ProjectEffectPoint(camera, effect.request.position, center)) {
+    DirectX::XMFLOAT2 center{};
+    if (!ProjectEffectPoint(camera, effect.request.position, width_, height_,
+                            center)) {
         return;
     }
 
@@ -322,22 +345,23 @@ inline void EffectSystem::DrawMagneticField(const Camera &camera,
 
     for (int i = 4; i >= 0; --i) {
         const float t = static_cast<float>(i + 1) / 5.0f;
-        const ImU32 color = IM_COL32(6, 92, 192,
-                                     static_cast<int>(alpha *
-                                                      (38.0f + 24.0f * pulse) *
-                                                      (1.0f - t * 0.08f)));
-        drawList->AddCircle(center, radius * t, color, 72, 2.0f + i * 0.8f);
+        const float ringAlpha =
+            alpha * (38.0f + 24.0f * pulse) * (1.0f - t * 0.08f) / 255.0f;
+        spriteRenderer_->DrawCircle(center, radius * t,
+                                    EffectColor(6.0f / 255.0f,
+                                                92.0f / 255.0f,
+                                                192.0f / 255.0f, ringAlpha),
+                                    2.0f + i * 0.8f, 72);
     }
 
-    drawList->AddCircle(center, radius * 1.12f,
-                        IM_COL32(255, 80, 180,
-                                 static_cast<int>(alpha * 52.0f)),
-                        96, 2.0f);
-    drawList->AddCircleFilled(
-        center, radius * 0.18f,
-        IM_COL32(255, 95, 190, static_cast<int>(alpha * 120.0f)), 36);
-#else
-    (void)camera;
-    (void)effect;
-#endif
+    spriteRenderer_->DrawCircle(center, radius * 1.12f,
+                                EffectColor(1.0f, 80.0f / 255.0f,
+                                            180.0f / 255.0f,
+                                            alpha * 52.0f / 255.0f),
+                                2.0f, 96);
+    spriteRenderer_->DrawFilledCircle(center, radius * 0.18f,
+                                      EffectColor(1.0f, 95.0f / 255.0f,
+                                                  190.0f / 255.0f,
+                                                  alpha * 120.0f / 255.0f),
+                                      36);
 }

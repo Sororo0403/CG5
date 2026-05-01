@@ -18,6 +18,7 @@ class SkyboxRenderer;
 class LightManager;
 class DebugDraw;
 class EffectSystem;
+class BillboardRenderer;
 
 #ifdef _DEBUG
 class ImguiManager;
@@ -46,6 +47,7 @@ struct RendererServices {
     PostEffectRenderer *postEffectRenderer = nullptr;
     SkyboxRenderer *skyboxRenderer = nullptr;
     LightManager *light = nullptr;
+    BillboardRenderer *billboard = nullptr;
 };
 
 struct FrameState {
