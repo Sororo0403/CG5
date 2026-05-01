@@ -140,17 +140,73 @@ void Enemy::ResetChainContext() { chain_ = ChainContext{}; }
 
 bool Enemy::DecideNextChainAction(ActionKind finishedKind, ActionKind &outKind,
                                   ActionStep &outStep) const {
-    (void)finishedKind;
     outKind = ActionKind::None;
     outStep = ActionStep::None;
+
+    if (chain_.active && chain_.stepCount >= chain_.maxSteps) {
+        return false;
+    }
+
+    const float distance = GetDistanceToPlayer();
+    switch (finishedKind) {
+    case ActionKind::Sweep:
+        if (distance <= config_.chain.sweepWarpSmashMaxDistance) {
+            outKind = ActionKind::Smash;
+            outStep = ActionStep::Charge;
+            return true;
+        }
+        break;
+    case ActionKind::Wave:
+        if (distance >= config_.chain.waveWarpSmashMinDistance) {
+            outKind = ActionKind::Smash;
+            outStep = ActionStep::Charge;
+            return true;
+        }
+        break;
+    case ActionKind::Warp:
+        outKind = SelectNearPressureAction();
+        outStep = ActionStep::Charge;
+        return outKind != ActionKind::None;
+    default:
+        break;
+    }
+
     return false;
 }
 
-void Enemy::SetupSweepWarpSmashChain() { ResetChainContext(); }
+void Enemy::SetupSweepWarpSmashChain() {
+    chain_.active = true;
+    chain_.starter = ChainStarter::SweepWarpSmash;
+    chain_.stepCount = 0;
+    chain_.maxSteps = 1;
+}
 
-void Enemy::SetupWaveWarpSmashChain() { ResetChainContext(); }
+void Enemy::SetupWaveWarpSmashChain() {
+    chain_.active = true;
+    chain_.starter = ChainStarter::WaveWarpSmash;
+    chain_.stepCount = 0;
+    chain_.maxSteps = 1;
+}
 
-void Enemy::OverrideWarpFollowupByChain() {}
+void Enemy::OverrideWarpFollowupByChain() {
+    if (!chain_.active || chain_.stepCount >= chain_.maxSteps) {
+        return;
+    }
+
+    ActionKind nextKind = ActionKind::None;
+    ActionStep nextStep = ActionStep::None;
+    if (!DecideNextChainAction(
+            chain_.starter == ChainStarter::WaveWarpSmash ? ActionKind::Wave
+                                                          : ActionKind::Sweep,
+            nextKind, nextStep)) {
+        ResetChainContext();
+        return;
+    }
+
+    warp_.followupKind = nextKind;
+    warp_.followupStep = nextStep;
+    ++chain_.stepCount;
+}
 
 bool Enemy::TryStartPostActionWarpChain(ActionKind finishedKind) {
     if (IsWarpSuspendedForPresentation()) {
@@ -163,13 +219,16 @@ bool Enemy::TryStartPostActionWarpChain(ActionKind finishedKind) {
         distance <= config_.chain.sweepWarpSmashMaxDistance) {
         float r = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
         if (r < config_.chain.sweepWarpSmashChance) {
+            SetupSweepWarpSmashChain();
             ResetWarpContext();
             warp_.type = WarpType::Approach;
             if (!DecideWarpTargetNearPlayer(warp_.targetPos)) {
                 ResetWarpContext();
+                ResetChainContext();
                 return false;
             }
             warp_.hasValidTarget = true;
+            OverrideWarpFollowupByChain();
             BeginAction(ActionKind::Warp, ActionStep::Start);
             return true;
         }
@@ -179,13 +238,16 @@ bool Enemy::TryStartPostActionWarpChain(ActionKind finishedKind) {
         distance >= config_.chain.waveWarpSmashMinDistance) {
         float r = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX);
         if (r < config_.chain.waveWarpSmashChance) {
+            SetupWaveWarpSmashChain();
             ResetWarpContext();
             warp_.type = WarpType::Approach;
             if (!DecideWarpTargetNearPlayer(warp_.targetPos)) {
                 ResetWarpContext();
+                ResetChainContext();
                 return false;
             }
             warp_.hasValidTarget = true;
+            OverrideWarpFollowupByChain();
             BeginAction(ActionKind::Warp, ActionStep::Start);
             return true;
         }

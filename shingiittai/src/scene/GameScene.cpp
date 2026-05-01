@@ -497,9 +497,9 @@ void GameScene::Update() {
         ctx_->model->UpdateAnimation(enemyModelId_, enemyDeltaTime);
     }
 
-   // UpdateEnemySlashEffects();
+    UpdateEnemySlashEffects();
 
-    //UpdateEnemySwordTrail();
+    UpdateEnemySwordTrail();
 
     enemy_.UpdatePresentationEvents();
 
@@ -1171,11 +1171,11 @@ void GameScene::Draw() {
 #endif // _DEBUG
     ctx_->model->PostDraw();
     DrawMagnetismic();
-     /* if (ctx_->swordTrailRenderer != nullptr) {
+    if (ctx_->swordTrailRenderer != nullptr) {
         ctx_->swordTrailRenderer->Draw(*currentCamera_);
     }
 
-     {
+    {
         DirectX::XMFLOAT3 slashStartWorld{};
         DirectX::XMFLOAT3 slashEndWorld{};
         float phaseAlpha = 0.0f;
@@ -1190,11 +1190,35 @@ void GameScene::Draw() {
                 *currentCamera_, slashStartWorld, slashEndWorld, phaseAlpha,
                 actionTime, isSweep);
         }
-    }*/
+    }
+    DrawEnemySlashPass();
 
-    //ctx_->gpuSlashParticleSystem->Render(*currentCamera_, ctx_->deltaTime);
+    ctx_->gpuSlashParticleSystem->Render(*currentCamera_, ctx_->deltaTime);
     DrawWarpSmokePass();
     DrawWarpDistortionPass();
+#ifndef IMGUI_DISABLED
+    if (ctx_->electricRingParam != nullptr &&
+        ctx_->electricRingParam->enabled > 0.5f) {
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImDrawList *drawList = ImGui::GetForegroundDrawList();
+        if (viewport != nullptr && drawList != nullptr) {
+            const ElectricRingParamGPU &ring = *ctx_->electricRingParam;
+            const ImVec2 center(
+                viewport->Pos.x + ring.center.x * viewport->Size.x,
+                viewport->Pos.y + ring.center.y * viewport->Size.y);
+            const float radius =
+                ring.radius * (std::min)(viewport->Size.x, viewport->Size.y);
+            const int alpha =
+                static_cast<int>(std::clamp(ring.brightness * 72.0f, 0.0f, 180.0f));
+            drawList->AddCircle(center, radius, IM_COL32(70, 190, 255, alpha),
+                                96, (std::max)(2.0f, ring.ringWidth * 420.0f));
+            drawList->AddCircle(center, radius * 1.12f,
+                                IM_COL32(255, 80, 180, alpha / 2), 96, 2.0f);
+            drawList->AddCircleFilled(center, radius * 0.12f,
+                                      IM_COL32(190, 240, 255, alpha / 3), 48);
+        }
+    }
+#endif
     DrawDemoPlayIndicator();
     DrawCounterVignette();
 
@@ -2193,7 +2217,77 @@ void GameScene::UpdateEnemySwordTrail() {
 }
 
 void GameScene::DrawWarpSmokePass() {
+#ifdef IMGUI_DISABLED
     return;
+#else
+    if (enemy_.GetActionKind() != ActionKind::Warp) {
+        return;
+    }
+
+    ImGuiViewport *viewport = ImGui::GetMainViewport();
+    ImDrawList *drawList = ImGui::GetBackgroundDrawList(viewport);
+    if (viewport == nullptr || drawList == nullptr) {
+        return;
+    }
+
+    ActionStep warpStep = enemy_.GetActionStep();
+    float stepAlpha = 0.0f;
+    switch (warpStep) {
+    case ActionStep::Start:
+        stepAlpha = 0.62f;
+        break;
+    case ActionStep::Move:
+        stepAlpha = 0.78f;
+        break;
+    case ActionStep::End:
+        stepAlpha = 0.92f;
+        break;
+    default:
+        return;
+    }
+
+    XMFLOAT2 targetScreenF{};
+    bool hasTarget = ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
+    XMFLOAT2 sourceScreenF{};
+    bool hasSource = enemy_.HasWarpDeparturePos() &&
+                     ProjectWorldToScreen(enemy_.GetWarpDeparturePos(),
+                                          sourceScreenF);
+
+    auto drawSmoke = [&](const XMFLOAT2 &center, float scale, float alpha,
+                         bool arrival) {
+        const float time = enemy_.GetCurrentActionTimePublic();
+        const int blobs = arrival ? 9 : 6;
+        for (int i = 0; i < blobs; ++i) {
+            const float r = static_cast<float>(i) / static_cast<float>(blobs);
+            const float angle = time * (2.0f + r) + r * DirectX::XM_2PI * 1.7f;
+            const float drift = (arrival ? 56.0f : 34.0f) * scale * (0.25f + r);
+            const ImVec2 pos(center.x + std::cosf(angle) * drift,
+                             center.y - 34.0f * scale +
+                                 std::sinf(angle * 1.25f) * drift * 0.45f);
+            const float radius =
+                (arrival ? 72.0f : 48.0f) * scale * (0.65f + 0.55f * r);
+            const int a = static_cast<int>(std::clamp(alpha * (1.0f - r * 0.18f),
+                                                      0.0f, 1.0f) *
+                                           115.0f);
+            const ImU32 dark = IM_COL32(18, 6, 12, a);
+            const ImU32 red = IM_COL32(180, 18, 38, static_cast<int>(a * 0.48f));
+            drawList->AddCircleFilled(pos, radius, dark, 40);
+            if ((i % 2) == 0) {
+                drawList->AddCircle(pos, radius * 0.72f, red, 36, 2.0f);
+            }
+        }
+    };
+
+    if (hasSource && (warpStep == ActionStep::Start ||
+                      warpStep == ActionStep::Move)) {
+        drawSmoke(sourceScreenF, warpSourceSmokeBloomScale_, stepAlpha, false);
+    }
+    if (hasTarget) {
+        XMFLOAT2 arrival = targetScreenF;
+        arrival.y -= (warpStep == ActionStep::End) ? 18.0f : 46.0f;
+        drawSmoke(arrival, warpArrivalSmokeDenseScale_, stepAlpha, true);
+    }
+#endif
 }
 
 
@@ -2963,3 +3057,4 @@ void GameScene::UpdateElectricRing() {
     gpu.outerFade = 1.0f;
     gpu.enabled = 1.0f;
 }
+
