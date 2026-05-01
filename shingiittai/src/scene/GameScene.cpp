@@ -16,10 +16,6 @@
 #endif
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
-#include <memory>
-#include <nlohmann/json.hpp>
 #include "EnemyTuningPresetIO.h"
 
 using namespace DirectX;
@@ -241,42 +237,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
 namespace {
 
-nlohmann::json ToJson(const Transform &transform) {
-    return {
-        {"position",
-         {transform.position.x, transform.position.y, transform.position.z}},
-        {"rotation",
-         {transform.rotation.x, transform.rotation.y, transform.rotation.z,
-          transform.rotation.w}},
-        {"scale", {transform.scale.x, transform.scale.y, transform.scale.z}},
-    };
-}
-
-Transform TransformFromJson(const nlohmann::json &json,
-                            const Transform &fallback) {
-    Transform transform = fallback;
-    if (json.contains("position") && json["position"].is_array() &&
-        json["position"].size() >= 3) {
-        transform.position = {json["position"][0].get<float>(),
-                              json["position"][1].get<float>(),
-                              json["position"][2].get<float>()};
-    }
-    if (json.contains("rotation") && json["rotation"].is_array() &&
-        json["rotation"].size() >= 4) {
-        transform.rotation = {json["rotation"][0].get<float>(),
-                              json["rotation"][1].get<float>(),
-                              json["rotation"][2].get<float>(),
-                              json["rotation"][3].get<float>()};
-    }
-    if (json.contains("scale") && json["scale"].is_array() &&
-        json["scale"].size() >= 3) {
-        transform.scale = {json["scale"][0].get<float>(),
-                           json["scale"][1].get<float>(),
-                           json["scale"][2].get<float>()};
-    }
-    return transform;
-}
-
 EditableTransform ToEditableTransform(const Transform &transform) {
     return {transform.position, transform.rotation, transform.scale};
 }
@@ -392,152 +352,17 @@ void GameScene::OnEditableObjectChanged(size_t index) {
 }
 
 bool GameScene::SaveScene(std::string *message) {
-    return SaveSceneAs(currentScenePath_, message);
+    if (message) {
+        *message = "Scene save is not supported";
+    }
+    return false;
 }
 
 bool GameScene::LoadScene(std::string *message) {
-    return LoadSceneFromPath(currentScenePath_, message);
-}
-
-bool GameScene::NewScene(std::string *message) {
-    player_.SetTransform({{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
-                          {1.0f, 1.0f, 1.0f}});
-    enemy_.SetTransform({{0.0f, 0.0f, 6.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
-                         {1.0f, 1.0f, 1.0f}});
-    currentScenePath_.clear();
-    sceneDirty_ = true;
     if (message) {
-        *message = "New Shingiittai editor scene created";
+        *message = "Scene load is not supported";
     }
-    return true;
-}
-
-bool GameScene::SaveSceneAs(const std::string &path, std::string *message) {
-    const bool saved = SaveSceneSnapshot(path, message);
-    if (saved) {
-        currentScenePath_ = path;
-        sceneDirty_ = false;
-    }
-    return saved;
-}
-
-bool GameScene::SaveSceneSnapshot(const std::string &path,
-                                  std::string *message) const {
-    try {
-        std::filesystem::path scenePath(path);
-        if (scenePath.has_parent_path()) {
-            std::filesystem::create_directories(scenePath.parent_path());
-        }
-
-        nlohmann::json json;
-        json["name"] = GetCurrentSceneName();
-        json["objects"]["player"] = ToJson(player_.GetTransform());
-        json["objects"]["enemy"] = ToJson(enemy_.GetTransform());
-
-        std::ofstream ofs(scenePath);
-        ofs << json.dump(2);
-        if (message) {
-            *message = "Saved scene: " + scenePath.string();
-        }
-        return true;
-    } catch (const std::exception &e) {
-        if (message) {
-            *message = e.what();
-        }
-        return false;
-    }
-}
-
-bool GameScene::LoadSceneFromPath(const std::string &path,
-                                  std::string *message) {
-    try {
-        std::ifstream ifs(path);
-        if (!ifs) {
-            if (message) {
-                *message = "Scene file not found: " + path;
-            }
-            return false;
-        }
-        nlohmann::json json;
-        ifs >> json;
-        const auto &objects = json["objects"];
-        if (objects.contains("player")) {
-            player_.SetTransform(
-                TransformFromJson(objects["player"], player_.GetTransform()));
-        }
-        if (objects.contains("enemy")) {
-            enemy_.SetTransform(
-                TransformFromJson(objects["enemy"], enemy_.GetTransform()));
-        }
-        currentScenePath_ = path;
-        sceneDirty_ = false;
-        if (message) {
-            *message = "Loaded scene: " + path;
-        }
-        return true;
-    } catch (const std::exception &e) {
-        if (message) {
-            *message = e.what();
-        }
-        return false;
-    }
-}
-
-std::string GameScene::GetCurrentScenePath() const { return currentScenePath_; }
-
-std::string GameScene::GetCurrentSceneName() const {
-    if (currentScenePath_.empty()) {
-        return "Untitled";
-    }
-    return std::filesystem::path(currentScenePath_).stem().string();
-}
-
-bool GameScene::CaptureSceneState(std::string *outState,
-                                  std::string *message) const {
-    if (outState == nullptr) {
-        if (message) {
-            *message = "Missing output state";
-        }
-        return false;
-    }
-
-    nlohmann::json json;
-    json["objects"]["player"] = ToJson(player_.GetTransform());
-    json["objects"]["enemy"] = ToJson(enemy_.GetTransform());
-    json["selected"] = selectedEditableObjectId_;
-    json["dirty"] = sceneDirty_;
-    *outState = json.dump();
-    if (message) {
-        *message = "Scene state captured";
-    }
-    return true;
-}
-
-bool GameScene::RestoreSceneState(const std::string &state,
-                                  std::string *message) {
-    try {
-        nlohmann::json json = nlohmann::json::parse(state);
-        const auto &objects = json["objects"];
-        if (objects.contains("player")) {
-            player_.SetTransform(
-                TransformFromJson(objects["player"], player_.GetTransform()));
-        }
-        if (objects.contains("enemy")) {
-            enemy_.SetTransform(
-                TransformFromJson(objects["enemy"], enemy_.GetTransform()));
-        }
-        selectedEditableObjectId_ = json.value("selected", selectedEditableObjectId_);
-        sceneDirty_ = json.value("dirty", sceneDirty_);
-        if (message) {
-            *message = "Scene state restored";
-        }
-        return true;
-    } catch (const std::exception &e) {
-        if (message) {
-            *message = e.what();
-        }
-        return false;
-    }
+    return false;
 }
 
 bool GameScene::IsSceneDirty() const { return sceneDirty_; }

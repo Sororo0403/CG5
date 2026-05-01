@@ -33,18 +33,6 @@ class GameScene : public BaseScene, public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
-    bool NewScene(std::string *message) override;
-    bool SaveSceneAs(const std::string &path, std::string *message) override;
-    bool SaveSceneSnapshot(const std::string &path,
-                           std::string *message) const override;
-    bool LoadSceneFromPath(const std::string &path,
-                           std::string *message) override;
-    std::string GetCurrentScenePath() const override;
-    std::string GetCurrentSceneName() const override;
-    bool CaptureSceneState(std::string *outState,
-                           std::string *message) const override;
-    bool RestoreSceneState(const std::string &state,
-                           std::string *message) override;
     bool IsSceneDirty() const override;
     void MarkSceneDirty() override;
     void ClearSceneDirty() override;
@@ -157,7 +145,6 @@ class GameScene : public BaseScene, public IEditableScene {
 
     std::vector<SceneEditableObject> editableObjects_{};
     uint64_t selectedEditableObjectId_ = 0;
-    std::string currentScenePath_ = "resources/levels/shingiittai_editor.json";
     bool sceneDirty_ = false;
     bool gameplayPaused_ = false;
 };
