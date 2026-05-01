@@ -1,5 +1,6 @@
 #include "Sword.h"
 #include "Camera.h"
+#include "EngineRuntime.h"
 #include "ModelManager.h"
 #include "imgui.h"
 #include <algorithm>
@@ -9,6 +10,15 @@ using namespace DirectX;
 
 namespace {
 constexpr float kSwordVisualScaleMultiplier = 3.0f;
+
+bool ShouldDrawGameplayDebugUi() {
+#ifndef IMGUI_DISABLED
+    const EngineRuntime &runtime = EngineRuntime::GetInstance();
+    return runtime.Settings().showDebugUI && !runtime.IsEditorMode();
+#else
+    return false;
+#endif
+}
 }
 
 void Sword::Initialize(uint32_t modelId) {
@@ -160,6 +170,10 @@ void Sword::NotifyCounterSuccess() {
 
 void Sword::ImGuiDraw() {
 #ifndef IMGUI_DISABLED
+    if (!ShouldDrawGameplayDebugUi()) {
+        return;
+    }
+
     ImGui::Begin("Debug");
     ImGui::Text("Sword Pos: %.2f %.2f %.2f", tf_.position.x, tf_.position.y,
                 tf_.position.z);

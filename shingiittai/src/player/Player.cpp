@@ -1,4 +1,5 @@
 #include "Player.h"
+#include "EngineRuntime.h"
 #include "Input.h"
 #include "ModelManager.h"
 #include "SwordPose.h"
@@ -10,6 +11,15 @@ using namespace DirectX;
 
 namespace {
 constexpr float kPlayerVisualScaleMultiplier = 3.0f;
+
+bool ShouldDrawGameplayDebugUi() {
+#ifndef IMGUI_DISABLED
+    const EngineRuntime &runtime = EngineRuntime::GetInstance();
+    return runtime.Settings().showDebugUI && !runtime.IsEditorMode();
+#else
+    return false;
+#endif
+}
 }
 
 void Player::Initialize(uint32_t playerModelId, uint32_t swordModelId) {
@@ -159,25 +169,30 @@ void Player::Draw(ModelManager *modelManager, const Camera &camera) {
     }
 
 #ifndef IMGUI_DISABLED
-    ImGui::Begin("Player Combat");
-    ImGui::Text("Guarding: %s", isGuarding_ ? "true" : "false");
-    ImGui::Text("Left Slash : %s", leftSwordSlashMode_ ? "true" : "false");
-    ImGui::Text("Left Dir   : %.2f, %.2f", leftSwordSlashDir_.x,
-                leftSwordSlashDir_.y);
-    ImGui::Text("Left Conn  : %s", leftJoyCon_.IsConnected() ? "true" : "false");
-    ImGui::Text("Left Calib : %s", leftJoyCon_.IsCalibrating() ? "true" : "false");
-    ImGui::Text("Left Still : %.2f", leftJoyCon_.GetStillTimer());
-    ImGui::Text("Left CalTm : %.2f", leftJoyCon_.GetCalibrationTimer());
-    ImGui::Text("Right Slash: %s", rightSwordSlashMode_ ? "true" : "false");
-    ImGui::Text("Right Dir  : %.2f, %.2f", rightSwordSlashDir_.x,
-                rightSwordSlashDir_.y);
-    ImGui::Text("Right Conn : %s", rightJoyCon_.IsConnected() ? "true" : "false");
-    ImGui::Text("Right Calib: %s",
-                rightJoyCon_.IsCalibrating() ? "true" : "false");
-    ImGui::Text("Right Still: %.2f", rightJoyCon_.GetStillTimer());
-    ImGui::Text("Right CalTm: %.2f", rightJoyCon_.GetCalibrationTimer());
-    ImGui::Text("Recovery : %.2f", postSlashRecoveryTimer_);
-    ImGui::End();
+    if (ShouldDrawGameplayDebugUi()) {
+        ImGui::Begin("Player Combat");
+        ImGui::Text("Guarding: %s", isGuarding_ ? "true" : "false");
+        ImGui::Text("Left Slash : %s", leftSwordSlashMode_ ? "true" : "false");
+        ImGui::Text("Left Dir   : %.2f, %.2f", leftSwordSlashDir_.x,
+                    leftSwordSlashDir_.y);
+        ImGui::Text("Left Conn  : %s",
+                    leftJoyCon_.IsConnected() ? "true" : "false");
+        ImGui::Text("Left Calib : %s",
+                    leftJoyCon_.IsCalibrating() ? "true" : "false");
+        ImGui::Text("Left Still : %.2f", leftJoyCon_.GetStillTimer());
+        ImGui::Text("Left CalTm : %.2f", leftJoyCon_.GetCalibrationTimer());
+        ImGui::Text("Right Slash: %s", rightSwordSlashMode_ ? "true" : "false");
+        ImGui::Text("Right Dir  : %.2f, %.2f", rightSwordSlashDir_.x,
+                    rightSwordSlashDir_.y);
+        ImGui::Text("Right Conn : %s",
+                    rightJoyCon_.IsConnected() ? "true" : "false");
+        ImGui::Text("Right Calib: %s",
+                    rightJoyCon_.IsCalibrating() ? "true" : "false");
+        ImGui::Text("Right Still: %.2f", rightJoyCon_.GetStillTimer());
+        ImGui::Text("Right CalTm: %.2f", rightJoyCon_.GetCalibrationTimer());
+        ImGui::Text("Recovery : %.2f", postSlashRecoveryTimer_);
+        ImGui::End();
+    }
 #endif
 }
 

@@ -8,6 +8,7 @@
     <Project Path="engine/externals/ImGuizmo/ImGuizmo.vcxproj" Id="2b508b11-3cd1-46c9-9b38-fd0c56553bf1" />
   </Folder>
   <Folder Name="/Internals/">
+    <Project Path="editor/Editor.vcxproj" Id="d5f1e7f6-5f6b-4d7a-bd0a-b6fb7b17d501" />
     <Project Path="engine/Engine.vcxproj" Id="8d69c2b4-4f39-47f0-9a40-4cb78ec442a1" />
     <Project Path="shingiittai/Shingiittai.vcxproj" Id="2d2b4186-642f-41bf-97c8-74ab151638ec" />
   </Folder>

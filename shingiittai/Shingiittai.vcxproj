@@ -56,7 +56,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(ProjectDir)include\enemy;$(ProjectDir)include\player;$(ProjectDir)include\scene;$(ProjectDir)include\engine\graphics;$(ProjectDir)include\engine\particle;$(ProjectDir)include\engine\collision;$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include\enemy;$(ProjectDir)include\player;$(ProjectDir)include\scene;$(ProjectDir)include\engine\graphics;$(ProjectDir)include\engine\particle;$(ProjectDir)include\engine\collision;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -65,8 +65,8 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
-      <AdditionalDependencies>Engine.lib;DirectXTex.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;ImGuizmo.lib;dinput8.lib;dxguid.lib;JoyShockLibrary.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)engine\externals\JoyShockLibrary\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\Engine\;$(SolutionDir)..\generated\outputs\$(Configuration)\DirectXTex\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;$(SolutionDir)..\generated\outputs\$(Configuration)\ImGuizmo\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Engine.lib;DirectXTex.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;dinput8.lib;dxguid.lib;JoyShockLibrary.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)engine\externals\JoyShockLibrary\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\Engine\;$(SolutionDir)..\generated\outputs\$(Configuration)\DirectXTex\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>if exist "$(SolutionDir)engine\externals\JoyShockLibrary\lib\JoyShockLibrary.dll" xcopy /Y /D "$(SolutionDir)engine\externals\JoyShockLibrary\lib\JoyShockLibrary.dll" "$(TargetDir)"
@@ -83,7 +83,7 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(ProjectDir)include\enemy;$(ProjectDir)include\player;$(ProjectDir)include\scene;$(ProjectDir)include\engine\graphics;$(ProjectDir)include\engine\particle;$(ProjectDir)include\engine\collision;$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include\enemy;$(ProjectDir)include\player;$(ProjectDir)include\scene;$(ProjectDir)include\engine\graphics;$(ProjectDir)include\engine\particle;$(ProjectDir)include\engine\collision;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -92,8 +92,8 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <TreatLinkerWarningAsErrors>true</TreatLinkerWarningAsErrors>
-      <AdditionalDependencies>Engine.lib;DirectXTex.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;ImGuizmo.lib;dinput8.lib;dxguid.lib;JoyShockLibrary.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)engine\externals\JoyShockLibrary\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\Engine\;$(SolutionDir)..\generated\outputs\$(Configuration)\DirectXTex\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;$(SolutionDir)..\generated\outputs\$(Configuration)\ImGuizmo\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Engine.lib;DirectXTex.lib;d3d12.lib;dxgi.lib;d3dcompiler.lib;imgui.lib;dinput8.lib;dxguid.lib;JoyShockLibrary.lib;assimp-vc145-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)engine\externals\assimp\lib\;$(SolutionDir)engine\externals\JoyShockLibrary\lib\;$(SolutionDir)..\generated\outputs\$(Configuration)\Engine\;$(SolutionDir)..\generated\outputs\$(Configuration)\DirectXTex\;$(SolutionDir)..\generated\outputs\$(Configuration)\imgui\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
       <Command>if exist "$(SolutionDir)engine\externals\JoyShockLibrary\lib\JoyShockLibrary.dll" xcopy /Y /D "$(SolutionDir)engine\externals\JoyShockLibrary\lib\JoyShockLibrary.dll" "$(TargetDir)"
@@ -132,9 +132,6 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
     </ProjectReference>
     <ProjectReference Include="..\engine\externals\imgui\imgui.vcxproj">
       <Project>{f6ba9c36-46d4-4c55-9c90-d016c833a837}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\engine\externals\ImGuizmo\ImGuizmo.vcxproj">
-      <Project>{2b508b11-3cd1-46c9-9b38-fd0c56553bf1}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
