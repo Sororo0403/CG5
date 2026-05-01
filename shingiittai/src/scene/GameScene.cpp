@@ -1,5 +1,4 @@
 #include "GameScene.h"
-#include "CollisionUtil.h"
 #include "DirectXCommon.h"
 #include "EffectSystem.h"
 #include "EngineRuntime.h"
@@ -222,6 +221,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     SyncEnemyAnimation();
     UpdateSceneLighting();
+    combatSystem_.Reset();
     counterCinematicActive_ = false;
     hasGameStarted_ = false;
     demoIntroSkipped_ = false;
@@ -555,6 +555,7 @@ bool GameScene::IsGameplayPaused() const { return gameplayPaused_; }
 void GameScene::ResetGameplay() {
     player_.SetTransform({{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
                           {1.0f, 1.0f, 1.0f}});
+    combatSystem_.Reset();
 }
 
 void GameScene::Update() {
@@ -727,146 +728,19 @@ void GameScene::Update() {
 
     UpdateSceneCamera();
 
-    auto counterBox = player_.GetSword().GetCounterOBB();
-    auto playerBox = player_.GetOBB();
-    const bool isPlayerGuarding = player_.IsGuarding();
-    const bool isPlayerCountering = player_.GetSword().IsSlashMode();
-    const auto enemyBodyBox = enemy_.GetBodyOBB();
-    const ActionKind enemyActionKind = enemy_.GetActionKind();
-    const ActionStep enemyActionStep = enemy_.GetActionStep();
-    bool startCounterCinematicThisFrame = false;
-    bool stopCounterCinematicThisFrame = false;
-    bool forceSyncEnemyAnimationThisFrame = false;
-    auto triggerSuccessfulCounter = [&](float enemyDamage, float hitCooldown) {
-        player_.NotifyCounterSuccess();
-        if (enemy_.NotifyCountered()) {
-            forceSyncEnemyAnimationThisFrame = true;
-        }
-        enemy_.TakeDamage(enemyDamage);
-        RequestEffect(EffectParticlePreset::HitSpark,
-                      enemy_.GetTransform().position);
-        playerHitCooldown_ = hitCooldown;
-        startCounterCinematicThisFrame = true;
-    };
-
-    if (enemyHitCooldown_ > 0.0f) {
-        enemyHitCooldown_ -= gameplayDeltaTime;
-        if (enemyHitCooldown_ < 0.0f) {
-            enemyHitCooldown_ = 0.0f;
-        }
-    }
-
-    if (playerHitCooldown_ > 0.0f) {
-        playerHitCooldown_ -= gameplayDeltaTime;
-        if (playerHitCooldown_ < 0.0f) {
-            playerHitCooldown_ = 0.0f;
-        }
-    }
-
-    const auto swords = player_.GetSwords();
-    const auto swordSlashStates = player_.GetSwordSlashStates();
-
-    for (size_t i = 0; i < swords.size(); ++i) {
-        const Sword *sword = swords[i];
-        if (sword == nullptr || !swordSlashStates[i]) {
-            continue;
-        }
-
-        auto swordHitBox = sword->GetOBB();
-        auto bodyBox = enemy_.GetBodyOBB();
-        bool hitBody = CollisionUtil::CheckOBB(swordHitBox, bodyBox);
-
-        if (enemyHitCooldown_ <= 0.0f) {
-            if (hitBody) {
-                enemy_.TakeDamage(10.0f);
-                RequestEffect(EffectParticlePreset::HitSpark,
-                              bodyBox.center);
-                enemyHitCooldown_ = 0.2f;
-                if (counterCinematicActive_) {
-                    stopCounterCinematicThisFrame = true;
-                }
-            }
-        }
-
-        if (enemyHitCooldown_ > 0.0f) {
-            break;
-        }
-    }
-
-    const bool isEnemySmashCounterWindow =
-        (enemyActionKind == ActionKind::Smash &&
-         enemyActionStep == ActionStep::Active);
-    const bool isEnemySweepCounterWindow =
-        (enemyActionKind == ActionKind::Sweep &&
-         enemyActionStep == ActionStep::Active);
-    const bool isEnemySmashMeleeWindow =
-        (enemyActionKind == ActionKind::Smash &&
-         (enemyActionStep == ActionStep::Active ||
-          enemyActionStep == ActionStep::Recovery));
-    const bool isEnemySweepMeleeWindow =
-        (enemyActionKind == ActionKind::Sweep &&
-         (enemyActionStep == ActionStep::Active ||
-          enemyActionStep == ActionStep::Recovery));
-    const bool isEnemyMeleeActive =
-        isEnemySmashMeleeWindow || isEnemySweepMeleeWindow;
-
-    const float enemyAttackDamage = enemy_.GetCurrentAttackDamage();
-    const float enemyAttackKnockback = enemy_.GetCurrentAttackKnockback();
-    const bool isCounterAxisMatch =
-        (isEnemySmashCounterWindow &&
-         player_.GetCounterAxis() == SwordCounterAxis::Vertical) ||
-        (isEnemySweepCounterWindow &&
-         player_.GetCounterAxis() == SwordCounterAxis::Horizontal);
-    const bool canCounterThisHit =
-        player_.IsCounterStance() && isCounterAxisMatch;
-
-    bool bossHitPlayer = false;
-
-    if (!freezeEnemyMotion && isEnemyMeleeActive) {
-        auto enemyAttackBox = enemy_.GetAttackOBB();
-        bossHitPlayer = CollisionUtil::CheckOBB(enemyAttackBox, playerBox);
-
-        if (bossHitPlayer && playerHitCooldown_ <= 0.0f) {
-            float dx = player_.GetTransform().position.x -
-                       enemy_.GetTransform().position.x;
-            float dz = player_.GetTransform().position.z -
-                       enemy_.GetTransform().position.z;
-            float len = std::sqrt(dx * dx + dz * dz);
-            if (len < 0.0001f) {
-                len = 1.0f;
-            }
-
-            dx /= len;
-            dz /= len;
-
-            if (canCounterThisHit) {
-                triggerSuccessfulCounter(enemyAttackDamage, 0.2f);
-            } else if (isPlayerGuarding) {
-                enemy_.NotifyAttackGuarded();
-                player_.TakeDamage(enemyAttackDamage * kGuardDamageMultiplier);
-                RequestEffect(EffectParticlePreset::HitSpark,
-                              player_.GetTransform().position);
-                player_.AddKnockback({dx * (enemyAttackKnockback * 0.5f), 0.0f,
-                                      dz * (enemyAttackKnockback * 0.5f)});
-                playerHitCooldown_ = 0.2f;
-            } else {
-                enemy_.NotifyAttackConnected();
-                player_.TakeDamage(enemyAttackDamage);
-                RequestEffect(EffectParticlePreset::HitSpark,
-                              player_.GetTransform().position);
-                player_.AddKnockback({dx * enemyAttackKnockback, 0.0f,
-                                      dz * enemyAttackKnockback});
-                playerHitCooldown_ = 0.4f;
-            }
-        }
-    }
+    CombatSystem::ResolveContext combatContext{};
+    combatContext.deltaTime = gameplayDeltaTime;
+    combatContext.freezeEnemyMotion = freezeEnemyMotion;
+    combatContext.counterCinematicActive = counterCinematicActive_;
+    const auto combatResult =
+        combatSystem_.Resolve(player_, enemy_, ctx_, combatContext);
 
     if (freezeEnemyMotion) {
-        if (startCounterCinematicThisFrame) {
+        if (combatResult.startCounterCinematicThisFrame) {
             counterCinematicActive_ = true;
             SetEnemyAnimationFrozen(true);
         }
-        if (stopCounterCinematicThisFrame) {
+        if (combatResult.stopCounterCinematicThisFrame) {
             counterCinematicActive_ = false;
             SetEnemyAnimationFrozen(false);
         }
@@ -874,160 +748,15 @@ void GameScene::Update() {
         return;
     }
 
-    const auto &bullets = enemy_.GetBullets();
-    for (size_t i = 0; i < bullets.size(); ++i) {
-        const auto &bullet = bullets[i];
-        if (!bullet.isAlive) {
-            continue;
-        }
-
-        OBB bulletBox{};
-        bulletBox.center = bullet.position;
-        bulletBox.size = enemy_.GetBulletHitBoxSize();
-        bulletBox.rotation = player_.GetTransform().rotation;
-
-        if (!bullet.isReflected && isPlayerCountering &&
-            CollisionUtil::CheckOBB(bulletBox, counterBox)) {
-            enemy_.ReflectBullet(i, enemy_.GetTransform().position);
-            continue;
-        }
-
-        if (bullet.isReflected) {
-            if (CollisionUtil::CheckOBB(bulletBox, enemyBodyBox) &&
-                enemyHitCooldown_ <= 0.0f) {
-                reflectDamage_ = enemy_.GetBulletDamage() * damageMultiplier_;
-                enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(EffectParticlePreset::HitSpark,
-                              bullet.position);
-                enemy_.DestroyBullet(i);
-                enemyHitCooldown_ = 0.2f;
-            }
-            continue;
-        }
-
-        if (CollisionUtil::CheckOBB(bulletBox, playerBox)) {
-            if (playerHitCooldown_ <= 0.0f) {
-                float vx = bullet.velocity.x;
-                float vz = bullet.velocity.z;
-                float len = std::sqrt(vx * vx + vz * vz);
-                if (len < 0.0001f) {
-                    len = 1.0f;
-                }
-
-                vx /= len;
-                vz /= len;
-
-                if (player_.IsCounterStance()) {
-                    triggerSuccessfulCounter(enemy_.GetBulletDamage() * 2.0f,
-                                             0.12f);
-                } else if (isPlayerGuarding) {
-                    player_.TakeDamage(enemy_.GetBulletDamage() *
-                                       kGuardDamageMultiplier);
-                    RequestEffect(EffectParticlePreset::HitSpark,
-                                  bullet.position);
-                    player_.AddKnockback(
-                        {vx * (enemy_.GetBulletKnockback() * 0.5f), 0.0f,
-                         vz * (enemy_.GetBulletKnockback() * 0.5f)});
-                    enemy_.DestroyBullet(i);
-                    playerHitCooldown_ = 0.15f;
-                } else {
-                    player_.TakeDamage(enemy_.GetBulletDamage());
-                    RequestEffect(EffectParticlePreset::HitSpark,
-                                  bullet.position);
-                    player_.AddKnockback({vx * enemy_.GetBulletKnockback(),
-                                          0.0f,
-                                          vz * enemy_.GetBulletKnockback()});
-                    enemy_.DestroyBullet(i);
-                    playerHitCooldown_ = 0.3f;
-                }
-            }
-
-            enemy_.ConsumeBullet(i);
-            break;
-        }
-    }
-
-    const auto &waves = enemy_.GetWaves();
-    for (size_t i = 0; i < waves.size(); ++i) {
-        const auto &wave = waves[i];
-        if (!wave.isAlive) {
-            continue;
-        }
-
-        OBB waveBox{};
-        waveBox.center = wave.position;
-        waveBox.size = enemy_.GetWaveHitBoxSize();
-        waveBox.rotation = player_.GetTransform().rotation;
-
-        if (!wave.isReflected && isPlayerCountering &&
-            CollisionUtil::CheckOBB(waveBox, counterBox)) {
-            enemy_.ReflectWave(i, enemy_.GetTransform().position);
-            continue;
-        }
-
-        if (wave.isReflected) {
-            if (CollisionUtil::CheckOBB(waveBox, enemyBodyBox) &&
-                enemyHitCooldown_ <= 0.0f) {
-                reflectDamage_ = enemy_.GetWaveDamage() * damageMultiplier_;
-                enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(EffectParticlePreset::HitSpark,
-                              wave.position);
-                enemy_.DestroyWave(i);
-                enemyHitCooldown_ = 0.2f;
-            }
-            continue;
-        }
-
-        if (CollisionUtil::CheckOBB(waveBox, playerBox)) {
-            if (playerHitCooldown_ <= 0.0f) {
-                float vx = wave.direction.x;
-                float vz = wave.direction.z;
-                float len = std::sqrt(vx * vx + vz * vz);
-                if (len < 0.0001f) {
-                    len = 1.0f;
-                }
-
-                vx /= len;
-                vz /= len;
-
-                if (player_.IsCounterStance()) {
-                    triggerSuccessfulCounter(enemy_.GetWaveDamage() * 2.0f,
-                                             0.12f);
-                } else if (isPlayerGuarding) {
-                    player_.TakeDamage(enemy_.GetWaveDamage() *
-                                       kGuardDamageMultiplier);
-                    RequestEffect(EffectParticlePreset::HitSpark,
-                                  wave.position);
-                    player_.AddKnockback(
-                        {vx * (enemy_.GetWaveKnockback() * 0.5f), 0.0f,
-                         vz * (enemy_.GetWaveKnockback() * 0.5f)});
-                    enemy_.DestroyWave(i);
-                    playerHitCooldown_ = 0.15f;
-                } else {
-                    player_.TakeDamage(enemy_.GetWaveDamage());
-                    RequestEffect(EffectParticlePreset::HitSpark,
-                                  wave.position);
-                    player_.AddKnockback({vx * enemy_.GetWaveKnockback(), 0.0f,
-                                          vz * enemy_.GetWaveKnockback()});
-                    enemy_.DestroyWave(i);
-                    playerHitCooldown_ = 0.35f;
-                }
-            }
-
-            enemy_.ConsumeWave(i);
-            break;
-        }
-    }
-
-    if (startCounterCinematicThisFrame) {
+    if (combatResult.startCounterCinematicThisFrame) {
         counterCinematicActive_ = true;
         SetEnemyAnimationFrozen(true);
     }
-    if (stopCounterCinematicThisFrame) {
+    if (combatResult.stopCounterCinematicThisFrame) {
         counterCinematicActive_ = false;
         SetEnemyAnimationFrozen(false);
     }
-    if (forceSyncEnemyAnimationThisFrame) {
+    if (combatResult.forceSyncEnemyAnimationThisFrame) {
         SyncEnemyAnimation();
         SetEnemyAnimationFrozen(true);
     }

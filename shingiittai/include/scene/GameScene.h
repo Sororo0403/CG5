@@ -2,6 +2,7 @@
 #include "BattleCameraController.h"
 #include "BaseScene.h"
 #include "Camera.h"
+#include "CombatSystem.h"
 #include "Enemy.h"
 #include "EffectParticleSystem.h"
 #include "IEditableScene.h"
@@ -103,23 +104,19 @@ class GameScene : public BaseScene, public IEditableScene {
     void UpdateEnemySwordTrail();
 
   private:
-    static constexpr float kGuardDamageMultiplier = 0.25f;
-
     Camera camera_;
     BattleCameraController battleCamera_;
     IntroCameraController introCamera_;
 
     Player player_;
     Enemy enemy_;
+    CombatSystem combatSystem_;
     uint32_t playerModelId_ = 0;
     uint32_t enemyModelId_ = 0;
     std::string enemyAnimationName_{};
     bool enemyAnimationLoop_ = true;
     bool enemyIntroAnimationStarted_ = false;
     IntroPhase enemyIntroPhase_ = IntroPhase::SecondSlash;
-
-    float playerHitCooldown_ = 0.0f;
-    float enemyHitCooldown_ = 0.0f;
 
 #ifdef _DEBUG
     bool dbgFreezeEnemyMotion_ = false;
@@ -142,9 +139,6 @@ class GameScene : public BaseScene, public IEditableScene {
     bool demoIntroSkipped_ = false;
     bool enemyAnimationFrozen_ = false;
     float counterTimeScale_ = 0.05f;
-
-    float reflectDamage_ = 0.0f;
-    float damageMultiplier_ = 2.0f;
 
     // Enemy slash presentation
     float enemySlashChargePreviewAlpha_ = 0.22f;
