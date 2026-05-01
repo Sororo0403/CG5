@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <DirectXMath.h>
 #include <algorithm>
 #include <cstdint>
@@ -15,19 +15,18 @@ class TextureManager;
 #include <cmath>
 #endif
 
-class [[deprecated("Use EffectParticleSystem/EffectSystem particle presets instead.")]]
-GpuSlashParticleSystem {
+enum class EffectParticlePreset {
+    HitSpark,
+    Explosion,
+    ChargeSpark,
+};
+
+class EffectParticleSystem {
   public:
-    enum class EffectType {
+    enum class ParticleType {
         Hit,
         Explosion,
         Charge,
-    };
-
-    enum class EffectPreset {
-        HitSpark,
-        Explosion,
-        ChargeSpark,
     };
 
     void Initialize(DirectXCommon *, SrvManager *, TextureManager *,
@@ -36,17 +35,14 @@ GpuSlashParticleSystem {
         bursts_.clear();
         pointBursts_.clear();
     }
-    void PlayParticle(EffectPreset preset, const DirectX::XMFLOAT3 &position);
-    void RequestEffect(EffectType type, const DirectX::XMFLOAT3 &position);
-    void EmitSlashBurst(const DirectX::XMFLOAT3 &start,
-                        const DirectX::XMFLOAT3 &end, uint32_t count,
-        float scale, bool isSweep) {
-        bursts_.push_back({start, end, count, scale, isSweep, 0.0f});
-        while (bursts_.size() > maxBursts_) {
-            bursts_.erase(bursts_.begin());
-        }
-    }
-    void Render(const Camera &camera, float deltaTime);
+
+    void Emit(EffectParticlePreset preset, const DirectX::XMFLOAT3 &position);
+    void Emit(ParticleType type, const DirectX::XMFLOAT3 &position);
+    void EmitArcSparks(const DirectX::XMFLOAT3 &start,
+                       const DirectX::XMFLOAT3 &end, uint32_t count,
+                       float scale, bool isSweep);
+    void Update(float deltaTime);
+    void Draw(const Camera &camera) const;
 
   private:
     struct Burst {
@@ -57,9 +53,10 @@ GpuSlashParticleSystem {
         bool isSweep = false;
         float age = 0.0f;
     };
+
     struct PointBurst {
         DirectX::XMFLOAT3 position;
-        EffectType type = EffectType::Hit;
+        ParticleType type = ParticleType::Hit;
         float age = 0.0f;
         float lifeTime = 0.26f;
     };
@@ -69,20 +66,20 @@ GpuSlashParticleSystem {
     uint32_t maxBursts_ = 8;
 };
 
-inline void GpuSlashParticleSystem::RequestEffect(
-    EffectType type, const DirectX::XMFLOAT3 &position) {
+inline void EffectParticleSystem::Emit(ParticleType type,
+                                       const DirectX::XMFLOAT3 &position) {
     PointBurst burst{};
     burst.position = position;
     burst.type = type;
 
     switch (type) {
-    case EffectType::Hit:
+    case ParticleType::Hit:
         burst.lifeTime = 0.26f;
         break;
-    case EffectType::Explosion:
+    case ParticleType::Explosion:
         burst.lifeTime = 0.42f;
         break;
-    case EffectType::Charge:
+    case ParticleType::Charge:
         burst.lifeTime = 0.34f;
         break;
     }
@@ -93,24 +90,31 @@ inline void GpuSlashParticleSystem::RequestEffect(
     }
 }
 
-inline void GpuSlashParticleSystem::PlayParticle(
-    EffectPreset preset, const DirectX::XMFLOAT3 &position) {
+inline void EffectParticleSystem::Emit(EffectParticlePreset preset,
+                                       const DirectX::XMFLOAT3 &position) {
     switch (preset) {
-    case EffectPreset::HitSpark:
-        RequestEffect(EffectType::Hit, position);
+    case EffectParticlePreset::HitSpark:
+        Emit(ParticleType::Hit, position);
         break;
-    case EffectPreset::Explosion:
-        RequestEffect(EffectType::Explosion, position);
+    case EffectParticlePreset::Explosion:
+        Emit(ParticleType::Explosion, position);
         break;
-    case EffectPreset::ChargeSpark:
-        RequestEffect(EffectType::Charge, position);
+    case EffectParticlePreset::ChargeSpark:
+        Emit(ParticleType::Charge, position);
         break;
     }
 }
 
-inline void GpuSlashParticleSystem::Render(const Camera &camera,
-                                           float deltaTime) {
-#ifndef IMGUI_DISABLED
+inline void EffectParticleSystem::EmitArcSparks(
+    const DirectX::XMFLOAT3 &start, const DirectX::XMFLOAT3 &end,
+    uint32_t count, float scale, bool isSweep) {
+    bursts_.push_back({start, end, count, scale, isSweep, 0.0f});
+    while (bursts_.size() > maxBursts_) {
+        bursts_.erase(bursts_.begin());
+    }
+}
+
+inline void EffectParticleSystem::Update(float deltaTime) {
     for (Burst &burst : bursts_) {
         burst.age += deltaTime;
     }
@@ -120,11 +124,24 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
                                  }),
                   bursts_.end());
 
+    for (PointBurst &burst : pointBursts_) {
+        burst.age += deltaTime;
+    }
+    pointBursts_.erase(std::remove_if(pointBursts_.begin(), pointBursts_.end(),
+                                      [](const PointBurst &burst) {
+                                          return burst.age > burst.lifeTime;
+                                      }),
+                       pointBursts_.end());
+}
+
+inline void EffectParticleSystem::Draw(const Camera &camera) const {
+#ifndef IMGUI_DISABLED
     ImGuiViewport *viewport = ImGui::GetMainViewport();
     ImDrawList *drawList = ImGui::GetForegroundDrawList();
     if (viewport == nullptr || drawList == nullptr) {
         return;
     }
+
     auto project = [&](const DirectX::XMFLOAT3 &world, ImVec2 &out) {
         using namespace DirectX;
         XMVECTOR pos = XMVectorSet(world.x, world.y, world.z, 1.0f);
@@ -145,15 +162,6 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
         return true;
     };
 
-    for (PointBurst &burst : pointBursts_) {
-        burst.age += deltaTime;
-    }
-    pointBursts_.erase(std::remove_if(pointBursts_.begin(), pointBursts_.end(),
-                                      [](const PointBurst &burst) {
-                                          return burst.age > burst.lifeTime;
-                                      }),
-                       pointBursts_.end());
-
     for (const PointBurst &burst : pointBursts_) {
         ImVec2 center{};
         if (!project(burst.position, center)) {
@@ -163,11 +171,12 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
         const float normalizedAge =
             burst.lifeTime > 0.0001f ? burst.age / burst.lifeTime : 1.0f;
         const float fade = std::clamp(1.0f - normalizedAge, 0.0f, 1.0f);
-        const bool isExplosion = burst.type == EffectType::Explosion;
-        const bool isCharge = burst.type == EffectType::Charge;
+        const bool isExplosion = burst.type == ParticleType::Explosion;
+        const bool isCharge = burst.type == ParticleType::Charge;
         const int sparks = isExplosion ? 18 : (isCharge ? 10 : 12);
-        const float radius = (isExplosion ? 62.0f : (isCharge ? 34.0f : 42.0f)) *
-                             (0.35f + normalizedAge);
+        const float radius =
+            (isExplosion ? 62.0f : (isCharge ? 34.0f : 42.0f)) *
+            (0.35f + normalizedAge);
         const ImU32 coreColor =
             isCharge ? IM_COL32(120, 190, 255, static_cast<int>(fade * 190.0f))
                      : IM_COL32(255, 92, 72, static_cast<int>(fade * 220.0f));
@@ -182,7 +191,8 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
             const float ratio = static_cast<float>(i) / static_cast<float>(sparks);
             const float angle = ratio * DirectX::XM_2PI + burst.age * 13.0f;
             const float inner = radius * 0.22f;
-            const float outer = radius * (0.68f + 0.18f * std::sinf(angle * 1.7f));
+            const float outer =
+                radius * (0.68f + 0.18f * std::sinf(angle * 1.7f));
             ImVec2 a(center.x + std::cosf(angle) * inner,
                      center.y + std::sinf(angle) * inner);
             ImVec2 b(center.x + std::cosf(angle) * outer,
@@ -213,8 +223,9 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
             const float t = static_cast<float>(i) / static_cast<float>(sparks);
             const float phase = burst.age * 18.0f + t * 23.0f;
             const float along = len * (0.15f + 0.75f * t);
-            const float side = std::sin(phase) * (burst.isSweep ? 52.0f : 32.0f) *
-                               burst.scale * fade;
+            const float side = std::sin(phase) *
+                               (burst.isSweep ? 52.0f : 32.0f) * burst.scale *
+                               fade;
             ImVec2 a(start.x + dirX * along + perpX * side,
                      start.y + dirY * along + perpY * side);
             ImVec2 b(a.x + dirX * (18.0f + 18.0f * fade) +
@@ -228,7 +239,5 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
     }
 #else
     (void)camera;
-    (void)deltaTime;
 #endif
 }
-

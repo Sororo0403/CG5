@@ -42,7 +42,8 @@ struct MagnetismicInstance {
     float innerBoost = 0.0f;
 };
 
-class MagnetismicRenderer {
+class [[deprecated("Use EffectSystem with EffectPreset::MagneticField instead.")]]
+MagnetismicRenderer {
   public:
     void Initialize(ID3D12Device *, DXGI_FORMAT, DXGI_FORMAT, const wchar_t *,
                     const wchar_t *) {

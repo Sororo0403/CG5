@@ -13,7 +13,8 @@ class TextureManager;
 #include <cmath>
 #endif
 
-class SlashEffectRenderer {
+class [[deprecated("Use EffectSystem with EffectPreset::SlashArc instead.")]]
+SlashEffectRenderer {
   public:
     void Initialize(DirectXCommon *, SrvManager *, TextureManager *) {
         initialized_ = true;

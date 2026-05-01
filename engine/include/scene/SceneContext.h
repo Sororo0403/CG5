@@ -17,10 +17,7 @@ class GBuffer;
 class SkyboxRenderer;
 class LightManager;
 class DebugDraw;
-class SlashEffectRenderer;
-class GpuSlashParticleSystem;
-class TrailRenderer;
-class MagnetismicRenderer;
+class EffectSystem;
 
 #ifdef _DEBUG
 class ImguiManager;
@@ -74,10 +71,7 @@ struct SceneContext {
     TextureManager *texture = nullptr;
     DirectXCommon *dxCommon = nullptr;
     SrvManager *srv = nullptr;
-    SlashEffectRenderer *slashEffectRenderer = nullptr;
-    GpuSlashParticleSystem *gpuSlashParticleSystem = nullptr;
-    TrailRenderer *trailRenderer = nullptr;
-    MagnetismicRenderer *magnetismicRenderer = nullptr;
+    EffectSystem *effects = nullptr;
     DebugDraw *debugDraw = nullptr;
     float deltaTime = 0.0f;
 

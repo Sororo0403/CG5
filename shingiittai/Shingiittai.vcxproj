@@ -117,9 +117,7 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
     <ClCompile Include="src\player\Sword.cpp" />
     <ClCompile Include="src\player\SwordJoyConController.cpp" />
     <ClCompile Include="src\player\SwordMouseController.cpp" />
-    <ClCompile Include="src\scene\EnemyMotionDebugScene.cpp" />
     <ClCompile Include="src\scene\GameScene.cpp" />
-    <ClCompile Include="src\scene\GameScene.Magnetismic.cpp" />
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -150,7 +148,6 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
     <ClInclude Include="include\player\SwordJoyConController.h" />
     <ClInclude Include="include\player\SwordMouseController.h" />
     <ClInclude Include="include\player\SwordPose.h" />
-    <ClInclude Include="include\scene\EnemyMotionDebugScene.h" />
     <ClInclude Include="include\scene\GameScene.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -1,20 +1,17 @@
 #include "DebugDraw.h"
 #include "DirectXCommon.h"
+#include "EffectSystem.h"
 #include "GameScene.h"
-#include "GpuSlashParticleSystem.h"
 #include "Input.h"
 #include "LightManager.h"
-#include "MagnetismicRenderer.h"
 #include "ModelManager.h"
 #include "PostEffectRenderer.h"
 #include "SceneContext.h"
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
-#include "SlashEffectRenderer.h"
 #include "SoundManager.h"
 #include "SpriteManager.h"
 #include "SrvManager.h"
-#include "TrailRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
 #include <memory>
@@ -71,10 +68,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     startupUpload.Finish();
     textureManager.ReleaseUploadBuffers();
 
-    SlashEffectRenderer slashEffectRenderer;
-    GpuSlashParticleSystem gpuSlashParticleSystem;
-    TrailRenderer trailRenderer;
-    MagnetismicRenderer magnetismicRenderer;
+    EffectSystem effectSystem;
+    effectSystem.Initialize(&dxCommon, &srvManager, &textureManager, 96, 12);
     PostEffectRenderer postEffectRenderer;
     postEffectRenderer.Initialize(&dxCommon, &srvManager, width, height);
     DebugDraw debugDraw;
@@ -104,10 +99,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.texture = &textureManager;
     sceneCtx.dxCommon = &dxCommon;
     sceneCtx.srv = &srvManager;
-    sceneCtx.slashEffectRenderer = &slashEffectRenderer;
-    sceneCtx.gpuSlashParticleSystem = &gpuSlashParticleSystem;
-    sceneCtx.trailRenderer = &trailRenderer;
-    sceneCtx.magnetismicRenderer = &magnetismicRenderer;
+    sceneCtx.effects = &effectSystem;
     sceneCtx.debugDraw = &debugDraw;
     sceneCtx.frame.width = width;
     sceneCtx.frame.height = height;

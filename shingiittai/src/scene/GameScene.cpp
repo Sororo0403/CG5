@@ -1,19 +1,16 @@
 #include "GameScene.h"
 #include "CollisionUtil.h"
 #include "DirectXCommon.h"
-#include "EnemyMotionDebugScene.h"
+#include "EffectSystem.h"
 #include "EngineRuntime.h"
+#include "PlayerTuningPresetIO.h"
 #include "Input.h"
 #include "ModelManager.h"
 #include "PostEffectRenderer.h"
 #include "SceneManager.h"
-#include "PlayerTuningPresetIO.h"
 #include "SpriteManager.h"
 #include "TextureManager.h"
 #include "WinApp.h"
-#include "GpuSlashParticleSystem.h"
-#include "SlashEffectRenderer.h"
-#include "TrailRenderer.h"
 #include <string>
 #ifdef _DEBUG
 #include "DebugDraw.h"
@@ -158,16 +155,6 @@ static float EaseOutCubic(float t) {
     float inv = 1.0f - t;
     return 1.0f - inv * inv * inv;
 }
-
-#ifndef IMGUI_DISABLED
-static ImU32 ToImColor(const XMFLOAT4 &color, float alphaScale = 1.0f) {
-    int r = static_cast<int>(Clamp01(color.x) * 255.0f);
-    int g = static_cast<int>(Clamp01(color.y) * 255.0f);
-    int b = static_cast<int>(Clamp01(color.z) * 255.0f);
-    int a = static_cast<int>(Clamp01(color.w * alphaScale) * 255.0f);
-    return IM_COL32(r, g, b, a);
-}
-#endif
 
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
@@ -634,14 +621,6 @@ void GameScene::Update() {
     if (input != nullptr && input->IsKeyTrigger(DIK_F2)) {
         dbgTriggerWarpBackstabRequested_ = true;
     }
-#ifdef _DEBUG
-    if (input != nullptr && input->IsKeyTrigger(DIK_F8) &&
-        sceneManager_ != nullptr) {
-        sceneManager_->ChangeScene(std::make_unique<EnemyMotionDebugScene>());
-        return;
-    }
-#endif
-
     UpdateCamera(input);
 
     if (!hasGameStarted_) {
@@ -789,6 +768,10 @@ void GameScene::Update() {
         ctx_->model->UpdateAnimation(enemyModelId_, enemyDeltaTime);
     }
 
+    if (ctx_ != nullptr && ctx_->effects != nullptr) {
+        ctx_->effects->BeginFrame(ctx_->deltaTime);
+    }
+
     UpdateEnemySlashEffects();
 
     UpdateEnemySwordTrail();
@@ -803,8 +786,6 @@ void GameScene::Update() {
     }
 
     UpdateElectricRing();
-
-    UpdateMagnetismic();
 
     UpdateBattleCamera();
 
@@ -824,7 +805,7 @@ void GameScene::Update() {
             forceSyncEnemyAnimationThisFrame = true;
         }
         enemy_.TakeDamage(enemyDamage);
-        RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+        RequestEffect(EffectParticlePreset::HitSpark,
                       enemy_.GetTransform().position);
         playerHitCooldown_ = hitCooldown;
         startCounterCinematicThisFrame = true;
@@ -881,7 +862,7 @@ void GameScene::Update() {
         if (enemyHitCooldown_ <= 0.0f) {
             if (hitBody) {
                 enemy_.TakeDamage(10.0f);
-                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                RequestEffect(EffectParticlePreset::HitSpark,
                               bodyBox.center);
                 enemyHitCooldown_ = 0.2f;
                 if (counterCinematicActive_) {
@@ -948,7 +929,7 @@ void GameScene::Update() {
                 dbgPlayerGuardedHit_ = true;
                 enemy_.NotifyAttackGuarded();
                 player_.TakeDamage(enemyAttackDamage * kGuardDamageMultiplier);
-                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                RequestEffect(EffectParticlePreset::HitSpark,
                               player_.GetTransform().position);
                 player_.AddKnockback({dx * (enemyAttackKnockback * 0.5f), 0.0f,
                                       dz * (enemyAttackKnockback * 0.5f)});
@@ -956,7 +937,7 @@ void GameScene::Update() {
             } else {
                 enemy_.NotifyAttackConnected();
                 player_.TakeDamage(enemyAttackDamage);
-                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                RequestEffect(EffectParticlePreset::HitSpark,
                               player_.GetTransform().position);
                 player_.AddKnockback({dx * enemyAttackKnockback, 0.0f,
                                       dz * enemyAttackKnockback});
@@ -1005,7 +986,7 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetBulletDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                RequestEffect(EffectParticlePreset::HitSpark,
                               bullet.position);
                 enemy_.DestroyBullet(i);
                 enemyHitCooldown_ = 0.2f;
@@ -1034,7 +1015,7 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetBulletDamage() *
                                        kGuardDamageMultiplier);
-                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                    RequestEffect(EffectParticlePreset::HitSpark,
                                   bullet.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetBulletKnockback() * 0.5f), 0.0f,
@@ -1043,7 +1024,7 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetBulletDamage());
-                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                    RequestEffect(EffectParticlePreset::HitSpark,
                                   bullet.position);
                     player_.AddKnockback({vx * enemy_.GetBulletKnockback(),
                                           0.0f,
@@ -1084,7 +1065,7 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetWaveDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                RequestEffect(EffectParticlePreset::HitSpark,
                               wave.position);
                 enemy_.DestroyWave(i);
                 enemyHitCooldown_ = 0.2f;
@@ -1113,7 +1094,7 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetWaveDamage() *
                                        kGuardDamageMultiplier);
-                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                    RequestEffect(EffectParticlePreset::HitSpark,
                                   wave.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetWaveKnockback() * 0.5f), 0.0f,
@@ -1122,7 +1103,7 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetWaveDamage());
-                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
+                    RequestEffect(EffectParticlePreset::HitSpark,
                                   wave.position);
                     player_.AddKnockback({vx * enemy_.GetWaveKnockback(), 0.0f,
                                           vz * enemy_.GetWaveKnockback()});
@@ -1397,30 +1378,9 @@ void GameScene::Draw() {
     if (EngineRuntime::GetInstance().IsEditorMode()) {
         return;
     }
-    DrawMagnetismic();
-    if (ctx_->trailRenderer != nullptr) {
-        ctx_->trailRenderer->Draw(*currentCamera_);
+    if (ctx_->effects != nullptr) {
+        ctx_->effects->Draw(*currentCamera_);
     }
-
-    {
-        DirectX::XMFLOAT3 slashStartWorld{};
-        DirectX::XMFLOAT3 slashEndWorld{};
-        float phaseAlpha = 0.0f;
-        float actionTime = 0.0f;
-        ActionKind actionKind = ActionKind::None;
-
-        if (ComputeEnemySlashWorldEffect(slashStartWorld, slashEndWorld,
-                                         phaseAlpha, actionTime, actionKind)) {
-            const bool isSweep = (actionKind == ActionKind::Sweep);
-          
-            ctx_->slashEffectRenderer->DrawEnemySlash(
-                *currentCamera_, slashStartWorld, slashEndWorld, phaseAlpha,
-                actionTime, isSweep);
-        }
-    }
-    DrawEnemySlashPass();
-
-    ctx_->gpuSlashParticleSystem->Render(*currentCamera_, ctx_->deltaTime);
     DrawWarpSmokePass();
     DrawWarpDistortionPass();
     DrawDemoPlayIndicator();
@@ -1712,227 +1672,52 @@ bool GameScene::ComputeEnemySlashWorldEffect(XMFLOAT3 &outStart,
     return true;
 }
 
-void GameScene::DrawEnemySlashPass() {
-#ifdef IMGUI_DISABLED
-    return;
-#else
-    ImGuiContext *imguiCtx = ImGui::GetCurrentContext();
-    if (imguiCtx == nullptr || imguiCtx->Viewports.Size <= 0) {
-        return;
-    }
-
-    ImGuiViewport *mainViewport = ImGui::GetMainViewport();
-    if (mainViewport == nullptr) {
-        return;
-    }
-
-    ImDrawList *drawList = ImGui::GetBackgroundDrawList(mainViewport);
-    if (drawList == nullptr) {
-        return;
-    }
-
-    XMFLOAT2 slashStartScreenF{};
-    XMFLOAT2 slashEndScreenF{};
-    float phaseAlpha = 0.0f;
-    float actionTime = 0.0f;
-    ActionKind actionKind = ActionKind::None;
-    if (!ComputeEnemySlashScreenEffect(slashStartScreenF, slashEndScreenF,
-                                       phaseAlpha, actionTime, actionKind)) {
-        return;
-    }
-
-    ImVec2 start(slashStartScreenF.x, slashStartScreenF.y);
-    ImVec2 end(slashEndScreenF.x, slashEndScreenF.y);
-    float dx = end.x - start.x;
-    float dy = end.y - start.y;
-    float length = std::sqrtf(dx * dx + dy * dy);
-    if (length <= 0.0001f) {
-        return;
-    }
-
-    float invLen = 1.0f / length;
-    float dirX = dx * invLen;
-    float dirY = dy * invLen;
-    float perpX = -dirY;
-    float perpY = dirX;
-
-    float sweepCurve = (actionKind == ActionKind::Sweep) ? 52.0f : 30.0f;
-    float pulse = 0.84f + 0.16f * std::sinf(actionTime * 36.0f);
-    float curveOffset = sweepCurve * pulse;
-    ImVec2 control((start.x + end.x) * 0.5f + perpX * curveOffset,
-                   (start.y + end.y) * 0.5f + perpY * curveOffset);
-
-    constexpr int kSlashSegments = 18;
-    ImVec2 path[kSlashSegments + 1];
-    const float outerThickness =
-        enemySlashOuterThicknessPx_ *
-        (actionKind == ActionKind::Sweep ? 1.15f : 1.0f) *
-        (0.86f + phaseAlpha * 0.28f);
-    const float coreThickness =
-        enemySlashCoreThicknessPx_ * (0.82f + phaseAlpha * 0.24f);
-    float widths[kSlashSegments + 1];
-    for (int i = 0; i <= kSlashSegments; ++i) {
-        float t = static_cast<float>(i) / static_cast<float>(kSlashSegments);
-        float inv = 1.0f - t;
-        path[i].x = inv * inv * start.x + 2.0f * inv * t * control.x + t * t * end.x;
-        path[i].y = inv * inv * start.y + 2.0f * inv * t * control.y + t * t * end.y;
-        float tipTaper = 1.0f - std::fabs(t - 0.52f) * 1.35f;
-        tipTaper = Clamp01(tipTaper);
-        widths[i] = outerThickness * (0.25f + 0.75f * tipTaper);
-    }
-
-    XMFLOAT4 shadowColor = {0.03f, 0.01f, 0.02f, phaseAlpha * 0.96f};
-    XMFLOAT4 darkRimColor = {0.17f, 0.01f, 0.04f, phaseAlpha * 0.82f};
-    XMFLOAT4 hotColor = {0.96f, 0.12f, 0.30f, phaseAlpha * 0.68f};
-    XMFLOAT4 coreColor = {1.00f, 0.95f, 0.97f, phaseAlpha * 0.94f};
-    XMFLOAT4 bloomColor = {0.74f, 0.58f, 1.00f, phaseAlpha * 0.44f};
-
-    ImVec2 ribbon[(kSlashSegments + 1) * 2];
-    for (int i = 0; i <= kSlashSegments; ++i) {
-        int prevIndex = (i == 0) ? i : i - 1;
-        int nextIndex = (i == kSlashSegments) ? i : i + 1;
-        float tangentX = path[nextIndex].x - path[prevIndex].x;
-        float tangentY = path[nextIndex].y - path[prevIndex].y;
-        float tangentLen =
-            std::sqrtf(tangentX * tangentX + tangentY * tangentY);
-        if (tangentLen <= 0.0001f) {
-            tangentX = dirX;
-            tangentY = dirY;
-            tangentLen = 1.0f;
-        }
-        tangentX /= tangentLen;
-        tangentY /= tangentLen;
-        float normalX = -tangentY;
-        float normalY = tangentX;
-        float width = widths[i];
-        ribbon[i] = ImVec2(path[i].x + normalX * width,
-                           path[i].y + normalY * width);
-        ribbon[(kSlashSegments + 1) * 2 - 1 - i] =
-            ImVec2(path[i].x - normalX * width * 0.65f,
-                   path[i].y - normalY * width * 0.65f);
-    }
-
-    ImVec2 echoPath[kSlashSegments + 1];
-    for (int i = 0; i <= kSlashSegments; ++i) {
-        echoPath[i] = ImVec2(path[i].x + perpX * enemySlashEchoOffsetPx_,
-                             path[i].y + perpY * enemySlashEchoOffsetPx_);
-    }
-
-    drawList->AddConvexPolyFilled(ribbon, (kSlashSegments + 1) * 2,
-                                  ToImColor(shadowColor, 0.46f));
-    drawList->AddPolyline(path, kSlashSegments + 1, ToImColor(bloomColor, 0.80f),
-                          false, outerThickness * 1.55f);
-    drawList->AddPolyline(echoPath, kSlashSegments + 1,
-                          ToImColor(shadowColor, 0.55f), false,
-                          outerThickness * 1.05f);
-    drawList->AddPolyline(path, kSlashSegments + 1, ToImColor(shadowColor), false,
-                          outerThickness);
-    drawList->AddPolyline(path, kSlashSegments + 1, ToImColor(darkRimColor), false,
-                          outerThickness * 0.72f);
-    drawList->AddPolyline(path, kSlashSegments + 1, ToImColor(hotColor), false,
-                          outerThickness * 0.34f);
-    drawList->AddPolyline(path, kSlashSegments + 1, ToImColor(coreColor), false,
-                          coreThickness);
-
-    const ImVec2 impact = path[kSlashSegments];
-    const float branchScale = (actionKind == ActionKind::Sweep) ? 0.82f : 0.68f;
-    const float branchLen = length * branchScale * 0.22f;
-    const float branchForward = length * 0.08f;
-
-    ImVec2 branchA0(impact.x - perpX * branchLen, impact.y - perpY * branchLen);
-    ImVec2 branchA1(impact.x + perpX * branchLen + dirX * branchForward,
-                    impact.y + perpY * branchLen + dirY * branchForward);
-    ImVec2 branchB0(impact.x + perpX * branchLen * 0.52f - dirX * branchForward * 0.7f,
-                    impact.y + perpY * branchLen * 0.52f - dirY * branchForward * 0.7f);
-    ImVec2 branchB1(impact.x - perpX * branchLen * 0.78f + dirX * branchForward * 0.5f,
-                    impact.y - perpY * branchLen * 0.78f + dirY * branchForward * 0.5f);
-
-    drawList->AddLine(branchA0, branchA1, ToImColor(darkRimColor), outerThickness * 0.22f);
-    drawList->AddLine(branchA0, branchA1, ToImColor(coreColor), coreThickness * 0.46f);
-    drawList->AddLine(branchB0, branchB1, ToImColor(hotColor), coreThickness * 0.38f);
-
-    constexpr int kInkSpikeCount = 5;
-    for (int i = 0; i < kInkSpikeCount; ++i) {
-        float ratio = static_cast<float>(i) / static_cast<float>(kInkSpikeCount - 1);
-        int pathIndex = static_cast<int>(ratio * static_cast<float>(kSlashSegments));
-        float spikeScale = (0.45f + 0.55f * (1.0f - ratio)) *
-                           (actionKind == ActionKind::Sweep ? 1.22f : 1.0f);
-        float spikeLen = length * 0.12f * spikeScale;
-        float sweepBias = std::sinf(actionTime * 18.0f + ratio * 7.0f) * 18.0f;
-        ImVec2 spikeStart(path[pathIndex].x + dirX * (ratio * 22.0f),
-                          path[pathIndex].y + dirY * (ratio * 22.0f));
-        ImVec2 spikeEnd(spikeStart.x - perpX * (spikeLen + sweepBias),
-                        spikeStart.y - perpY * (spikeLen + sweepBias));
-        drawList->AddLine(spikeStart, spikeEnd, ToImColor(shadowColor, 0.92f),
-                          outerThickness * (0.18f + 0.12f * spikeScale));
-    }
-
-    constexpr int kSparkCount = 12;
-    for (int i = 0; i < kSparkCount; ++i) {
-        float ratio = static_cast<float>(i) / static_cast<float>(kSparkCount);
-        float angle = actionTime * 16.0f + ratio * DirectX::XM_2PI * 1.17f;
-        float sparkLen =
-            enemySlashSparkSpreadPx_ * (0.28f + 0.72f * (1.0f - ratio)) *
-            (0.84f + 0.18f * pulse);
-        float offset = enemySlashSparkSpreadPx_ * 0.20f * ratio;
-        ImVec2 sparkStart(
-            impact.x + dirX * offset + std::cosf(angle) * 8.0f,
-            impact.y + dirY * offset + std::sinf(angle * 1.2f) * 8.0f);
-        ImVec2 sparkEnd(
-            sparkStart.x + std::cosf(angle) * sparkLen + perpX * sparkLen * 0.12f,
-            sparkStart.y + std::sinf(angle) * sparkLen + perpY * sparkLen * 0.12f);
-
-        drawList->AddLine(sparkStart, sparkEnd, ToImColor(hotColor, 0.82f - ratio * 0.3f),
-                          1.2f + (1.0f - ratio) * 1.8f);
-    }
-
-    ImVec2 flashQuad[4] = {
-        ImVec2(impact.x - perpX * (28.0f + phaseAlpha * 20.0f) - dirX * 4.0f,
-               impact.y - perpY * (28.0f + phaseAlpha * 20.0f) - dirY * 4.0f),
-        ImVec2(impact.x + dirX * (44.0f + phaseAlpha * 22.0f),
-               impact.y + dirY * (44.0f + phaseAlpha * 22.0f)),
-        ImVec2(impact.x + perpX * (16.0f + phaseAlpha * 10.0f) - dirX * 6.0f,
-               impact.y + perpY * (16.0f + phaseAlpha * 10.0f) - dirY * 6.0f),
-        ImVec2(impact.x - dirX * (18.0f + phaseAlpha * 8.0f),
-               impact.y - dirY * (18.0f + phaseAlpha * 8.0f))};
-    drawList->AddConvexPolyFilled(flashQuad, 4, ToImColor(coreColor, 0.78f));
-    drawList->AddLine(ImVec2(impact.x - perpX * 42.0f, impact.y - perpY * 42.0f),
-                      ImVec2(impact.x + perpX * 42.0f, impact.y + perpY * 42.0f),
-                      ToImColor(shadowColor, 0.88f), 3.2f);
-
-    drawList->AddCircleFilled(impact, 11.0f + phaseAlpha * 8.0f,
-                              ToImColor(coreColor, 0.68f));
-    drawList->AddCircleFilled(impact, 21.0f + phaseAlpha * 12.0f,
-                              ToImColor(hotColor, 0.26f));
-    drawList->AddCircleFilled(impact, 34.0f + phaseAlpha * 16.0f,
-                              ToImColor(bloomColor, 0.14f));
-#endif
-}
-
 void GameScene::UpdateEnemySlashEffects() {
     const ActionKind actionKind = enemy_.GetActionKind();
     const ActionStep actionStep = enemy_.GetActionStep();
+
+    DirectX::XMFLOAT3 slashStartWorld{};
+    DirectX::XMFLOAT3 slashEndWorld{};
+    float phaseAlpha = 0.0f;
+    float actionTime = 0.0f;
+    ActionKind worldActionKind = ActionKind::None;
+    const bool hasSlashArc =
+        ComputeEnemySlashWorldEffect(slashStartWorld, slashEndWorld, phaseAlpha,
+                                     actionTime, worldActionKind);
+    if (hasSlashArc && ctx_ != nullptr && ctx_->effects != nullptr) {
+        EffectRequest request{};
+        request.preset = EffectPreset::SlashArc;
+        request.start = slashStartWorld;
+        request.end = slashEndWorld;
+        request.alpha = phaseAlpha;
+        request.time = actionTime;
+        request.duration = (std::max)(ctx_->deltaTime * 2.0f, 0.034f);
+        request.sweep = (worldActionKind == ActionKind::Sweep);
+        ctx_->effects->Play(request);
+    }
 
     const bool isSlashActive =
         (actionKind == ActionKind::Smash || actionKind == ActionKind::Sweep) &&
         (actionStep == ActionStep::Active);
 
     if (isSlashActive && !enemySlashActiveLatched_) {
-        DirectX::XMFLOAT3 slashStartWorld{};
-        DirectX::XMFLOAT3 slashEndWorld{};
-        float phaseAlpha = 0.0f;
-        float actionTime = 0.0f;
-        ActionKind worldActionKind = ActionKind::None;
-
-        if (ComputeEnemySlashWorldEffect(slashStartWorld, slashEndWorld,
-                                         phaseAlpha, actionTime,
-                                         worldActionKind)) {
+        if (hasSlashArc) {
             DirectX::XMFLOAT3 effectPosition{
                 (slashStartWorld.x + slashEndWorld.x) * 0.5f,
                 (slashStartWorld.y + slashEndWorld.y) * 0.5f,
                 (slashStartWorld.z + slashEndWorld.z) * 0.5f};
-            RequestEffect(GpuSlashParticleSystem::EffectPreset::ChargeSpark,
+            RequestEffect(EffectParticlePreset::ChargeSpark,
                           effectPosition);
+            if (ctx_ != nullptr && ctx_->effects != nullptr) {
+                const bool isSweep = (worldActionKind == ActionKind::Sweep);
+                const uint32_t particleCount =
+                    isSweep ? enemySlashParticleCountSweep_
+                            : enemySlashParticleCountSmash_;
+                ctx_->effects->EmitArcSparks(slashStartWorld, slashEndWorld,
+                                             particleCount,
+                                             enemySlashParticleEmitScale_,
+                                             isSweep);
+            }
         }
     }
 
@@ -1941,22 +1726,21 @@ void GameScene::UpdateEnemySlashEffects() {
     prevEnemyActionStep_ = actionStep;
 }
 
-void GameScene::RequestEffect(GpuSlashParticleSystem::EffectPreset preset,
+void GameScene::RequestEffect(EffectParticlePreset preset,
                               const DirectX::XMFLOAT3 &position) {
-    if (ctx_ == nullptr || ctx_->gpuSlashParticleSystem == nullptr) {
+    if (ctx_ == nullptr || ctx_->effects == nullptr) {
         return;
     }
 
-    ctx_->gpuSlashParticleSystem->PlayParticle(preset, position);
+    ctx_->effects->EmitParticles(preset, position);
 }
 
 void GameScene::UpdateEnemySwordTrail() {
-    if (ctx_ == nullptr || ctx_->trailRenderer == nullptr) {
+    if (ctx_ == nullptr || ctx_->effects == nullptr) {
         return;
     }
 
-    ctx_->trailRenderer->SetEnabled(enemySwordTrailEnabled_);
-    ctx_->trailRenderer->BeginFrame(ctx_->deltaTime);
+    ctx_->effects->SetTrailEnabled(enemySwordTrailEnabled_);
 
     const ActionKind actionKind = enemy_.GetActionKind();
     const ActionStep actionStep = enemy_.GetActionStep();
@@ -2004,11 +1788,9 @@ void GameScene::UpdateEnemySwordTrail() {
                                 ? enemySwordTrailWidth_ * 1.10f
                                 : enemySwordTrailWidth_ * 0.82f;
 
-        ctx_->trailRenderer->EmitTrail(TrailRenderer::TrailPreset::SwordSlash,
-                                       baseWorld, tipWorld, width);
+        ctx_->effects->EmitTrail(TrailRenderer::TrailPreset::SwordSlash,
+                                 baseWorld, tipWorld, width);
     }
-
-    ctx_->trailRenderer->EndFrame();
 }
 
 void GameScene::DrawWarpSmokePass() {

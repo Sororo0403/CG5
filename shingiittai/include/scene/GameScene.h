@@ -3,7 +3,7 @@
 #include "Bullet.h"
 #include "Camera.h"
 #include "Enemy.h"
-#include "GpuSlashParticleSystem.h"
+#include "EffectParticleSystem.h"
 #include "IEditableScene.h"
 #include "Player.h"
 #include "Transform.h"
@@ -100,9 +100,8 @@ class GameScene : public BaseScene, public IEditableScene {
                                       float &outActionTime,
                                       ActionKind &outActionKind) const;
     void UpdateEnemySlashEffects();
-    void RequestEffect(GpuSlashParticleSystem::EffectPreset preset,
+    void RequestEffect(EffectParticlePreset preset,
                        const DirectX::XMFLOAT3 &position);
-    void DrawEnemySlashPass();
     void DrawWarpSmokePass();
     void DrawWarpDistortionPass();
 
@@ -110,8 +109,6 @@ class GameScene : public BaseScene, public IEditableScene {
     void UpdateElectricRing();
 
     void UpdateEnemySwordTrail();
-    void UpdateMagnetismic();
-    void DrawMagnetismic();
 
   private:
     static constexpr DirectX::XMFLOAT3 kCameraStartPos = {0.0f, 1.0f, 0.5f};
@@ -291,15 +288,6 @@ class GameScene : public BaseScene, public IEditableScene {
 
     bool enemySwordTrailEnabled_ = true;
     float enemySwordTrailWidth_ = 1.0f;
-
-    bool magnetismicEnabled_ = true;
-    bool magnetismicOnlyWarp_ = true;
-
-    float magnetismicTime_ = 0.0f;
-    float magnetismicBaseSize_ = 2.85f;
-    float magnetismicWarpBonusSize_ = 0.65f;
-    float magnetismicYOffset_ = 1.20f;
-    float magnetismicAlphaScale_ = 1.0f;
 
     std::vector<SceneEditableObject> editableObjects_{};
     uint64_t selectedEditableObjectId_ = 0;

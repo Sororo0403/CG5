@@ -94,9 +94,6 @@
     <Filter Include="include\particle">
       <UniqueIdentifier>{c2999ce7-771d-4d07-9c9e-fb53f656af97}</UniqueIdentifier>
     </Filter>
-    <Filter Include="src\particle">
-      <UniqueIdentifier>{58a1f206-67c0-4ac7-a3ee-733507e97254}</UniqueIdentifier>
-    </Filter>
     <Filter Include="src\collision">
       <UniqueIdentifier>{024bd489-5878-4b22-bcf0-02c6b87fc14e}</UniqueIdentifier>
     </Filter>
@@ -132,6 +129,9 @@
     </Filter>
     <Filter Include="resources\shaders\posteffect">
       <UniqueIdentifier>{2be6bc38-3dda-4303-a10f-338456c66f26}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\runtime\particle">
+      <UniqueIdentifier>{58a1f206-67c0-4ac7-a3ee-733507e97254}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -229,19 +229,19 @@
       <Filter>src\scene</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\particle\RingBurstEmitter.cpp">
-      <Filter>src\particle</Filter>
+      <Filter>src\runtime\particle</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\particle\CylinderBurstEmitter.cpp">
-      <Filter>src\particle</Filter>
+      <Filter>src\runtime\particle</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\particle\RingParticleSystem.cpp">
-      <Filter>src\particle</Filter>
+      <Filter>src\runtime\particle</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\particle\GPUParticleSystem.cpp">
-      <Filter>src\particle</Filter>
+      <Filter>src\runtime\particle</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\particle\CylinderParticleSystem.cpp">
-      <Filter>src\particle</Filter>
+      <Filter>src\runtime\particle</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\collision\CollisionUtil.cpp">
       <Filter>src\collision</Filter>
