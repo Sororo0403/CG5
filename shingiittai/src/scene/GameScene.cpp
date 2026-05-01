@@ -2,7 +2,7 @@
 #include "BillboardRenderer.h"
 #include "DirectXCommon.h"
 #include "EffectSystem.h"
-#include "EngineRuntime.h"
+#include "EnemyTuningPresetIO.h"
 #include "Input.h"
 #include "ModelManager.h"
 #include "PlayerTuningPresetIO.h"
@@ -11,8 +11,6 @@
 #include "SpriteRenderer.h"
 #include "TextureManager.h"
 #include "WinApp.h"
-#include <string>
-#include "EnemyTuningPresetIO.h"
 #include <algorithm>
 #include <cmath>
 
@@ -56,26 +54,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     texture->ReleaseUploadBuffers();
 
-    {
-        PlayerTuningPreset playerPreset{};
-        if (PlayerTuningPresetIO::Load("resources/player_tuning.txt",
-                                       playerPreset)) {
-            player_.ApplyTuningPreset(playerPreset);
-        }
-    }
-
-    {
-        EnemyTuningPreset enemyPreset{};
-        if (EnemyTuningPresetIO::Load("resources/enemy_tuning.json",
-                                      enemyPreset) ||
-            EnemyTuningPresetIO::Load("resources/enemy_tuning.csv",
-                                      enemyPreset) ||
-            EnemyTuningPresetIO::Load("resources/enemy_tuning.txt",
-                                      enemyPreset)) {
-            enemy_.ApplyTuningPreset(enemyPreset);
-        }
-    }
-
     player_.Initialize(playerModel, swordModel);
     playerModelId_ = playerModel;
     enemy_.Initialize(enemyModel, bulletModel);
@@ -103,170 +81,12 @@ void GameScene::Initialize(const SceneContext &ctx) {
         ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
         ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
     }
-
-    editableObjects_.clear();
-    editableObjects_.push_back({this, 1, "Player", "Actor", false, true});
-    editableObjects_.push_back({this, 2, "Enemy", "Actor", false, true});
-    selectedEditableObjectId_ =
-        editableObjects_.empty() ? 0 : editableObjects_[0].id;
-    sceneDirty_ = false;
-    gameplayPaused_ = false;
-}
-
-namespace {
-
-EditableTransform ToEditableTransform(const Transform &transform) {
-    return {transform.position, transform.rotation, transform.scale};
-}
-
-Transform FromEditableTransform(const EditableTransform &transform) {
-    return {transform.position, transform.rotation, transform.scale};
-}
-
-} // namespace
-
-EditableObjectDesc GameScene::SceneEditableObject::GetEditorDesc() const {
-    EditableObjectDesc desc{};
-    desc.id = id;
-    desc.name = name;
-    desc.type = type;
-    desc.collider = "None";
-    desc.editable = true;
-    desc.locked = locked;
-    desc.visible = visible;
-    return desc;
-}
-
-void GameScene::SceneEditableObject::SetEditorName(const std::string &newName) {
-    name = newName;
-}
-
-bool GameScene::SceneEditableObject::SetEditorLocked(bool newLocked) {
-    locked = newLocked;
-    return true;
-}
-
-bool GameScene::SceneEditableObject::SetEditorVisible(bool newVisible) {
-    visible = newVisible;
-    return true;
-}
-
-EditableTransform GameScene::SceneEditableObject::GetEditorTransform() const {
-    if (scene == nullptr) {
-        return {};
-    }
-    if (id == 1) {
-        return ToEditableTransform(scene->player_.GetTransform());
-    }
-    if (id == 2) {
-        return ToEditableTransform(scene->enemy_.GetTransform());
-    }
-    return {};
-}
-
-void GameScene::SceneEditableObject::SetEditorTransform(
-    const EditableTransform &transform) {
-    if (scene == nullptr) {
-        return;
-    }
-    if (id == 1) {
-        scene->player_.SetTransform(FromEditableTransform(transform));
-    } else if (id == 2) {
-        scene->enemy_.SetTransform(FromEditableTransform(transform));
-    }
-}
-
-size_t GameScene::GetEditableObjectCount() const {
-    return editableObjects_.size();
-}
-
-IEditableObject *GameScene::GetEditableObject(size_t index) {
-    if (index >= editableObjects_.size()) {
-        return nullptr;
-    }
-    return &editableObjects_[index];
-}
-
-const IEditableObject *GameScene::GetEditableObject(size_t index) const {
-    if (index >= editableObjects_.size()) {
-        return nullptr;
-    }
-    return &editableObjects_[index];
-}
-
-uint64_t GameScene::GetSelectedObjectId() const {
-    return selectedEditableObjectId_;
-}
-
-void GameScene::SetSelectedObjectById(uint64_t id) {
-    selectedEditableObjectId_ = 0;
-    for (const SceneEditableObject &object : editableObjects_) {
-        if (object.id == id) {
-            selectedEditableObjectId_ = id;
-            return;
-        }
-    }
-}
-
-int GameScene::GetSelectedEditableObjectIndex() const {
-    for (size_t i = 0; i < editableObjects_.size(); ++i) {
-        if (editableObjects_[i].id == selectedEditableObjectId_) {
-            return static_cast<int>(i);
-        }
-    }
-    return -1;
-}
-
-void GameScene::SetSelectedEditableObjectIndex(int index) {
-    if (index < 0 || index >= static_cast<int>(editableObjects_.size())) {
-        selectedEditableObjectId_ = 0;
-        return;
-    }
-    selectedEditableObjectId_ = editableObjects_[static_cast<size_t>(index)].id;
-}
-
-void GameScene::OnEditableObjectChanged(size_t index) {
-    if (index < editableObjects_.size()) {
-        sceneDirty_ = true;
-    }
-}
-
-bool GameScene::SaveScene(std::string *message) {
-    if (message) {
-        *message = "Scene save is not supported";
-    }
-    return false;
-}
-
-bool GameScene::LoadScene(std::string *message) {
-    if (message) {
-        *message = "Scene load is not supported";
-    }
-    return false;
-}
-
-bool GameScene::IsSceneDirty() const { return sceneDirty_; }
-
-void GameScene::MarkSceneDirty() { sceneDirty_ = true; }
-
-void GameScene::ClearSceneDirty() { sceneDirty_ = false; }
-
-bool GameScene::CanEditObjects() const { return true; }
-
-void GameScene::SetGameplayPaused(bool paused) { gameplayPaused_ = paused; }
-
-bool GameScene::IsGameplayPaused() const { return gameplayPaused_; }
-
-void GameScene::ResetGameplay() {
-    player_.SetTransform(
-        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}});
-    combatSystem_.Reset();
 }
 
 void GameScene::Update() {
     Input *input = ctx_->input;
     const float baseDeltaTime = ctx_->deltaTime;
-    const float gameplayDeltaTime = baseDeltaTime * ComputeGameplayTimeScale();
+    const float gameplayDeltaTime = baseDeltaTime;
     const float playerDeltaTime =
         counterCinematicActive_ ? baseDeltaTime : gameplayDeltaTime;
     const float enemyDeltaTime = counterCinematicActive_
@@ -460,17 +280,6 @@ void GameScene::Update() {
     UpdateCounterVignette(baseDeltaTime);
 }
 
-float GameScene::ComputeGameplayTimeScale() const {
-    const EngineRuntime &runtime = EngineRuntime::GetInstance();
-    if (gameplayPaused_) {
-        return 0.0f;
-    }
-    if (runtime.IsEditorMode() && runtime.Settings().pauseGameInTuningMode) {
-        return 0.0f;
-    }
-    return runtime.Settings().timeScale;
-}
-
 void GameScene::UpdateCounterVignette(float deltaTime) {
     const Camera *currentCamera = &camera_;
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
@@ -507,20 +316,9 @@ void GameScene::Draw() {
         return;
     }
 
-    const bool playerVisible =
-        editableObjects_.size() < 1 || editableObjects_[0].visible;
-    const bool enemyVisible =
-        editableObjects_.size() < 2 || editableObjects_[1].visible;
-    if (playerVisible) {
-        player_.Draw(ctx_->model, *currentCamera);
-    }
-    if (enemyVisible) {
-        enemy_.Draw(ctx_->model, *currentCamera);
-    }
+    player_.Draw(ctx_->model, *currentCamera);
+    enemy_.Draw(ctx_->model, *currentCamera);
     ctx_->model->PostDraw();
-    if (EngineRuntime::GetInstance().IsEditorMode()) {
-        return;
-    }
     if (ctx_->effects != nullptr) {
         ctx_->effects->Draw(*currentCamera);
     }
@@ -900,12 +698,10 @@ void GameScene::DrawWarpSmokePass() {
                                 std::sinf(angle * 1.25f) * drift * 0.45f);
             const float radius =
                 (arrival ? 0.72f : 0.48f) * scale * (0.65f + 0.55f * r);
-            const float a =
-                std::clamp(alpha * (1.0f - r * 0.18f), 0.0f, 1.0f);
-            const XMFLOAT4 dark{18.0f / 255.0f, 6.0f / 255.0f,
-                                12.0f / 255.0f, a * (115.0f / 255.0f)};
-            const XMFLOAT4 red{180.0f / 255.0f, 18.0f / 255.0f,
-                               38.0f / 255.0f,
+            const float a = std::clamp(alpha * (1.0f - r * 0.18f), 0.0f, 1.0f);
+            const XMFLOAT4 dark{18.0f / 255.0f, 6.0f / 255.0f, 12.0f / 255.0f,
+                                a * (115.0f / 255.0f)};
+            const XMFLOAT4 red{180.0f / 255.0f, 18.0f / 255.0f, 38.0f / 255.0f,
                                a * (115.0f / 255.0f) * 0.48f};
             ctx_->renderer.billboard->DrawDisc(pos, radius, dark,
                                                angle * 0.35f);

@@ -6,17 +6,12 @@
 #include "Enemy.h"
 #include "EnemyAnimationController.h"
 #include "EffectParticleSystem.h"
-#include "IEditableScene.h"
 #include "IntroCameraController.h"
 #include "Player.h"
-#include "Transform.h"
 #include <DirectXMath.h>
 #include <cstdint>
-#include <string>
-#include <utility>
-#include <vector>
 
-class GameScene : public BaseScene, public IEditableScene {
+class GameScene : public BaseScene {
   public:
     void Initialize(const SceneContext &ctx) override;
     void Update() override;
@@ -24,51 +19,10 @@ class GameScene : public BaseScene, public IEditableScene {
 
     const Camera *GetCurrentCamera() const { return &camera_; }
 
-    size_t GetEditableObjectCount() const override;
-    IEditableObject *GetEditableObject(size_t index) override;
-    const IEditableObject *GetEditableObject(size_t index) const override;
-    uint64_t GetSelectedObjectId() const override;
-    void SetSelectedObjectById(uint64_t id) override;
-    int GetSelectedEditableObjectIndex() const override;
-    void SetSelectedEditableObjectIndex(int index) override;
-    void OnEditableObjectChanged(size_t index) override;
-    bool SaveScene(std::string *message) override;
-    bool LoadScene(std::string *message) override;
-    bool IsSceneDirty() const override;
-    void MarkSceneDirty() override;
-    void ClearSceneDirty() override;
-    bool CanEditObjects() const override;
-    void SetGameplayPaused(bool paused) override;
-    bool IsGameplayPaused() const override;
-    void ResetGameplay() override;
-
   private:
-    struct SceneEditableObject : public IEditableObject {
-        GameScene *scene = nullptr;
-        uint64_t id = 0;
-        std::string name;
-        std::string type;
-        bool locked = false;
-        bool visible = true;
-
-        SceneEditableObject() = default;
-        SceneEditableObject(GameScene *scene, uint64_t id, std::string name,
-                            std::string type, bool locked, bool visible)
-            : scene(scene), id(id), name(std::move(name)), type(std::move(type)),
-              locked(locked), visible(visible) {}
-
-        EditableObjectDesc GetEditorDesc() const override;
-        void SetEditorName(const std::string &name) override;
-        bool SetEditorLocked(bool locked) override;
-        bool SetEditorVisible(bool visible) override;
-        EditableTransform GetEditorTransform() const override;
-        void SetEditorTransform(const EditableTransform &transform) override;
-    };
-
     void UpdateCamera(Input *input);
     void UpdateSceneCamera();
     void UpdateSceneLighting();
-    float ComputeGameplayTimeScale() const;
     void UpdateCounterVignette(float deltaTime);
     void DrawCounterVignette();
     void DrawDemoPlayIndicator();
@@ -137,9 +91,4 @@ class GameScene : public BaseScene, public IEditableScene {
 
     bool enemySwordTrailEnabled_ = true;
     float enemySwordTrailWidth_ = 1.0f;
-
-    std::vector<SceneEditableObject> editableObjects_{};
-    uint64_t selectedEditableObjectId_ = 0;
-    bool sceneDirty_ = false;
-    bool gameplayPaused_ = false;
 };

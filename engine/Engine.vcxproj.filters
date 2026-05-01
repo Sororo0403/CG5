@@ -130,6 +130,9 @@
     <Filter Include="resources\shaders\posteffect">
       <UniqueIdentifier>{2be6bc38-3dda-4303-a10f-338456c66f26}</UniqueIdentifier>
     </Filter>
+    <Filter Include="resources\shaders\billboard">
+      <UniqueIdentifier>{93f2c07d-e286-4de2-8e45-9ddd9054d99e}</UniqueIdentifier>
+    </Filter>
     <Filter Include="src\runtime\particle">
       <UniqueIdentifier>{58a1f206-67c0-4ac7-a3ee-733507e97254}</UniqueIdentifier>
     </Filter>
@@ -151,6 +154,9 @@
       <Filter>src\imgui</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp">
+      <Filter>src\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\BillboardRenderer.cpp">
       <Filter>src\graphics</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DeferredRenderer.cpp">
@@ -324,6 +330,9 @@
       <Filter>include\imgui</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DirectXCommon.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\BillboardRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DeferredRenderer.h">
@@ -559,6 +568,12 @@
     <FxCompile Include="$(SolutionDir)engine\resources\shaders\posteffect\PostEffectVS.hlsl">
       <Filter>resources\shaders\posteffect</Filter>
     </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\billboard\BillboardPS.hlsl">
+      <Filter>resources\shaders\billboard</Filter>
+    </FxCompile>
+    <FxCompile Include="$(SolutionDir)engine\resources\shaders\billboard\BillboardVS.hlsl">
+      <Filter>resources\shaders\billboard</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SolutionDir)engine\resources\shaders\model\Model.hlsli">
@@ -593,6 +608,9 @@
     </None>
     <None Include="$(SolutionDir)engine\resources\shaders\posteffect\VignettingEffect.hlsli">
       <Filter>resources\shaders\posteffect</Filter>
+    </None>
+    <None Include="$(SolutionDir)engine\resources\shaders\billboard\Billboard.hlsli">
+      <Filter>resources\shaders\billboard</Filter>
     </None>
   </ItemGroup>
 </Project>
