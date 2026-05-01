@@ -298,7 +298,7 @@ void Enemy::UpdateWarpStart(float deltaTime) {
         UpdateFacingToPlayerWithSpeed(deltaTime, chargeTurnSpeed_ * 0.45f);
     }
 
-    isVisible_ = false;
+    isVisible_ = true;
     warp_.collisionDisabled = true;
 
     float startTime = config_.warp.startTime;
@@ -310,42 +310,16 @@ void Enemy::UpdateWarpStart(float deltaTime) {
     }
 
     if (stateTimer_ >= startTime) {
-        warpTrailEmitTimer_ = 0.0f;
-        EmitWarpTrailGhost(warp_.departurePos, warpTrailScaleMax_);
         ChangeActionStep(ActionStep::Move);
     }
 }
 
 void Enemy::UpdateWarpMove(float deltaTime) {
+    (void)deltaTime;
     if (!warp_.hasValidTarget) {
         EndAttack();
         return;
     }
-
-    float t = 1.0f;
-    if (config_.warp.moveTime > 0.0001f) {
-        t = stateTimer_ / config_.warp.moveTime;
-    }
-    t = (t < 0.0f) ? 0.0f : ((t > 1.0f) ? 1.0f : t);
-
-    const float eased = 1.0f - std::pow(1.0f - t, 2.6f);
-    tf_.position.x =
-        warp_.departurePos.x + (warp_.targetPos.x - warp_.departurePos.x) * eased;
-    tf_.position.y =
-        warp_.departurePos.y + (warp_.targetPos.y - warp_.departurePos.y) * eased;
-    tf_.position.z =
-        warp_.departurePos.z + (warp_.targetPos.z - warp_.departurePos.z) * eased;
-
-    warpTrailEmitTimer_ += deltaTime;
-    while (warpTrailEmitTimer_ >= warpTrailInterval_) {
-        warpTrailEmitTimer_ -= warpTrailInterval_;
-        const float scale =
-            warpTrailScaleMax_ - (warpTrailScaleMax_ - warpTrailScaleMin_) * t;
-        EmitWarpTrailGhost(tf_.position, scale);
-    }
-
-    UpdateFacingToPlayer();
-    LockCurrentFacing();
 
     if (stateTimer_ >= config_.warp.moveTime) {
         tf_.position = warp_.targetPos;
@@ -376,44 +350,6 @@ void Enemy::UpdateWarpEnd(float deltaTime) {
 
     tactic_ = DecideTactic();
     BeginActionFromTactic(tactic_);
-}
-
-void Enemy::UpdateWarpTrails(float deltaTime) {
-    for (auto &trail : warpTrailGhosts_) {
-        if (!trail.isActive) {
-            continue;
-        }
-
-        trail.life -= deltaTime;
-        if (trail.life <= 0.0f) {
-            trail.life = 0.0f;
-            trail.isActive = false;
-        }
-    }
-}
-
-void Enemy::EmitWarpTrailGhost(const DirectX::XMFLOAT3 &position, float scale) {
-    int slot = -1;
-    for (int i = 0; i < kWarpTrailGhostCount_; ++i) {
-        if (!warpTrailGhosts_[i].isActive) {
-            slot = i;
-            break;
-        }
-    }
-
-    if (slot < 0) {
-        slot = 0;
-        for (int i = 1; i < kWarpTrailGhostCount_; ++i) {
-            if (warpTrailGhosts_[i].life < warpTrailGhosts_[slot].life) {
-                slot = i;
-            }
-        }
-    }
-
-    warpTrailGhosts_[slot].position = position;
-    warpTrailGhosts_[slot].life = warpTrailLife_;
-    warpTrailGhosts_[slot].scale = scale;
-    warpTrailGhosts_[slot].isActive = true;
 }
 
 void Enemy::ResetWarpTrails() {

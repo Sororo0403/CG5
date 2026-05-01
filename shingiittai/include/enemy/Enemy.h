@@ -873,8 +873,6 @@ class Enemy {
     void UpdateWarpStart(float deltaTime);
     void UpdateWarpMove(float deltaTime);
     void UpdateWarpEnd(float deltaTime);
-    void UpdateWarpTrails(float deltaTime);
-    void EmitWarpTrailGhost(const DirectX::XMFLOAT3 &position, float scale);
     void ResetWarpTrails();
 
     bool PrepareWarpContext();

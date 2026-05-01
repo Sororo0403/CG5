@@ -112,7 +112,6 @@ void Enemy::Update(const PlayerCombatObservation &playerObs, float deltaTime) {
     runtime_.playerPos = playerObs.position;
     runtime_.playerGuarding = playerObs.isGuarding;
     UpdateBossPhase();
-    UpdateWarpTrails(deltaTime);
 
     if (counterRecoilTimer_ > 0.0f) {
         counterRecoilTimer_ -= deltaTime;
@@ -230,16 +229,6 @@ void Enemy::Update(const PlayerCombatObservation &playerObs, float deltaTime) {
         hitReactionTimer_ -= deltaTime;
         if (hitReactionTimer_ < 0.0f) {
             hitReactionTimer_ = 0.0f;
-        }
-
-        float dx = tf_.position.x - runtime_.playerPos.x;
-        float dz = tf_.position.z - runtime_.playerPos.z;
-        float length = std::sqrt(dx * dx + dz * dz);
-        if (length > 0.0001f) {
-            dx /= length;
-            dz /= length;
-            tf_.position.x += dx * hitReactionMoveSpeed_ * deltaTime;
-            tf_.position.z += dz * hitReactionMoveSpeed_ * deltaTime;
         }
 
         UpdateBullets(deltaTime);

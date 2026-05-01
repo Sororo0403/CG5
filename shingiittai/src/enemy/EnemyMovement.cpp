@@ -17,26 +17,6 @@ void Enemy::UpdateStalkByStep(float deltaTime) {
 void Enemy::UpdateStalkMove(float deltaTime) {
     UpdateFacingToPlayerWithSpeed(deltaTime, idleTurnSpeed_ * 1.15f);
 
-    const float usedYaw = facingYaw_;
-    const float rightX = std::cos(usedYaw);
-    const float rightZ = -std::sin(usedYaw);
-    const float forwardX = std::sin(usedYaw);
-    const float forwardZ = std::cos(usedYaw);
-
-    float moveX = rightX * stalkMoveDir_ * stalkStrafeRadiusWeight_;
-    float moveZ = rightZ * stalkMoveDir_ * stalkStrafeRadiusWeight_;
-    moveX += forwardX * stalkForwardBias_ * stalkForwardAdjustWeight_;
-    moveZ += forwardZ * stalkForwardBias_ * stalkForwardAdjustWeight_;
-
-    const float length = std::sqrt(moveX * moveX + moveZ * moveZ);
-    if (length > 0.0001f) {
-        moveX /= length;
-        moveZ /= length;
-    }
-
-    tf_.position.x += moveX * stalkMoveSpeed_ * deltaTime;
-    tf_.position.z += moveZ * stalkMoveSpeed_ * deltaTime;
-
     if (stateTimer_ >= currentHoldDuration_) {
         EndAttack();
     }
