@@ -5,13 +5,6 @@
 
 using namespace DirectX;
 
-void BattleCameraController::Initialize(float aspect) {
-    camera_.Initialize(aspect);
-    camera_.SetMode(CameraMode::LookAt);
-    camera_.SetPerspectiveFovDeg(currentFovDeg_);
-    camera_.UpdateMatrices();
-}
-
 void BattleCameraController::ResetForBattle(const XMFLOAT3 &playerPos,
                                             const XMFLOAT3 &enemyPos) {
     cameraYaw_ = 0.0f;
@@ -19,7 +12,6 @@ void BattleCameraController::ResetForBattle(const XMFLOAT3 &playerPos,
     isLockOn_ = true;
     currentFovDeg_ = normalFovDeg_;
     targetFovDeg_ = normalFovDeg_;
-    camera_.SetPerspectiveFovDeg(currentFovDeg_);
 
     lockOnOrbitCameraPos_ = {playerPos.x, playerPos.y + lockOnOrbitHeight_,
                              playerPos.z - lockOnOrbitRadius_};
@@ -32,24 +24,26 @@ void BattleCameraController::ResetForBattle(const XMFLOAT3 &playerPos,
             enemyPos.z * lockOnLookEnemyWeight_};
 }
 
-void BattleCameraController::Update(Input *input, float deltaTime,
-                                    const Player &player, const Enemy &enemy) {
+void BattleCameraController::UpdateInput(Input *input) {
     if (input != nullptr && input->IsKeyTrigger(DIK_Q)) {
         isLockOn_ = !isLockOn_;
     }
-
-    Refresh(deltaTime, player, enemy);
 }
 
-void BattleCameraController::Refresh(float deltaTime, const Player &player,
-                                     const Enemy &enemy) {
-    UpdateBattleCamera(deltaTime, player, enemy);
-    camera_.UpdateMatrices();
+float BattleCameraController::BlendFov(float targetFovDeg, float lerpSpeed,
+                                       float deltaTime) {
+    targetFovDeg_ = targetFovDeg;
+    float fovAlpha = lerpSpeed * deltaTime;
+    if (fovAlpha > 1.0f) {
+        fovAlpha = 1.0f;
+    }
+
+    currentFovDeg_ += (targetFovDeg_ - currentFovDeg_) * fovAlpha;
+    return currentFovDeg_;
 }
 
-void BattleCameraController::UpdateBattleCamera(float deltaTime,
-                                                const Player &player,
-                                                const Enemy &enemy) {
+void BattleCameraController::Apply(Camera &camera, float deltaTime,
+                                   const Player &player, const Enemy &enemy) {
     const auto &playerTf = player.GetTransform();
     const auto &enemyTf = enemy.GetTransform();
 
@@ -65,8 +59,6 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
                                   enemyActionStep == ActionStep::Move);
     const bool isEnemyWarpEnd = (enemyActionKind == ActionKind::Warp &&
                                  enemyActionStep == ActionStep::End);
-    const bool isEnemyIntro = enemy.IsIntroActive();
-    const float enemyIntroRatio = enemy.GetIntroRatio();
     const bool isEnemyPhaseTransition = enemy.IsPhaseTransitionActive();
     const float enemyPhaseTransitionRatio = enemy.GetPhaseTransitionRatio();
 
@@ -78,38 +70,24 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
     if (isEnemyWarpStart || isEnemyWarpMove || isEnemyWarpEnd) {
         targetFovDeg_ = warpFovDeg_;
     }
-    if (isEnemyIntro) {
-        targetFovDeg_ = introCamera_.GetFovDeg();
-    }
     if (isEnemyPhaseTransition) {
         targetFovDeg_ = phaseTransitionFovDeg_;
     }
 
     float usedFovLerpSpeed = fovLerpSpeed_;
-    if (isEnemyIntro) {
-        usedFovLerpSpeed = introCamera_.GetFovLerpSpeed();
-    }
     if (isEnemyPhaseTransition) {
         usedFovLerpSpeed = phaseTransitionFovLerpSpeed_;
     }
-    float fovAlpha = usedFovLerpSpeed * deltaTime;
-    if (fovAlpha > 1.0f) {
-        fovAlpha = 1.0f;
-    }
+    const float currentFovDeg =
+        BlendFov(targetFovDeg_, usedFovLerpSpeed, deltaTime);
 
-    currentFovDeg_ += (targetFovDeg_ - currentFovDeg_) * fovAlpha;
-    camera_.SetPerspectiveFovDeg(currentFovDeg_);
-
-    if (isLockOn_ || isEnemyIntro) {
+    if (isLockOn_) {
         XMFLOAT3 assistTarget = enemyPos;
 
         float assistStrength = lockOnAssistStrength_;
         float assistMaxStep = lockOnAssistMaxStep_;
 
-        if (isEnemyIntro) {
-            assistStrength = lockOnAssistStrength_ * 1.55f;
-            assistMaxStep = lockOnAssistMaxStep_ * 1.55f;
-        } else if (isEnemyWarpStart) {
+        if (isEnemyWarpStart) {
             assistStrength = warpStartAssistStrength_;
             assistMaxStep = warpStartAssistMaxStep_;
         } else if (isEnemyWarpMove) {
@@ -182,9 +160,6 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
         pullT = std::clamp(pullT, 0.0f, 1.0f);
 
         float usedRadius = lockOnOrbitRadius_ + lockOnOrbitPullBackMax_ * pullT;
-        if (isEnemyIntro) {
-            usedRadius -= introCamera_.GetPushIn() * enemyIntroRatio;
-        }
         if (isEnemyPhaseTransition) {
             usedRadius -= phaseTransitionPushIn_ * enemyPhaseTransitionRatio;
         }
@@ -252,11 +227,6 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
                      cameraTargetBase.z - forward.z * dynamicDistance +
                          right.z * cameraSideOffset_};
 
-        if (isEnemyIntro) {
-            cameraPos.x += forward.x * introCamera_.GetPushIn() * enemyIntroRatio;
-            cameraPos.y += 0.18f * enemyIntroRatio;
-            cameraPos.z += forward.z * introCamera_.GetPushIn() * enemyIntroRatio;
-        }
         if (isEnemyPhaseTransition) {
             cameraPos.x += forward.x * phaseTransitionPushIn_ *
                            enemyPhaseTransitionRatio;
@@ -297,23 +267,6 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
         lockOnLookAt_ = lookAt;
     }
 
-    if (isEnemyIntro) {
-        XMFLOAT3 introLookAt = {
-            playerPos.x * (1.0f - introCamera_.GetLookAtEnemyWeight()) +
-                enemyPos.x * introCamera_.GetLookAtEnemyWeight(),
-            (playerPos.y + cameraLookHeight_) *
-                    (1.0f - introCamera_.GetLookAtEnemyWeight()) +
-                (enemyPos.y + introCamera_.GetLookAtHeight()) *
-                    introCamera_.GetLookAtEnemyWeight(),
-            playerPos.z * (1.0f - introCamera_.GetLookAtEnemyWeight()) +
-                enemyPos.z * introCamera_.GetLookAtEnemyWeight()};
-
-        float blend = enemyIntroRatio;
-        lookAt.x += (introLookAt.x - lookAt.x) * blend;
-        lookAt.y += (introLookAt.y - lookAt.y) * blend;
-        lookAt.z += (introLookAt.z - lookAt.z) * blend;
-    }
-
     if (isEnemyPhaseTransition) {
         XMFLOAT3 transitionLookAt = {
             playerPos.x * (1.0f - phaseTransitionLookAtEnemyWeight_) +
@@ -331,11 +284,8 @@ void BattleCameraController::UpdateBattleCamera(float deltaTime,
         lookAt.z += (transitionLookAt.z - lookAt.z) * blend;
     }
 
-    if (isEnemyIntro) {
-        introCamera_.Apply(camera_, cameraYaw_, enemy);
-        return;
-    }
-
-    camera_.SetPosition(cameraPos);
-    camera_.LookAt(lookAt);
+    camera.SetPerspectiveFovDeg(currentFovDeg);
+    camera.SetPosition(cameraPos);
+    camera.LookAt(lookAt);
+    camera.UpdateMatrices();
 }

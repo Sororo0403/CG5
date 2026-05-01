@@ -2,9 +2,11 @@
 #include "BattleCameraController.h"
 #include "BaseScene.h"
 #include "Bullet.h"
+#include "Camera.h"
 #include "Enemy.h"
 #include "EffectParticleSystem.h"
 #include "IEditableScene.h"
+#include "IntroCameraController.h"
 #include "Player.h"
 #include "Transform.h"
 #include <DirectXMath.h>
@@ -19,9 +21,7 @@ class GameScene : public BaseScene, public IEditableScene {
     void Update() override;
     void Draw() override;
 
-    const Camera *GetCurrentCamera() const {
-        return battleCamera_.GetCurrentCamera();
-    }
+    const Camera *GetCurrentCamera() const { return &camera_; }
 
     size_t GetEditableObjectCount() const override;
     IEditableObject *GetEditableObject(size_t index) override;
@@ -77,7 +77,7 @@ class GameScene : public BaseScene, public IEditableScene {
     };
 
     void UpdateCamera(Input *input);
-    void UpdateBattleCamera();
+    void UpdateSceneCamera();
     void UpdateSceneLighting();
     void SyncEnemyAnimation();
     void SetEnemyAnimationFrozen(bool frozen);
@@ -111,7 +111,9 @@ class GameScene : public BaseScene, public IEditableScene {
   private:
     static constexpr float kGuardDamageMultiplier = 0.25f;
 
+    Camera camera_;
     BattleCameraController battleCamera_;
+    IntroCameraController introCamera_;
 
     Player player_;
     Enemy enemy_;

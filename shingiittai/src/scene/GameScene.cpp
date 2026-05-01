@@ -162,7 +162,10 @@ void GameScene::Initialize(const SceneContext &ctx) {
     float aspect = static_cast<float>(ctx_->winApp->GetWidth()) /
                    static_cast<float>(ctx_->winApp->GetHeight());
 
-    battleCamera_.Initialize(aspect);
+    camera_.Initialize(aspect);
+    camera_.SetMode(CameraMode::LookAt);
+    camera_.SetPerspectiveFovDeg(74.0f);
+    camera_.UpdateMatrices();
 
     DirectXCommon *dx = ctx_->dxCommon;
     ModelManager *model = ctx_->model;
@@ -217,6 +220,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
     battleCamera_.ResetForBattle(playerPos, enemyPos);
+    introCamera_.Reset();
     if (Model *playerModelData = model->GetModel(playerModelId_)) {
         if (!playerModelData->animations.empty()) {
             model->PlayAnimation(playerModelId_,
@@ -633,7 +637,7 @@ void GameScene::Update() {
                 ctx_->model->UpdateAnimation(enemyModelId_, gameplayDeltaTime);
             }
 
-            UpdateBattleCamera();
+            UpdateSceneCamera();
             counterCinematicActive_ = false;
             UpdateCounterVignette(baseDeltaTime);
             return;
@@ -668,7 +672,7 @@ void GameScene::Update() {
             ctx_->model->UpdateAnimation(enemyModelId_, gameplayDeltaTime);
         }
 
-        UpdateBattleCamera();
+        UpdateSceneCamera();
         counterCinematicActive_ = false;
         UpdateCounterVignette(baseDeltaTime);
         return;
@@ -744,7 +748,7 @@ void GameScene::Update() {
 
     UpdateElectricRing();
 
-    UpdateBattleCamera();
+    UpdateSceneCamera();
 
     auto counterBox = player_.GetSword().GetCounterOBB();
     auto playerBox = player_.GetOBB();
@@ -1135,7 +1139,7 @@ void GameScene::SetEnemyAnimationFrozen(bool frozen) {
 }
 
 void GameScene::UpdateCounterVignette(float deltaTime) {
-    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    const Camera *currentCamera = &camera_;
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
         currentCamera == nullptr) {
         return;
@@ -1218,7 +1222,7 @@ void GameScene::SyncEnemyAnimation() {
 
 void GameScene::Draw() {
     ctx_->model->PreDraw();
-    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    const Camera *currentCamera = &camera_;
     if (currentCamera == nullptr) {
         ctx_->model->PostDraw();
         return;
@@ -1415,7 +1419,7 @@ void GameScene::UpdateSceneLighting() {
 
 bool GameScene::ProjectWorldToScreen(const XMFLOAT3 &worldPos,
                                      XMFLOAT2 &outScreen) const {
-    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    const Camera *currentCamera = &camera_;
     if (currentCamera == nullptr || ctx_ == nullptr || ctx_->winApp == nullptr) {
         return false;
     }
@@ -1896,11 +1900,14 @@ void GameScene::DrawWarpDistortionPass() {
 }
 
 void GameScene::UpdateCamera(Input *input) {
-    battleCamera_.Update(input, ctx_->deltaTime, player_, enemy_);
+    battleCamera_.UpdateInput(input);
 }
 
-void GameScene::UpdateBattleCamera() {
-    battleCamera_.Refresh(ctx_->deltaTime, player_, enemy_);
+void GameScene::UpdateSceneCamera() {
+    battleCamera_.Apply(camera_, ctx_->deltaTime, player_, enemy_);
+    if (enemy_.IsIntroActive()) {
+        introCamera_.Apply(camera_, ctx_->deltaTime, enemy_);
+    }
 }
 
 ////////////////////////////
@@ -1917,7 +1924,7 @@ void GameScene::SpawnElectricRing(const XMFLOAT3 &worldPos, bool isWarpEnd) {
 }
 
 void GameScene::UpdateElectricRing() {
-    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    const Camera *currentCamera = &camera_;
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
         currentCamera == nullptr) {
         return;

@@ -3,8 +3,22 @@
 
 using namespace DirectX;
 
-void IntroCameraController::Apply(Camera &camera, float &cameraYaw,
-                                  const Enemy &enemy) const {
+void IntroCameraController::Reset() {
+    currentFovDeg_ = 74.0f;
+}
+
+float IntroCameraController::BlendFov(float deltaTime) {
+    float fovAlpha = fovLerpSpeed_ * deltaTime;
+    if (fovAlpha > 1.0f) {
+        fovAlpha = 1.0f;
+    }
+
+    currentFovDeg_ += (fovDeg_ - currentFovDeg_) * fovAlpha;
+    return currentFovDeg_;
+}
+
+void IntroCameraController::Apply(Camera &camera, float deltaTime,
+                                  const Enemy &enemy) {
     const XMFLOAT3 &enemyPos = enemy.GetTransform().position;
     const float enemyIntroRatio = enemy.GetIntroRatio();
     const float enemyYaw = enemy.GetFacingYaw();
@@ -23,8 +37,8 @@ void IntroCameraController::Apply(Camera &camera, float &cameraYaw,
     const XMFLOAT3 lookAt = {enemyPos.x, enemyPos.y + lookAtHeight_ + 0.18f,
                              enemyPos.z};
 
+    camera.SetPerspectiveFovDeg(BlendFov(deltaTime));
     camera.SetPosition(cameraPos);
     camera.LookAt(lookAt);
-    cameraYaw = std::atan2f(enemyPos.x - cameraPos.x,
-                            enemyPos.z - cameraPos.z);
+    camera.UpdateMatrices();
 }

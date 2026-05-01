@@ -1,7 +1,6 @@
 #pragma once
 #include "Camera.h"
 #include "Enemy.h"
-#include "IntroCameraController.h"
 #include "Player.h"
 #include <DirectXMath.h>
 
@@ -9,22 +8,16 @@ class Input;
 
 class BattleCameraController {
   public:
-    void Initialize(float aspect);
     void ResetForBattle(const DirectX::XMFLOAT3 &playerPos,
                         const DirectX::XMFLOAT3 &enemyPos);
-    void Update(Input *input, float deltaTime, const Player &player,
-                const Enemy &enemy);
-    void Refresh(float deltaTime, const Player &player, const Enemy &enemy);
+    void UpdateInput(Input *input);
+    void Apply(Camera &camera, float deltaTime, const Player &player,
+               const Enemy &enemy);
 
-    const Camera *GetCurrentCamera() const { return &camera_; }
     float GetYaw() const { return cameraYaw_; }
 
   private:
-    void UpdateBattleCamera(float deltaTime, const Player &player,
-                            const Enemy &enemy);
-
-    Camera camera_;
-    IntroCameraController introCamera_;
+    float BlendFov(float targetFovDeg, float lerpSpeed, float deltaTime);
 
     float cameraYaw_ = 0.0f;
     float cameraPitch_ = 0.22f;
