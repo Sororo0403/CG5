@@ -311,5 +311,6 @@ bool Enemy::TryBeginDoubleSweepSecondStage() {
     isAttackActive_ = false;
     stateTimer_ = 0.0f;
     action_.step = ActionStep::Charge;
+    runtime_.actionSequence++;
     return true;
 }

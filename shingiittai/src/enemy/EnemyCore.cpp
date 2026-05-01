@@ -291,6 +291,7 @@ void Enemy::UpdateByAction(float deltaTime) {
 
 void Enemy::BeginAction(ActionKind kind, ActionStep step) {
     lastActionKind_ = kind;
+    runtime_.actionSequence++;
 
     if (kind == ActionKind::Warp) {
         stagnantTimer_ = 0.0f;

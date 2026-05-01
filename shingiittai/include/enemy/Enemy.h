@@ -11,6 +11,7 @@
 #include <vector>
 
 class ModelManager;
+struct Model;
 
 enum class ActionStep {
     None,
@@ -332,6 +333,7 @@ struct EnemyRuntimeState {
     bool currentActionConnected = false;
     bool currentActionGuarded = false;
     bool hasTrackingLocked = false;
+    uint32_t actionSequence = 0;
 
     CounterAdaptMemory counterMemory{};
     float postCounterRhythmTimer = 0.0f;
@@ -416,6 +418,9 @@ class Enemy {
         return t;
     }
     bool IsPhaseTransitionActive() const { return runtime_.phaseTransitionActive; }
+    bool IsDoubleSweepSecondStage() const {
+        return runtime_.isDoubleSweepSecondStage;
+    }
     float GetPhaseTransitionRatio() const {
         if (phaseTransitionDuration_ <= 0.0001f) {
             return 1.0f;
@@ -558,12 +563,15 @@ class Enemy {
 
     EnemyTuningPreset CreateTuningPreset() const;
     void ApplyTuningPreset(const EnemyTuningPreset &preset);
+    void ApplyAnimationTimingsFromModel(const Model *model);
     void ResetTuningPreset();
 
     float GetCurrentActionTimePublic() const { return GetCurrentActionTime(); }
     const AttackTimingParam *GetCurrentAttackTimingPublic() const {
         return GetCurrentAttackTiming();
     }
+    float GetCurrentAnimationRemainingTime() const;
+    uint32_t GetActionSequence() const { return runtime_.actionSequence; }
 
     void UpdatePresentationEvents();
     std::vector<EnemyElectricRingSpawnRequest>

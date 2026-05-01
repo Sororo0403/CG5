@@ -52,7 +52,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     uint32_t enemyModel = 0;
     uint32_t bulletModel =
         ctx_->model->Load(upload, L"resources/model/bullet/bullet.obj");
-    enemyModel = model->Load(upload, L"resources/model/boss/boss.gltf");
+    enemyModel = model->Load(upload, L"resources/model/boss/boss.glb");
 
     upload.Finish();
 
@@ -62,6 +62,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     playerModelId_ = playerModel;
     enemy_.Initialize(enemyModel, bulletModel);
     enemyModelId_ = enemyModel;
+    enemy_.ApplyAnimationTimingsFromModel(model->GetModel(enemyModelId_));
     enemyAnimation_.Initialize(enemyModelId_);
 
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;

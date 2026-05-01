@@ -2,16 +2,17 @@
 #include "Model.h"
 #include "ModelManager.h"
 
+#include <algorithm>
+
 namespace {
 
-const std::string kBossAnimIdle = "Action";
-const std::string kBossAnimMove = "Action.001";
-const std::string kBossAnimSweep =
-    "\xE6\xA8\xAA\xE8\x96\x99\xE3\x81\x8E\xE6\x89\x95\xE3\x81\x84";
-const std::string kBossAnimWave =
-    "\xE6\xB3\xA2\xE7\x8A\xB6\xE6\x94\xBB\xE6\x92\x83";
-const std::string kBossAnimSmash =
-    "\xE7\xB8\xA6\xE6\x8C\xAF\xE3\x82\x8A\xE4\xB8\x8B\xE3\x82\x8D\xE3\x81\x97";
+const std::string kBossAnimWarp = "テレポート";
+const std::string kBossAnimShot = "弾発射";
+const std::string kBossAnimSweepRight = "横薙ぎ(右から)";
+const std::string kBossAnimSweep = "横薙ぎ払い";
+const std::string kBossAnimWave = "波状攻撃";
+const std::string kBossAnimPhaseTransition = "第二形態移行";
+const std::string kBossAnimSmash = "縦振り下ろし";
 
 } // namespace
 
@@ -19,6 +20,8 @@ void EnemyAnimationController::Initialize(uint32_t modelId) {
     modelId_ = modelId;
     currentAnimation_.clear();
     currentLoop_ = true;
+    playbackSpeed_ = 1.0f;
+    currentActionSequence_ = 0;
     introAnimationStarted_ = false;
     introPhase_ = IntroPhase::SecondSlash;
     frozen_ = false;
@@ -27,6 +30,8 @@ void EnemyAnimationController::Initialize(uint32_t modelId) {
 void EnemyAnimationController::ResetIntro() {
     currentAnimation_.clear();
     currentLoop_ = true;
+    playbackSpeed_ = 1.0f;
+    currentActionSequence_ = 0;
     introAnimationStarted_ = false;
     introPhase_ = IntroPhase::SecondSlash;
 }
@@ -58,7 +63,8 @@ void EnemyAnimationController::Sync(ModelManager *modelManager,
             const bool forceRestart =
                 (introPhase_ != introPhase &&
                  (introPhase == IntroPhase::SecondSlash ||
-                  introPhase == IntroPhase::SpinSlash));
+                  introPhase == IntroPhase::SpinSlash ||
+                  introPhase == IntroPhase::Settle));
             if (!introAnimationStarted_ || forceRestart ||
                 currentAnimation_ != introAnimation ||
                 currentLoop_ != introLoop) {
@@ -68,7 +74,10 @@ void EnemyAnimationController::Sync(ModelManager *modelManager,
                 currentAnimation_ = introAnimation;
                 currentLoop_ = introLoop;
                 introAnimationStarted_ = true;
+                currentActionSequence_ = enemy.GetActionSequence();
             }
+            playbackSpeed_ = CalculatePlaybackSpeed(
+                enemyModel, enemy, introAnimation, introLoop);
             introPhase_ = introPhase;
             return;
         }
@@ -77,7 +86,14 @@ void EnemyAnimationController::Sync(ModelManager *modelManager,
         introPhase_ = IntroPhase::SecondSlash;
     }
 
-    if (currentAnimation_ == nextAnimation && currentLoop_ == shouldLoop) {
+    const uint32_t actionSequence = enemy.GetActionSequence();
+    const bool forceActionRestart =
+        !shouldLoop && currentActionSequence_ != actionSequence;
+
+    if (currentAnimation_ == nextAnimation && currentLoop_ == shouldLoop &&
+        !forceActionRestart) {
+        playbackSpeed_ = CalculatePlaybackSpeed(
+            enemyModel, enemy, nextAnimation, shouldLoop);
         return;
     }
 
@@ -85,6 +101,9 @@ void EnemyAnimationController::Sync(ModelManager *modelManager,
     modelManager->UpdateAnimation(modelId_, 0.0f);
     currentAnimation_ = nextAnimation;
     currentLoop_ = shouldLoop;
+    currentActionSequence_ = actionSequence;
+    playbackSpeed_ =
+        CalculatePlaybackSpeed(enemyModel, enemy, nextAnimation, shouldLoop);
 }
 
 void EnemyAnimationController::SetFrozen(ModelManager *modelManager,
@@ -101,14 +120,7 @@ void EnemyAnimationController::SetFrozen(ModelManager *modelManager,
     }
 
     if (frozen) {
-        if (HasAnimation(enemyModel, kBossAnimIdle)) {
-            modelManager->PlayAnimation(modelId_, kBossAnimIdle, true);
-            modelManager->UpdateAnimation(modelId_, 0.0f);
-            currentAnimation_ = kBossAnimIdle;
-            currentLoop_ = true;
-        }
         enemyModel->isPlaying = false;
-        enemyModel->animationTime = 0.0f;
         enemyModel->animationFinished = false;
         frozen_ = true;
         return;
@@ -127,7 +139,7 @@ void EnemyAnimationController::Update(ModelManager *modelManager,
         return;
     }
 
-    modelManager->UpdateAnimation(modelId_, deltaTime);
+    modelManager->UpdateAnimation(modelId_, deltaTime * playbackSpeed_);
 }
 
 bool EnemyAnimationController::HasAnimation(
@@ -167,23 +179,45 @@ std::string EnemyAnimationController::PickIntroAnimation(
         break;
 
     case IntroPhase::Settle:
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        break;
+        return {};
     }
 
-    if (HasAnimation(model, kBossAnimIdle)) {
-        outLoop = true;
-        return kBossAnimIdle;
+    if (!model->currentAnimation.empty()) {
+        outLoop = false;
+        return model->currentAnimation;
     }
 
-    outLoop = true;
+    outLoop = false;
     return model->currentAnimation.empty() ? model->animations.begin()->first
                                            : model->currentAnimation;
+}
+
+float EnemyAnimationController::CalculatePlaybackSpeed(
+    const Model *model, const Enemy &enemy, const std::string &animationName,
+    bool loop) const {
+    if (model == nullptr || loop) {
+        return 1.0f;
+    }
+
+    auto clipIt = model->animations.find(animationName);
+    if (clipIt == model->animations.end() || clipIt->second.duration <= 0.0f) {
+        return 1.0f;
+    }
+
+    const float actionRemaining = enemy.GetCurrentAnimationRemainingTime();
+    if (actionRemaining <= 0.001f) {
+        return 1.0f;
+    }
+
+    float clipRemaining = clipIt->second.duration;
+    if (model->currentAnimation == animationName) {
+        clipRemaining -= model->animationTime;
+    }
+    if (clipRemaining <= 0.001f) {
+        return 1.0f;
+    }
+
+    return (std::clamp)(clipRemaining / actionRemaining, 0.20f, 3.0f);
 }
 
 std::string EnemyAnimationController::PickAnimation(
@@ -192,6 +226,12 @@ std::string EnemyAnimationController::PickAnimation(
 
     if (model == nullptr || model->animations.empty()) {
         return {};
+    }
+
+    if (enemy.IsPhaseTransitionActive() &&
+        HasAnimation(model, kBossAnimPhaseTransition)) {
+        outLoop = false;
+        return kBossAnimPhaseTransition;
     }
 
     switch (enemy.GetActionKind()) {
@@ -204,12 +244,25 @@ std::string EnemyAnimationController::PickAnimation(
 
     case ActionKind::Sweep:
         outLoop = false;
+        if (enemy.IsDoubleSweepSecondStage() &&
+            HasAnimation(model, kBossAnimSweepRight)) {
+            return kBossAnimSweepRight;
+        }
         if (HasAnimation(model, kBossAnimSweep)) {
             return kBossAnimSweep;
+        }
+        if (HasAnimation(model, kBossAnimSweepRight)) {
+            return kBossAnimSweepRight;
         }
         break;
 
     case ActionKind::Shot:
+        outLoop = false;
+        if (HasAnimation(model, kBossAnimShot)) {
+            return kBossAnimShot;
+        }
+        break;
+
     case ActionKind::Wave:
         outLoop = false;
         if (HasAnimation(model, kBossAnimWave)) {
@@ -218,22 +271,18 @@ std::string EnemyAnimationController::PickAnimation(
         break;
 
     case ActionKind::Warp:
+        outLoop = false;
+        if (HasAnimation(model, kBossAnimWarp)) {
+            return kBossAnimWarp;
+        }
+        break;
+
     case ActionKind::Stalk:
     case ActionKind::None:
     default:
-        if (HasAnimation(model, kBossAnimIdle)) {
-            return kBossAnimIdle;
-        }
         break;
     }
 
-    if (HasAnimation(model, kBossAnimIdle)) {
-        return kBossAnimIdle;
-    }
-    if (HasAnimation(model, kBossAnimMove)) {
-        return kBossAnimMove;
-    }
-
-    return model->currentAnimation.empty() ? model->animations.begin()->first
-                                           : model->currentAnimation;
+    outLoop = false;
+    return model->currentAnimation;
 }

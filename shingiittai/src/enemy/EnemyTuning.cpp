@@ -1,6 +1,171 @@
 #include "Enemy.h"
+#include "Model.h"
+
+#include <algorithm>
+#include <string>
+
+namespace {
+
+const std::string kBossAnimWarp = "テレポート";
+const std::string kBossAnimShot = "弾発射";
+const std::string kBossAnimSweepRight = "横薙ぎ(右から)";
+const std::string kBossAnimSweep = "横薙ぎ払い";
+const std::string kBossAnimWave = "波状攻撃";
+const std::string kBossAnimPhaseTransition = "第二形態移行";
+const std::string kBossAnimSmash = "縦振り下ろし";
+
+float Remaining(float duration, float elapsed) {
+    return (std::max)(0.0f, duration - elapsed);
+}
+
+float ClipDuration(const Model *model, const std::string &animationName) {
+    if (model == nullptr) {
+        return 0.0f;
+    }
+
+    auto it = model->animations.find(animationName);
+    if (it == model->animations.end()) {
+        return 0.0f;
+    }
+
+    return (std::max)(0.0f, it->second.duration);
+}
+
+void FitMeleeTimingToClip(EnemyMeleeAttackProfile &profile,
+                          float clipDuration) {
+    if (clipDuration <= 0.001f) {
+        return;
+    }
+
+    const float currentCharge = (std::max)(0.05f, profile.base.chargeTime);
+    const float currentTotal = (std::max)(0.05f, profile.base.timing.totalTime);
+    const float currentRecovery =
+        (std::max)(0.0f, currentTotal - profile.base.timing.recoveryStartTime);
+    const float currentWhole =
+        (std::max)(0.001f, currentCharge + currentTotal + currentRecovery);
+    const float scale = clipDuration / currentWhole;
+
+    profile.base.chargeTime = (std::max)(0.05f, currentCharge * scale);
+
+    AttackTimingParam &timing = profile.base.timing;
+    timing.totalTime = (std::max)(0.05f, currentTotal * scale);
+    timing.trackingEndTime =
+        (std::max)(0.0f, timing.trackingEndTime * scale);
+    timing.activeStartTime =
+        (std::max)(0.0f, timing.activeStartTime * scale);
+    timing.activeEndTime =
+        (std::max)(timing.activeStartTime, timing.activeEndTime * scale);
+
+    const float fittedRecovery =
+        (std::max)(0.0f, clipDuration - profile.base.chargeTime -
+                             timing.totalTime);
+    timing.recoveryStartTime =
+        timing.totalTime - (std::min)(timing.totalTime, fittedRecovery);
+    timing.recoveryStartTime =
+        (std::max)(timing.activeEndTime, timing.recoveryStartTime);
+}
+
+} // namespace
 
 float Enemy::GetCurrentActionTime() const { return stateTimer_; }
+
+float Enemy::GetCurrentAnimationRemainingTime() const {
+    if (introActive_) {
+        float phaseEnd = introSecondSlashDuration_;
+        if (GetIntroPhase() == IntroPhase::SpinSlash) {
+            phaseEnd = introSecondSlashDuration_ + introSpinSlashDuration_;
+        } else if (GetIntroPhase() == IntroPhase::Settle) {
+            phaseEnd = introSecondSlashDuration_ + introSpinSlashDuration_ +
+                       introSettleDuration_;
+        }
+        return Remaining(phaseEnd, introTimer_);
+    }
+
+    if (phaseTransitionActive_) {
+        return Remaining(phaseTransitionDuration_, phaseTransitionTimer_);
+    }
+
+    switch (action_.kind) {
+    case ActionKind::Smash:
+    case ActionKind::Sweep: {
+        const AttackTimingParam *timing = GetCurrentAttackTiming();
+        if (timing == nullptr) {
+            return 0.0f;
+        }
+
+        const float chargeTime =
+            (action_.kind == ActionKind::Smash) ? GetCurrentSmashChargeTime()
+                                                : GetCurrentSweepChargeTime();
+        const float recoveryTime =
+            (std::max)(0.0f, timing->totalTime - timing->recoveryStartTime);
+
+        switch (action_.step) {
+        case ActionStep::Charge:
+            return Remaining(chargeTime, stateTimer_) + timing->totalTime +
+                   recoveryTime;
+        case ActionStep::Hold:
+            return Remaining(currentHoldDuration_, stateTimer_) +
+                   timing->totalTime + recoveryTime;
+        case ActionStep::Active:
+            return Remaining(timing->totalTime, stateTimer_) + recoveryTime;
+        case ActionStep::Recovery:
+            return Remaining(recoveryTime, stateTimer_);
+        default:
+            return 0.0f;
+        }
+    }
+
+    case ActionKind::Shot:
+        switch (action_.step) {
+        case ActionStep::Charge:
+            return Remaining(config_.attacks.shot.chargeTime, stateTimer_) +
+                   static_cast<float>(config_.attacks.shot.maxCount) *
+                       config_.attacks.shot.interval +
+                   config_.attacks.shot.recoveryTime;
+        case ActionStep::Active:
+            return static_cast<float>((std::max)(0, shotsRemaining_)) *
+                       config_.attacks.shot.interval +
+                   config_.attacks.shot.recoveryTime;
+        case ActionStep::Recovery:
+            return Remaining(config_.attacks.shot.recoveryTime, stateTimer_);
+        default:
+            return 0.0f;
+        }
+
+    case ActionKind::Wave:
+        switch (action_.step) {
+        case ActionStep::Charge:
+            return Remaining(config_.attacks.wave.chargeTime, stateTimer_) +
+                   config_.attacks.wave.recoveryTime;
+        case ActionStep::Active:
+            return config_.attacks.wave.recoveryTime;
+        case ActionStep::Recovery:
+            return Remaining(config_.attacks.wave.recoveryTime, stateTimer_);
+        default:
+            return 0.0f;
+        }
+
+    case ActionKind::Warp:
+        switch (action_.step) {
+        case ActionStep::Start:
+            return Remaining(config_.warp.startTime, stateTimer_) +
+                   config_.warp.moveTime + config_.warp.endTime;
+        case ActionStep::Move:
+            return Remaining(config_.warp.moveTime, stateTimer_) +
+                   config_.warp.endTime;
+        case ActionStep::End:
+            return Remaining(config_.warp.endTime, stateTimer_);
+        default:
+            return 0.0f;
+        }
+
+    case ActionKind::Stalk:
+        return Remaining(stalkDurationMax_, stateTimer_);
+
+    default:
+        return 0.0f;
+    }
+}
 
 float Enemy::GetCurrentSmashChargeTime() const {
     float result = config_.attacks.smash.melee.base.chargeTime;
@@ -95,6 +260,56 @@ void Enemy::ValidateAllTimings() {
                    config_.attacks.smash.melee.base.chargeTime);
     ValidateTiming(config_.attacks.sweep.melee.base.timing,
                    config_.attacks.sweep.melee.base.chargeTime);
+}
+
+void Enemy::ApplyAnimationTimingsFromModel(const Model *model) {
+    const float warpDuration = ClipDuration(model, kBossAnimWarp);
+    const float shotDuration = ClipDuration(model, kBossAnimShot);
+    const float sweepRightDuration = ClipDuration(model, kBossAnimSweepRight);
+    const float smashDuration = ClipDuration(model, kBossAnimSmash);
+    const float sweepDuration = ClipDuration(model, kBossAnimSweep);
+    const float waveDuration = ClipDuration(model, kBossAnimWave);
+    const float phaseTransitionDuration =
+        ClipDuration(model, kBossAnimPhaseTransition);
+
+    FitMeleeTimingToClip(config_.attacks.smash.melee, smashDuration);
+    FitMeleeTimingToClip(
+        config_.attacks.sweep.melee,
+        (sweepDuration > 0.001f) ? sweepDuration : sweepRightDuration);
+
+    if (warpDuration > 0.001f) {
+        config_.warp.startTime = (std::max)(0.05f, warpDuration * 0.30f);
+        config_.warp.moveTime = (std::max)(0.05f, warpDuration * 0.22f);
+        config_.warp.endTime = (std::max)(
+            0.05f, warpDuration - config_.warp.startTime -
+                       config_.warp.moveTime);
+    }
+
+    if (shotDuration > 0.001f) {
+        const float shotFireTime =
+            static_cast<float>((std::max)(1, config_.attacks.shot.maxCount)) *
+            config_.attacks.shot.interval;
+        config_.attacks.shot.chargeTime =
+            (std::max)(0.10f, shotDuration * 0.32f);
+        config_.attacks.shot.recoveryTime =
+            (std::max)(0.10f, shotDuration -
+                                   config_.attacks.shot.chargeTime -
+                                   shotFireTime);
+    }
+
+    if (waveDuration > 0.001f) {
+        const float waveChargeRatio = 0.36f;
+        config_.attacks.wave.chargeTime =
+            (std::max)(0.10f, waveDuration * waveChargeRatio);
+        config_.attacks.wave.recoveryTime =
+            (std::max)(0.10f, waveDuration - config_.attacks.wave.chargeTime);
+    }
+
+    if (phaseTransitionDuration > 0.001f) {
+        phaseTransitionDuration_ = phaseTransitionDuration;
+    }
+
+    ValidateAllTimings();
 }
 
 EnemyTuningPreset Enemy::CreateTuningPreset() const {
