@@ -16,7 +16,6 @@
 #include "SrvManager.h"
 #include "TrailRenderer.h"
 #include "TextureManager.h"
-#include "WarpPostEffectRenderer.h"
 #include "WinApp.h"
 #include <memory>
 
@@ -72,7 +71,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     startupUpload.Finish();
     textureManager.ReleaseUploadBuffers();
 
-    WarpPostEffectParamGPU warpPostParam{};
     SlashEffectRenderer slashEffectRenderer;
     GpuSlashParticleSystem gpuSlashParticleSystem;
     TrailRenderer trailRenderer;
@@ -106,7 +104,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.texture = &textureManager;
     sceneCtx.dxCommon = &dxCommon;
     sceneCtx.srv = &srvManager;
-    sceneCtx.warpPostEffectParam = &warpPostParam;
     sceneCtx.slashEffectRenderer = &slashEffectRenderer;
     sceneCtx.gpuSlashParticleSystem = &gpuSlashParticleSystem;
     sceneCtx.trailRenderer = &trailRenderer;

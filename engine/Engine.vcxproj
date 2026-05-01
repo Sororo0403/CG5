@@ -140,7 +140,6 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\TrailRenderer.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableScene.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\DebugCamera.h" />

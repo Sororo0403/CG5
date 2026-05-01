@@ -11,7 +11,6 @@
 #include "SpriteManager.h"
 #include "TextureManager.h"
 #include "WinApp.h"
-#include "WarpPostEffectRenderer.h"
 #include "GpuSlashParticleSystem.h"
 #include "SlashEffectRenderer.h"
 #include "TrailRenderer.h"
@@ -1150,97 +1149,6 @@ void GameScene::Update() {
         SetEnemyAnimationFrozen(true);
     }
 
-    if (ctx_ != nullptr && ctx_->warpPostEffectParam != nullptr) {
-        WarpPostEffectParamGPU *warpParam = ctx_->warpPostEffectParam;
-
-        warpParam->time += ctx_->deltaTime;
-        warpParam->center = {0.5f, 0.5f};
-        warpParam->radius = 0.0f;
-        warpParam->strength = 0.0f;
-        warpParam->center2 = {0.5f, 0.5f};
-        warpParam->radius2 = 0.0f;
-        warpParam->strength2 = 0.0f;
-        warpParam->enabled = 0.0f;
-        warpParam->slashStart = {0.5f, 0.5f};
-        warpParam->slashEnd = {0.5f, 0.5f};
-        warpParam->slashThickness = 0.0f;
-        warpParam->slashStrength = 0.0f;
-        warpParam->slashEnabled = 0.0f;
-
-        XMFLOAT2 slashStartScreen{};
-        XMFLOAT2 slashEndScreen{};
-        float slashPhaseAlpha = 0.0f;
-        float slashActionTime = 0.0f;
-        ActionKind slashActionKind = ActionKind::None;
-        if (ComputeEnemySlashScreenEffect(slashStartScreen, slashEndScreen,
-                                          slashPhaseAlpha, slashActionTime,
-                                          slashActionKind)) {
-            const float width = static_cast<float>(ctx_->winApp->GetWidth());
-            const float height = static_cast<float>(ctx_->winApp->GetHeight());
-            warpParam->slashStart = {slashStartScreen.x / width,
-                                     slashStartScreen.y / height};
-            warpParam->slashEnd = {slashEndScreen.x / width,
-                                   slashEndScreen.y / height};
-            warpParam->slashThickness =
-                enemySlashDistortionThicknessUv_ *
-                (slashActionKind == ActionKind::Sweep ? 1.18f : 1.0f) *
-                (0.72f + slashPhaseAlpha * 0.55f);
-            warpParam->slashStrength =
-                enemySlashDistortionStrength_ * (0.58f + slashPhaseAlpha * 0.88f);
-            warpParam->slashEnabled = 1.0f;
-        }
-
-        if (enemy_.GetActionKind() == ActionKind::Warp) {
-            const float width = static_cast<float>(ctx_->winApp->GetWidth());
-            const float height = static_cast<float>(ctx_->winApp->GetHeight());
-
-            bool hasAnyCenter = false;
-            DirectX::XMFLOAT2 targetScreen{};
-            if (ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreen)) {
-                warpParam->center = {targetScreen.x / width,
-                                     targetScreen.y / height};
-                hasAnyCenter = true;
-            }
-
-            if (enemy_.HasWarpDeparturePos()) {
-                DirectX::XMFLOAT2 sourceScreen{};
-                if (ProjectWorldToScreen(enemy_.GetWarpDeparturePos(),
-                                         sourceScreen)) {
-                    warpParam->center2 = {sourceScreen.x / width,
-                                          sourceScreen.y / height};
-                }
-            }
-
-            if (hasAnyCenter) {
-                warpParam->enabled = 1.0f;
-
-                switch (enemy_.GetActionStep()) {
-                case ActionStep::Start:
-                    warpParam->radius = 0.085f;
-                    warpParam->strength = 0.010f;
-                    warpParam->radius2 = 0.110f;
-                    warpParam->strength2 = 0.014f;
-                    break;
-                case ActionStep::Move:
-                    warpParam->radius = 0.060f;
-                    warpParam->strength = 0.004f;
-                    warpParam->radius2 = 0.085f;
-                    warpParam->strength2 = 0.007f;
-                    break;
-                case ActionStep::End:
-                    warpParam->radius = 0.135f;
-                    warpParam->strength = 0.022f;
-                    warpParam->radius2 = 0.040f;
-                    warpParam->strength2 = 0.004f;
-                    break;
-                default:
-                    warpParam->enabled = 0.0f;
-                    break;
-                }
-            }
-        }
-    }
-
     UpdateCounterVignette(baseDeltaTime);
 }
 
@@ -2179,29 +2087,26 @@ void GameScene::DrawWarpSmokePass() {
 
 
 void GameScene::DrawWarpDistortionPass() {
-#ifdef IMGUI_DISABLED
-    return;
-#else
-    if (enemy_.GetActionKind() != ActionKind::Warp) {
-        return;
-    }
-
-    ImGuiContext *imguiCtx = ImGui::GetCurrentContext();
-    if (imguiCtx == nullptr || imguiCtx->Viewports.Size <= 0) {
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
+        enemy_.GetActionKind() != ActionKind::Warp) {
         return;
     }
 
     ActionStep warpStep = enemy_.GetActionStep();
     float stepIntensity = 0.0f;
+    DistortionPhase phase = DistortionPhase::Start;
     switch (warpStep) {
     case ActionStep::Start:
         stepIntensity = 0.72f;
+        phase = DistortionPhase::Start;
         break;
     case ActionStep::Move:
         stepIntensity = 1.0f;
+        phase = DistortionPhase::Sustain;
         break;
     case ActionStep::End:
         stepIntensity = 0.84f;
+        phase = DistortionPhase::End;
         break;
     default:
         return;
@@ -2209,7 +2114,6 @@ void GameScene::DrawWarpDistortionPass() {
 
     XMFLOAT2 targetScreenF{};
     bool hasTarget = ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
-    ImVec2 targetScreen(targetScreenF.x, targetScreenF.y);
 
     XMFLOAT2 sourceScreenF{};
     bool hasSource = enemy_.HasWarpDeparturePos() &&
@@ -2218,7 +2122,6 @@ void GameScene::DrawWarpDistortionPass() {
     if (!hasSource && !hasTarget) {
         return;
     }
-    ImVec2 sourceScreen(sourceScreenF.x, sourceScreenF.y);
 
     float time = enemy_.GetCurrentActionTimePublic();
     float baseRadius = warpDistortionRadiusPx_ * (0.85f + 0.30f * stepIntensity);
@@ -2226,130 +2129,24 @@ void GameScene::DrawWarpDistortionPass() {
     float alpha = warpDistortionAlpha_ + warpDistortionMoveAlphaBonus_ *
                                               (warpStep == ActionStep::Move ? 1.0f : 0.0f);
 
-    ImGuiViewport *mainViewport = ImGui::GetMainViewport();
-    if (mainViewport == nullptr) {
-        return;
-    }
-
-    ImDrawList *drawList = ImGui::GetBackgroundDrawList(mainViewport);
-    if (drawList == nullptr) {
-        return;
-    }
-    ImU32 bright = IM_COL32(255, 48, 108,
-                            static_cast<int>(255.0f * alpha));
-    ImU32 soft = IM_COL32(120, 22, 70,
-                          static_cast<int>(255.0f * (alpha * 0.82f)));
-    ImU32 slash = IM_COL32(255, 215, 235,
-                           static_cast<int>(255.0f * (alpha * 0.78f)));
-
-    auto drawDistortionAt = [&](const ImVec2 &center, float radiusScale,
-                                float rotationBias) {
-        constexpr int kSegments = 28;
-        ImVec2 points[kSegments + 1];
-        for (int i = 0; i <= kSegments; ++i) {
-            float ratio = static_cast<float>(i) / static_cast<float>(kSegments);
-            float angle = ratio * DirectX::XM_2PI + time * 6.0f + rotationBias;
-            float wave = std::sinf(angle * 3.0f + time * 17.0f) * jitter;
-            float radius = baseRadius * radiusScale + wave;
-            points[i] = ImVec2(center.x + std::cosf(angle) * radius,
-                               center.y + std::sinf(angle) * radius);
-        }
-
-        drawList->AddPolyline(points, kSegments + 1, soft, true,
-                              warpDistortionThicknessPx_);
-        drawList->AddCircle(center, baseRadius * radiusScale * 0.62f, bright, 24,
-                            warpDistortionThicknessPx_ * 0.7f);
-        drawList->AddCircle(center, baseRadius * radiusScale * 0.82f, bright, 28,
-                            warpDistortionThicknessPx_ * 0.42f);
-
-        for (int i = 0; i < 8; ++i) {
-            float ratio = static_cast<float>(i) / 8.0f;
-            float angle = ratio * DirectX::XM_2PI + time * 8.5f + rotationBias;
-            float inner = baseRadius * radiusScale * 0.42f;
-            float outer = inner + warpDistortionLineLengthPx_ *
-                                      (0.75f + 0.25f * std::sinf(time * 18.0f + i));
-            ImVec2 a(center.x + std::cosf(angle) * inner,
-                     center.y + std::sinf(angle) * inner);
-            ImVec2 b(center.x + std::cosf(angle) * outer,
-                     center.y + std::sinf(angle) * outer);
-            drawList->AddLine(a, b, bright, 1.6f);
-        }
-    };
-
-    if (warpStep == ActionStep::Start && hasSource) {
-        ImVec2 sourceFoot = sourceScreen;
-        sourceFoot.y += warpDistortionFootOffsetPx_;
-        drawDistortionAt(sourceFoot, 0.88f, 0.0f);
-    }
-
-    if (warpStep == ActionStep::Move && hasSource && hasTarget) {
-        ImVec2 mid((sourceScreen.x + targetScreen.x) * 0.5f,
-                   (sourceScreen.y + targetScreen.y) * 0.5f +
-                       warpDistortionFootOffsetPx_ * 0.78f);
-        drawDistortionAt(mid, 0.72f, 0.6f);
-        drawList->AddLine(sourceScreen, targetScreen, soft, 0.8f);
-    }
-
-    if (hasTarget) {
-        ImVec2 arrivalCenter = targetScreen;
-        arrivalCenter.y += warpDistortionFootOffsetPx_ -
-                           warpDistortionPreviewOffsetPx_ *
-                               (warpStep == ActionStep::Start ? 0.55f : 0.18f);
-        drawDistortionAt(arrivalCenter,
-                         warpStep == ActionStep::Move ? 1.12f : 1.0f, 1.2f);
-    }
-
-    float dirX = 0.0f;
-    float dirY = -1.0f;
-    if (hasSource && hasTarget) {
-        dirX = targetScreen.x - sourceScreen.x;
-        dirY = targetScreen.y - sourceScreen.y;
-        float dirLen = std::sqrtf(dirX * dirX + dirY * dirY);
-        if (dirLen > 0.0001f) {
-            dirX /= dirLen;
-            dirY /= dirLen;
-        } else {
-            dirX = 0.0f;
-            dirY = -1.0f;
-        }
-    }
-
-    float perpX = -dirY;
-    float perpY = dirX;
-    float slashLen =
-        baseRadius * (warpStep == ActionStep::Move ? 0.92f : 1.10f);
-    float branchLen = slashLen * 0.76f;
-    float branchOffset = baseRadius * 0.28f;
-
-    if (hasTarget) {
-        ImVec2 arrivalCenter = targetScreen;
-        arrivalCenter.y -= warpDistortionPreviewOffsetPx_ *
-                           (warpStep == ActionStep::Start ? 0.55f : 0.18f);
-        ImVec2 slashA(arrivalCenter.x - perpX * slashLen,
-                      arrivalCenter.y - perpY * slashLen);
-        ImVec2 slashB(arrivalCenter.x + perpX * slashLen,
-                      arrivalCenter.y + perpY * slashLen);
-        ImVec2 slashC(arrivalCenter.x - perpX * branchLen + dirX * branchOffset,
-                      arrivalCenter.y - perpY * branchLen + dirY * branchOffset);
-        ImVec2 slashD(arrivalCenter.x + perpX * branchLen + dirX * branchOffset,
-                      arrivalCenter.y + perpY * branchLen + dirY * branchOffset);
-        ImVec2 slashE(arrivalCenter.x - perpX * (branchLen * 0.58f) -
-                          dirX * branchOffset * 0.72f,
-                      arrivalCenter.y - perpY * (branchLen * 0.58f) -
-                          dirY * branchOffset * 0.72f);
-        ImVec2 slashF(arrivalCenter.x + perpX * (branchLen * 0.58f) -
-                          dirX * branchOffset * 0.72f,
-                      arrivalCenter.y + perpY * (branchLen * 0.58f) -
-                          dirY * branchOffset * 0.72f);
-
-        drawList->AddLine(slashA, slashB, slash,
-                          warpDistortionThicknessPx_ * 0.82f);
-        drawList->AddLine(slashC, slashD, bright,
-                          warpDistortionThicknessPx_ * 0.55f);
-        drawList->AddLine(slashE, slashF, soft,
-                          warpDistortionThicknessPx_ * 0.42f);
-    }
-#endif
+    DistortionEffectParams params{};
+    params.preset = DistortionPreset::WarpPortal;
+    params.hasOrigin = hasSource;
+    params.hasTarget = hasTarget;
+    params.phase = phase;
+    params.originScreen = sourceScreenF;
+    params.targetScreen = targetScreenF;
+    params.time = time;
+    params.intensity = stepIntensity;
+    params.baseRadius = baseRadius;
+    params.jitter = jitter;
+    params.alpha = alpha;
+    params.thickness = warpDistortionThicknessPx_;
+    params.lineLength = warpDistortionLineLengthPx_;
+    params.footOffset = warpDistortionFootOffsetPx_;
+    params.previewOffset = warpDistortionPreviewOffsetPx_;
+    ctx_->renderer.postEffectRenderer->Request(
+        PostEffectRenderer::PostEffectType::Distortion, params);
 }
 
 // void GameScene::UpdateCamera(Input *input) {

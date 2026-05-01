@@ -269,9 +269,6 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\TrailRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h">
-      <Filter>include\graphics</Filter>
-    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h">
       <Filter>include\particle</Filter>
     </ClInclude>

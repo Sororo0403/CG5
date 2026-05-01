@@ -26,6 +26,34 @@ struct ElectricRingParamGPU {
     float enabled = 0.0f;
 };
 
+enum class DistortionPreset {
+    WarpPortal,
+    Shockwave,
+    UltimateBurst,
+    HeatHaze,
+    WaterRipple,
+};
+
+enum class DistortionPhase { Start, Sustain, End };
+
+struct DistortionEffectParams {
+    DistortionPreset preset = DistortionPreset::WarpPortal;
+    DistortionPhase phase = DistortionPhase::Start;
+    bool hasOrigin = false;
+    bool hasTarget = false;
+    DirectX::XMFLOAT2 originScreen = {0.0f, 0.0f};
+    DirectX::XMFLOAT2 targetScreen = {0.0f, 0.0f};
+    float time = 0.0f;
+    float intensity = 1.0f;
+    float baseRadius = 100.0f;
+    float jitter = 0.0f;
+    float alpha = 0.0f;
+    float thickness = 4.0f;
+    float lineLength = 72.0f;
+    float footOffset = 0.0f;
+    float previewOffset = 46.0f;
+};
+
 /// <summary>
 /// テクスチャを画面全体へ描画するポストエフェクト用レンダラー
 /// </summary>
@@ -62,6 +90,7 @@ class PostEffectRenderer {
         DemoPlayVignette,
         WarpRingStart,
         WarpRingEnd,
+        Distortion,
     };
 
     /// <summary>
@@ -215,6 +244,7 @@ class PostEffectRenderer {
 
     void Request(PostEffectType type);
     void Request(PostEffectType type, const DirectX::XMFLOAT3 &worldPosition);
+    void Request(PostEffectType type, const DistortionEffectParams &params);
     void SetCounterVignetteActive(bool active);
     void SetDemoPlayIndicatorVisible(bool visible);
     void UpdateScreenEffects(float deltaTime, const Camera &camera, int width,
@@ -267,6 +297,7 @@ class PostEffectRenderer {
     void CreatePipelineState();
     void CreateConstantBuffer();
     void UpdateConstantBuffer();
+    void DrawDistortionEffect(const DistortionEffectParams &params) const;
 
     DirectXCommon *dxCommon_ = nullptr;
     SrvManager *srvManager_ = nullptr;
@@ -302,4 +333,6 @@ class PostEffectRenderer {
     float demoPlayEffectTime_ = 0.0f;
     ActiveElectricRing activeElectricRing_{};
     ElectricRingParamGPU electricRingParam_{};
+    bool distortionRequested_ = false;
+    DistortionEffectParams distortionParams_{};
 };

@@ -22,8 +22,6 @@ class GpuSlashParticleSystem;
 class TrailRenderer;
 class MagnetismicRenderer;
 
-struct WarpPostEffectParamGPU;
-
 #ifdef _DEBUG
 class ImguiManager;
 #endif // _DEBUG
@@ -76,7 +74,6 @@ struct SceneContext {
     TextureManager *texture = nullptr;
     DirectXCommon *dxCommon = nullptr;
     SrvManager *srv = nullptr;
-    WarpPostEffectParamGPU *warpPostEffectParam = nullptr;
     SlashEffectRenderer *slashEffectRenderer = nullptr;
     GpuSlashParticleSystem *gpuSlashParticleSystem = nullptr;
     TrailRenderer *trailRenderer = nullptr;
