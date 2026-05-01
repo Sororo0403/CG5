@@ -17,11 +17,19 @@ class TextureManager;
 
 class GpuSlashParticleSystem {
   public:
+    enum class EffectType {
+        Hit,
+        Explosion,
+        Charge,
+    };
+
     void Initialize(DirectXCommon *, SrvManager *, TextureManager *,
                     uint32_t maxBursts) {
         maxBursts_ = (std::max)(maxBursts, 1u);
         bursts_.clear();
+        pointBursts_.clear();
     }
+    void RequestEffect(EffectType type, const DirectX::XMFLOAT3 &position);
     void EmitSlashBurst(const DirectX::XMFLOAT3 &start,
                         const DirectX::XMFLOAT3 &end, uint32_t count,
         float scale, bool isSweep) {
@@ -41,10 +49,41 @@ class GpuSlashParticleSystem {
         bool isSweep = false;
         float age = 0.0f;
     };
+    struct PointBurst {
+        DirectX::XMFLOAT3 position;
+        EffectType type = EffectType::Hit;
+        float age = 0.0f;
+        float lifeTime = 0.26f;
+    };
 
     std::vector<Burst> bursts_{};
+    std::vector<PointBurst> pointBursts_{};
     uint32_t maxBursts_ = 8;
 };
+
+inline void GpuSlashParticleSystem::RequestEffect(
+    EffectType type, const DirectX::XMFLOAT3 &position) {
+    PointBurst burst{};
+    burst.position = position;
+    burst.type = type;
+
+    switch (type) {
+    case EffectType::Hit:
+        burst.lifeTime = 0.26f;
+        break;
+    case EffectType::Explosion:
+        burst.lifeTime = 0.42f;
+        break;
+    case EffectType::Charge:
+        burst.lifeTime = 0.34f;
+        break;
+    }
+
+    pointBursts_.push_back(burst);
+    while (pointBursts_.size() > maxBursts_ * 4u) {
+        pointBursts_.erase(pointBursts_.begin());
+    }
+}
 
 inline void GpuSlashParticleSystem::Render(const Camera &camera,
                                            float deltaTime) {
@@ -82,6 +121,52 @@ inline void GpuSlashParticleSystem::Render(const Camera &camera,
         out.y = viewport->Pos.y + (-ndcY * 0.5f + 0.5f) * viewport->Size.y;
         return true;
     };
+
+    for (PointBurst &burst : pointBursts_) {
+        burst.age += deltaTime;
+    }
+    pointBursts_.erase(std::remove_if(pointBursts_.begin(), pointBursts_.end(),
+                                      [](const PointBurst &burst) {
+                                          return burst.age > burst.lifeTime;
+                                      }),
+                       pointBursts_.end());
+
+    for (const PointBurst &burst : pointBursts_) {
+        ImVec2 center{};
+        if (!project(burst.position, center)) {
+            continue;
+        }
+
+        const float normalizedAge =
+            burst.lifeTime > 0.0001f ? burst.age / burst.lifeTime : 1.0f;
+        const float fade = std::clamp(1.0f - normalizedAge, 0.0f, 1.0f);
+        const bool isExplosion = burst.type == EffectType::Explosion;
+        const bool isCharge = burst.type == EffectType::Charge;
+        const int sparks = isExplosion ? 18 : (isCharge ? 10 : 12);
+        const float radius = (isExplosion ? 62.0f : (isCharge ? 34.0f : 42.0f)) *
+                             (0.35f + normalizedAge);
+        const ImU32 coreColor =
+            isCharge ? IM_COL32(120, 190, 255, static_cast<int>(fade * 190.0f))
+                     : IM_COL32(255, 92, 72, static_cast<int>(fade * 220.0f));
+        const ImU32 glowColor =
+            isCharge ? IM_COL32(80, 160, 255, static_cast<int>(fade * 70.0f))
+                     : IM_COL32(255, 190, 80, static_cast<int>(fade * 90.0f));
+
+        drawList->AddCircleFilled(center, 10.0f + radius * 0.12f, glowColor);
+        drawList->AddCircleFilled(center, 4.0f + fade * 5.0f, coreColor);
+
+        for (int i = 0; i < sparks; ++i) {
+            const float ratio = static_cast<float>(i) / static_cast<float>(sparks);
+            const float angle = ratio * DirectX::XM_2PI + burst.age * 13.0f;
+            const float inner = radius * 0.22f;
+            const float outer = radius * (0.68f + 0.18f * std::sinf(angle * 1.7f));
+            ImVec2 a(center.x + std::cosf(angle) * inner,
+                     center.y + std::sinf(angle) * inner);
+            ImVec2 b(center.x + std::cosf(angle) * outer,
+                     center.y + std::sinf(angle) * outer);
+            drawList->AddLine(a, b, coreColor, 1.0f + fade * 2.2f);
+        }
+    }
 
     for (const Burst &burst : bursts_) {
         ImVec2 start{}, end{};

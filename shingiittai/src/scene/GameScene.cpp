@@ -828,6 +828,8 @@ void GameScene::Update() {
             forceSyncEnemyAnimationThisFrame = true;
         }
         enemy_.TakeDamage(enemyDamage);
+        RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                      enemy_.GetTransform().position);
         playerHitCooldown_ = hitCooldown;
         startCounterCinematicThisFrame = true;
     };
@@ -883,6 +885,8 @@ void GameScene::Update() {
         if (enemyHitCooldown_ <= 0.0f) {
             if (hitBody) {
                 enemy_.TakeDamage(10.0f);
+                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                              bodyBox.center);
                 enemyHitCooldown_ = 0.2f;
                 if (counterCinematicActive_) {
                     stopCounterCinematicThisFrame = true;
@@ -948,12 +952,16 @@ void GameScene::Update() {
                 dbgPlayerGuardedHit_ = true;
                 enemy_.NotifyAttackGuarded();
                 player_.TakeDamage(enemyAttackDamage * kGuardDamageMultiplier);
+                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                              player_.GetTransform().position);
                 player_.AddKnockback({dx * (enemyAttackKnockback * 0.5f), 0.0f,
                                       dz * (enemyAttackKnockback * 0.5f)});
                 playerHitCooldown_ = 0.2f;
             } else {
                 enemy_.NotifyAttackConnected();
                 player_.TakeDamage(enemyAttackDamage);
+                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                              player_.GetTransform().position);
                 player_.AddKnockback({dx * enemyAttackKnockback, 0.0f,
                                       dz * enemyAttackKnockback});
                 playerHitCooldown_ = 0.4f;
@@ -1001,6 +1009,8 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetBulletDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
+                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                              bullet.position);
                 enemy_.DestroyBullet(i);
                 enemyHitCooldown_ = 0.2f;
             }
@@ -1028,6 +1038,8 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetBulletDamage() *
                                        kGuardDamageMultiplier);
+                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                                  bullet.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetBulletKnockback() * 0.5f), 0.0f,
                          vz * (enemy_.GetBulletKnockback() * 0.5f)});
@@ -1035,6 +1047,8 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetBulletDamage());
+                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                                  bullet.position);
                     player_.AddKnockback({vx * enemy_.GetBulletKnockback(),
                                           0.0f,
                                           vz * enemy_.GetBulletKnockback()});
@@ -1074,6 +1088,8 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetWaveDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
+                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                              wave.position);
                 enemy_.DestroyWave(i);
                 enemyHitCooldown_ = 0.2f;
             }
@@ -1101,6 +1117,8 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetWaveDamage() *
                                        kGuardDamageMultiplier);
+                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                                  wave.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetWaveKnockback() * 0.5f), 0.0f,
                          vz * (enemy_.GetWaveKnockback() * 0.5f)});
@@ -1108,6 +1126,8 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetWaveDamage());
+                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                                  wave.position);
                     player_.AddKnockback({vx * enemy_.GetWaveKnockback(), 0.0f,
                                           vz * enemy_.GetWaveKnockback()});
                     enemy_.DestroyWave(i);
@@ -2040,19 +2060,27 @@ void GameScene::UpdateEnemySlashEffects() {
         if (ComputeEnemySlashWorldEffect(slashStartWorld, slashEndWorld,
                                          phaseAlpha, actionTime,
                                          worldActionKind)) {
-            const bool isSweep = (worldActionKind == ActionKind::Sweep);
-            const uint32_t count = isSweep ? enemySlashParticleCountSweep_
-                                           : enemySlashParticleCountSmash_;
-
-            ctx_->gpuSlashParticleSystem->EmitSlashBurst(
-                slashStartWorld, slashEndWorld, count,
-                enemySlashParticleEmitScale_, isSweep);
+            DirectX::XMFLOAT3 effectPosition{
+                (slashStartWorld.x + slashEndWorld.x) * 0.5f,
+                (slashStartWorld.y + slashEndWorld.y) * 0.5f,
+                (slashStartWorld.z + slashEndWorld.z) * 0.5f};
+            RequestEffect(GpuSlashParticleSystem::EffectType::Charge,
+                          effectPosition);
         }
     }
 
     enemySlashActiveLatched_ = isSlashActive;
     prevEnemyActionKind_ = actionKind;
     prevEnemyActionStep_ = actionStep;
+}
+
+void GameScene::RequestEffect(GpuSlashParticleSystem::EffectType type,
+                              const DirectX::XMFLOAT3 &position) {
+    if (ctx_ == nullptr || ctx_->gpuSlashParticleSystem == nullptr) {
+        return;
+    }
+
+    ctx_->gpuSlashParticleSystem->RequestEffect(type, position);
 }
 
 void GameScene::UpdateEnemySwordTrail() {

@@ -134,5 +134,33 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
       <Project>{f6ba9c36-46d4-4c55-9c90-d016c833a837}</Project>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\enemy\Bullet.h" />
+    <ClInclude Include="include\enemy\Enemy.h" />
+    <ClInclude Include="include\enemy\EnemyActionData.h" />
+    <ClInclude Include="include\enemy\EnemyPresentation.h" />
+    <ClInclude Include="include\enemy\EnemyTuningPreset.h" />
+    <ClInclude Include="include\enemy\EnemyTuningPresetIO.h" />
+    <ClInclude Include="include\enemy\WarpPostEffect.h" />
+    <ClInclude Include="include\engine\collision\DebugDraw.h" />
+    <ClInclude Include="include\engine\graphics\ElectricRingEffectRenderer.h" />
+    <ClInclude Include="include\engine\graphics\MagnetismicRenderer.h" />
+    <ClInclude Include="include\engine\graphics\SlashEffectRenderer.h" />
+    <ClInclude Include="include\engine\graphics\SwordTrailRenderer.h" />
+    <ClInclude Include="include\engine\graphics\VignetteRenderer.h" />
+    <ClInclude Include="include\engine\graphics\WarpPostEffectRenderer.h" />
+    <ClInclude Include="include\engine\particle\GpuSlashParticleSystem.h" />
+    <ClInclude Include="include\player\IInputController.h" />
+    <ClInclude Include="include\player\Player.h" />
+    <ClInclude Include="include\player\PlayerTuningPreset.h" />
+    <ClInclude Include="include\player\PlayerTuningPresetIO.h" />
+    <ClInclude Include="include\player\Sword.h" />
+    <ClInclude Include="include\player\SwordControllerState.h" />
+    <ClInclude Include="include\player\SwordJoyConController.h" />
+    <ClInclude Include="include\player\SwordMouseController.h" />
+    <ClInclude Include="include\player\SwordPose.h" />
+    <ClInclude Include="include\scene\EnemyMotionDebugScene.h" />
+    <ClInclude Include="include\scene\GameScene.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

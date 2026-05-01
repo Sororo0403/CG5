@@ -3,6 +3,7 @@
 #include "Bullet.h"
 #include "Camera.h"
 #include "Enemy.h"
+#include "GpuSlashParticleSystem.h"
 #include "IEditableScene.h"
 #include "Player.h"
 #include "Transform.h"
@@ -100,6 +101,8 @@ class GameScene : public BaseScene, public IEditableScene {
                                       float &outActionTime,
                                       ActionKind &outActionKind) const;
     void UpdateEnemySlashEffects();
+    void RequestEffect(GpuSlashParticleSystem::EffectType type,
+                       const DirectX::XMFLOAT3 &position);
     void DrawEnemySlashPass();
     void DrawWarpSmokePass();
     void DrawWarpDistortionPass();

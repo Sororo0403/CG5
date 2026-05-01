@@ -1,8 +1,6 @@
 #include "Sword.h"
 #include "Camera.h"
-#include "EngineRuntime.h"
 #include "ModelManager.h"
-#include "imgui.h"
 #include <algorithm>
 #include <cmath>
 
@@ -10,15 +8,6 @@ using namespace DirectX;
 
 namespace {
 constexpr float kSwordVisualScaleMultiplier = 3.0f;
-
-bool ShouldDrawGameplayDebugUi() {
-#ifndef IMGUI_DISABLED
-    const EngineRuntime &runtime = EngineRuntime::GetInstance();
-    return runtime.Settings().showDebugUI && !runtime.IsEditorMode();
-#else
-    return false;
-#endif
-}
 }
 
 void Sword::Initialize(uint32_t modelId) {
@@ -109,7 +98,7 @@ void Sword::Draw(ModelManager *modelManager, const Camera &camera) {
     }
 
     modelManager->Draw(modelId_, drawTransform, camera);
-    ImGuiDraw();
+    // ImGui debug output is intentionally kept out of gameplay draw.
 }
 
 void Sword::UpdateCounterObservation(float deltaTime) {
@@ -169,37 +158,4 @@ void Sword::NotifyCounterSuccess() {
 }
 
 void Sword::ImGuiDraw() {
-#ifndef IMGUI_DISABLED
-    if (!ShouldDrawGameplayDebugUi()) {
-        return;
-    }
-
-    ImGui::Begin("Debug");
-    ImGui::Text("Sword Pos: %.2f %.2f %.2f", tf_.position.x, tf_.position.y,
-                tf_.position.z);
-    ImGui::Text("isSlashMode_: %s", isSlashMode_ ? "true" : "false");
-    ImGui::Text("isGuard_: %s", isGuard_ ? "true" : "false");
-    ImGui::Text("counter_: %s", isCounter_ ? "true" : "false");
-    ImGui::Text("slashDir_: %.1f, %.1f", slashDir_.x, slashDir_.y);
-    ImGui::Text("counterStance_: %s", isCounterStance_ ? "true" : "false");
-    ImGui::Text("justCountered_: %s", justCountered_ ? "true" : "false");
-    ImGui::Text("justCounterFailed_: %s",
-                justCounterFailed_ ? "true" : "false");
-    ImGui::Text("justCounterEarly_: %s", justCounterEarly_ ? "true" : "false");
-    ImGui::Text("justCounterLate_: %s", justCounterLate_ ? "true" : "false");
-    ImGui::Text("counterStateTimer_: %.2f", counterStateTimer_);
-    const char *counterAxisName = "None";
-    switch (counterAxis_) {
-    case SwordCounterAxis::Vertical:
-        counterAxisName = "Vertical";
-        break;
-    case SwordCounterAxis::Horizontal:
-        counterAxisName = "Horizontal";
-        break;
-    default:
-        break;
-    }
-    ImGui::Text("counterAxis_: %s", counterAxisName);
-    ImGui::End();
-#endif
 }
