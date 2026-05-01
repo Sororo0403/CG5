@@ -2,9 +2,9 @@
 #include "DirectXCommon.h"
 #include "EffectSystem.h"
 #include "EngineRuntime.h"
-#include "PlayerTuningPresetIO.h"
 #include "Input.h"
 #include "ModelManager.h"
+#include "PlayerTuningPresetIO.h"
 #include "PostEffectRenderer.h"
 #include "SceneManager.h"
 #include "TextureManager.h"
@@ -14,132 +14,13 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #endif
+#include "EnemyTuningPresetIO.h"
 #include <algorithm>
 #include <cmath>
-#include "EnemyTuningPresetIO.h"
 
 using namespace DirectX;
 
-static const std::string kBossAnimIdle = "Action";
-static const std::string kBossAnimMove = "Action.001";
-static const std::string kBossAnimSweep =
-    "\xE6\xA8\xAA\xE8\x96\x99\xE3\x81\x8E\xE6\x89\x95\xE3\x81\x84";
-static const std::string kBossAnimWave =
-    "\xE6\xB3\xA2\xE7\x8A\xB6\xE6\x94\xBB\xE6\x92\x83";
-static const std::string kBossAnimSmash =
-    "\xE7\xB8\xA6\xE6\x8C\xAF\xE3\x82\x8A\xE4\xB8\x8B\xE3\x82\x8D\xE3\x81\x97";
-static bool HasAnimation(const Model *model, const std::string &animationName);
-
-static std::string PickEnemyIntroAnimation(const Model *model, const Enemy &enemy,
-                                           bool &outLoop) {
-    outLoop = false;
-
-    if (!model || model->animations.empty()) {
-        return {};
-    }
-
-    switch (enemy.GetIntroPhase()) {
-    case IntroPhase::SecondSlash:
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        break;
-
-    case IntroPhase::SpinSlash:
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        break;
-
-    case IntroPhase::Settle:
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        break;
-    }
-
-    if (HasAnimation(model, kBossAnimIdle)) {
-        outLoop = true;
-        return kBossAnimIdle;
-    }
-
-    outLoop = true;
-    return model->currentAnimation.empty() ? model->animations.begin()->first
-                                           : model->currentAnimation;
-}
-
-static bool HasAnimation(const Model *model, const std::string &animationName) {
-    if (!model) {
-        return false;
-    }
-
-    return model->animations.find(animationName) != model->animations.end();
-}
-
-static std::string PickEnemyAnimation(const Model *model, const Enemy &enemy,
-                                      bool &outLoop) {
-    outLoop = true;
-
-    if (!model || model->animations.empty()) {
-        return {};
-    }
-
-    switch (enemy.GetActionKind()) {
-    case ActionKind::Smash:
-        outLoop = false;
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        break;
-
-    case ActionKind::Sweep:
-        outLoop = false;
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        break;
-
-    case ActionKind::Shot:
-    case ActionKind::Wave:
-        outLoop = false;
-        if (HasAnimation(model, kBossAnimWave)) {
-            return kBossAnimWave;
-        }
-        break;
-
-    case ActionKind::Warp:
-    case ActionKind::Stalk:
-    case ActionKind::None:
-    default:
-        if (HasAnimation(model, kBossAnimIdle)) {
-            return kBossAnimIdle;
-        }
-        break;
-    }
-
-    if (HasAnimation(model, kBossAnimIdle)) {
-        return kBossAnimIdle;
-    }
-    if (HasAnimation(model, kBossAnimMove)) {
-        return kBossAnimMove;
-    }
-
-    return model->currentAnimation.empty() ? model->animations.begin()->first
-                                           : model->currentAnimation;
-}
-
-static float Clamp01(float value) {
-    return std::clamp(value, 0.0f, 1.0f);
-}
+static float Clamp01(float value) { return std::clamp(value, 0.0f, 1.0f); }
 
 static float EaseOutCubic(float t) {
     t = Clamp01(t);
@@ -164,16 +45,14 @@ void GameScene::Initialize(const SceneContext &ctx) {
 
     auto upload = dx->BeginUploadContext();
 
-    uint32_t playerModel = model->Load(upload, L"resources/model/player/player.glb");
-    uint32_t swordModel = model->Load(upload, L"resources/model/player/sword.glb");
+    uint32_t playerModel =
+        model->Load(upload, L"resources/model/player/player.glb");
+    uint32_t swordModel =
+        model->Load(upload, L"resources/model/player/sword.glb");
     uint32_t enemyModel = 0;
     uint32_t bulletModel =
         ctx_->model->Load(upload, L"resources/model/bullet/bullet.obj");
-    try {
-        enemyModel = model->Load(upload, L"resources/model/boss/boss.gltf");
-    } catch (const std::exception &) {
-        enemyModel = model->Load(upload, L"resources/model/enemy/enemy.glb");
-    }
+    enemyModel = model->Load(upload, L"resources/model/boss/boss.gltf");
 
     upload.Finish();
 
@@ -203,6 +82,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     playerModelId_ = playerModel;
     enemy_.Initialize(enemyModel, bulletModel);
     enemyModelId_ = enemyModel;
+    enemyAnimation_.Initialize(enemyModelId_);
 
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
@@ -215,13 +95,12 @@ void GameScene::Initialize(const SceneContext &ctx) {
         }
     }
 
-    SyncEnemyAnimation();
+    enemyAnimation_.Sync(ctx_->model, enemy_);
     UpdateSceneLighting();
     combatSystem_.Reset();
     counterCinematicActive_ = false;
     hasGameStarted_ = false;
     demoIntroSkipped_ = false;
-    enemyAnimationFrozen_ = false;
     if (ctx_ != nullptr && ctx_->renderer.postEffectRenderer != nullptr) {
         ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
         ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
@@ -230,7 +109,8 @@ void GameScene::Initialize(const SceneContext &ctx) {
     editableObjects_.clear();
     editableObjects_.push_back({this, 1, "Player", "Actor", false, true});
     editableObjects_.push_back({this, 2, "Enemy", "Actor", false, true});
-    selectedEditableObjectId_ = editableObjects_.empty() ? 0 : editableObjects_[0].id;
+    selectedEditableObjectId_ =
+        editableObjects_.empty() ? 0 : editableObjects_[0].id;
     sceneDirty_ = false;
     gameplayPaused_ = false;
 }
@@ -298,7 +178,9 @@ void GameScene::SceneEditableObject::SetEditorTransform(
     }
 }
 
-size_t GameScene::GetEditableObjectCount() const { return editableObjects_.size(); }
+size_t GameScene::GetEditableObjectCount() const {
+    return editableObjects_.size();
+}
 
 IEditableObject *GameScene::GetEditableObject(size_t index) {
     if (index >= editableObjects_.size()) {
@@ -378,8 +260,8 @@ void GameScene::SetGameplayPaused(bool paused) { gameplayPaused_ = paused; }
 bool GameScene::IsGameplayPaused() const { return gameplayPaused_; }
 
 void GameScene::ResetGameplay() {
-    player_.SetTransform({{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
-                          {1.0f, 1.0f, 1.0f}});
+    player_.SetTransform(
+        {{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}});
     combatSystem_.Reset();
 }
 
@@ -389,9 +271,9 @@ void GameScene::Update() {
     const float gameplayDeltaTime = baseDeltaTime * ComputeGameplayTimeScale();
     const float playerDeltaTime =
         counterCinematicActive_ ? baseDeltaTime : gameplayDeltaTime;
-    const float enemyDeltaTime =
-        counterCinematicActive_ ? (baseDeltaTime * counterTimeScale_)
-                               : gameplayDeltaTime;
+    const float enemyDeltaTime = counterCinematicActive_
+                                     ? (baseDeltaTime * counterTimeScale_)
+                                     : gameplayDeltaTime;
 #ifdef _DEBUG
     const bool freezeEnemyMotion = dbgFreezeEnemyMotion_;
 #else
@@ -404,19 +286,16 @@ void GameScene::Update() {
         if (!demoIntroSkipped_) {
             enemy_.SkipIntro();
             demoIntroSkipped_ = true;
-            SyncEnemyAnimation();
+            enemyAnimation_.Sync(ctx_->model, enemy_);
         }
 
         if (input != nullptr && input->IsKeyTrigger(DIK_SPACE)) {
             hasGameStarted_ = true;
             enemy_.RestartIntro();
+            enemyAnimation_.ResetIntro();
             counterCinematicActive_ = false;
-            SetEnemyAnimationFrozen(false);
-            enemyAnimationName_.clear();
-            enemyAnimationLoop_ = true;
-            enemyIntroAnimationStarted_ = false;
-            enemyIntroPhase_ = IntroPhase::SecondSlash;
-            SyncEnemyAnimation();
+            enemyAnimation_.SetFrozen(ctx_->model, false);
+            enemyAnimation_.Sync(ctx_->model, enemy_);
             return;
         } else {
             sceneLightTime_ += baseDeltaTime;
@@ -440,11 +319,9 @@ void GameScene::Update() {
                 enemy_.Update(playerObs, gameplayDeltaTime);
             }
 
-            SyncEnemyAnimation();
-            SetEnemyAnimationFrozen(false);
-            if (!enemyAnimationFrozen_) {
-                ctx_->model->UpdateAnimation(enemyModelId_, gameplayDeltaTime);
-            }
+            enemyAnimation_.Sync(ctx_->model, enemy_);
+            enemyAnimation_.SetFrozen(ctx_->model, false);
+            enemyAnimation_.Update(ctx_->model, gameplayDeltaTime);
 
             UpdateSceneCamera();
             counterCinematicActive_ = false;
@@ -475,11 +352,9 @@ void GameScene::Update() {
             enemy_.Update(playerObs, gameplayDeltaTime);
         }
 
-        SyncEnemyAnimation();
-        SetEnemyAnimationFrozen(false);
-        if (!enemyAnimationFrozen_) {
-            ctx_->model->UpdateAnimation(enemyModelId_, gameplayDeltaTime);
-        }
+        enemyAnimation_.Sync(ctx_->model, enemy_);
+        enemyAnimation_.SetFrozen(ctx_->model, false);
+        enemyAnimation_.Update(ctx_->model, gameplayDeltaTime);
 
         UpdateSceneCamera();
         counterCinematicActive_ = false;
@@ -526,11 +401,9 @@ void GameScene::Update() {
     }
     UpdateSceneLighting();
 
-    SyncEnemyAnimation();
-    SetEnemyAnimationFrozen(counterCinematicActive_);
-    if (!enemyAnimationFrozen_) {
-        ctx_->model->UpdateAnimation(enemyModelId_, enemyDeltaTime);
-    }
+    enemyAnimation_.Sync(ctx_->model, enemy_);
+    enemyAnimation_.SetFrozen(ctx_->model, counterCinematicActive_);
+    enemyAnimation_.Update(ctx_->model, enemyDeltaTime);
 
     if (ctx_ != nullptr && ctx_->effects != nullptr) {
         ctx_->effects->BeginFrame(ctx_->deltaTime);
@@ -563,11 +436,11 @@ void GameScene::Update() {
     if (freezeEnemyMotion) {
         if (combatResult.startCounterCinematicThisFrame) {
             counterCinematicActive_ = true;
-            SetEnemyAnimationFrozen(true);
+            enemyAnimation_.SetFrozen(ctx_->model, true);
         }
         if (combatResult.stopCounterCinematicThisFrame) {
             counterCinematicActive_ = false;
-            SetEnemyAnimationFrozen(false);
+            enemyAnimation_.SetFrozen(ctx_->model, false);
         }
         UpdateCounterVignette(baseDeltaTime);
         return;
@@ -575,15 +448,15 @@ void GameScene::Update() {
 
     if (combatResult.startCounterCinematicThisFrame) {
         counterCinematicActive_ = true;
-        SetEnemyAnimationFrozen(true);
+        enemyAnimation_.SetFrozen(ctx_->model, true);
     }
     if (combatResult.stopCounterCinematicThisFrame) {
         counterCinematicActive_ = false;
-        SetEnemyAnimationFrozen(false);
+        enemyAnimation_.SetFrozen(ctx_->model, false);
     }
     if (combatResult.forceSyncEnemyAnimationThisFrame) {
-        SyncEnemyAnimation();
-        SetEnemyAnimationFrozen(true);
+        enemyAnimation_.Sync(ctx_->model, enemy_);
+        enemyAnimation_.SetFrozen(ctx_->model, true);
     }
 
     UpdateCounterVignette(baseDeltaTime);
@@ -598,39 +471,6 @@ float GameScene::ComputeGameplayTimeScale() const {
         return 0.0f;
     }
     return runtime.Settings().timeScale;
-}
-
-void GameScene::SetEnemyAnimationFrozen(bool frozen) {
-    if (ctx_ == nullptr || ctx_->model == nullptr) {
-        enemyAnimationFrozen_ = frozen;
-        return;
-    }
-
-    Model *enemyModel = ctx_->model->GetModel(enemyModelId_);
-    if (enemyModel == nullptr) {
-        enemyAnimationFrozen_ = frozen;
-        return;
-    }
-
-    if (frozen) {
-        if (HasAnimation(enemyModel, kBossAnimIdle)) {
-            ctx_->model->PlayAnimation(enemyModelId_, kBossAnimIdle, true);
-            ctx_->model->UpdateAnimation(enemyModelId_, 0.0f);
-            enemyAnimationName_ = kBossAnimIdle;
-            enemyAnimationLoop_ = true;
-        }
-        enemyModel->isPlaying = false;
-        enemyModel->animationTime = 0.0f;
-        enemyModel->animationFinished = false;
-        enemyAnimationFrozen_ = true;
-        return;
-    }
-
-    if (enemyAnimationFrozen_ && !enemyModel->animationFinished &&
-        !enemyModel->currentAnimation.empty()) {
-        enemyModel->isPlaying = true;
-    }
-    enemyAnimationFrozen_ = false;
 }
 
 void GameScene::UpdateCounterVignette(float deltaTime) {
@@ -661,56 +501,6 @@ void GameScene::DrawDemoPlayIndicator() {
         !hasGameStarted_);
 }
 
-void GameScene::SyncEnemyAnimation() {
-    ModelManager *modelManager = ctx_->model;
-    Model *enemyModel = modelManager->GetModel(enemyModelId_);
-    if (!enemyModel || enemyModel->animations.empty()) {
-        return;
-    }
-
-    bool shouldLoop = true;
-    std::string nextAnimation = PickEnemyAnimation(enemyModel, enemy_, shouldLoop);
-    if (nextAnimation.empty()) {
-        return;
-    }
-
-    if (enemy_.IsIntroActive()) {
-        bool introLoop = false;
-        std::string introAnimation =
-            PickEnemyIntroAnimation(enemyModel, enemy_, introLoop);
-        if (!introAnimation.empty()) {
-            IntroPhase introPhase = enemy_.GetIntroPhase();
-            const bool forceRestart =
-                (enemyIntroPhase_ != introPhase &&
-                 (introPhase == IntroPhase::SecondSlash ||
-                  introPhase == IntroPhase::SpinSlash));
-            if (!enemyIntroAnimationStarted_ || forceRestart ||
-                enemyAnimationName_ != introAnimation ||
-                enemyAnimationLoop_ != introLoop) {
-                modelManager->PlayAnimation(enemyModelId_, introAnimation,
-                                            introLoop);
-                modelManager->UpdateAnimation(enemyModelId_, 0.0f);
-                enemyAnimationName_ = introAnimation;
-                enemyAnimationLoop_ = introLoop;
-                enemyIntroAnimationStarted_ = true;
-            }
-            enemyIntroPhase_ = introPhase;
-            return;
-        }
-    } else {
-        enemyIntroAnimationStarted_ = false;
-        enemyIntroPhase_ = IntroPhase::SecondSlash;
-    }
-
-    if (enemyAnimationName_ == nextAnimation && enemyAnimationLoop_ == shouldLoop) {
-        return;
-    }
-
-    modelManager->PlayAnimation(enemyModelId_, nextAnimation, shouldLoop);
-    modelManager->UpdateAnimation(enemyModelId_, 0.0f);
-    enemyAnimationName_ = nextAnimation;
-    enemyAnimationLoop_ = shouldLoop;
-}
 void GameScene::Draw() {
     ctx_->model->PreDraw();
     const Camera *currentCamera = &camera_;
@@ -740,7 +530,6 @@ void GameScene::Draw() {
     DrawWarpDistortionPass();
     DrawDemoPlayIndicator();
     DrawCounterVignette();
-
 }
 
 void GameScene::UpdateSceneLighting() {
@@ -757,9 +546,10 @@ void GameScene::UpdateSceneLighting() {
 
     const float pulse = 0.82f + 0.18f * std::sinf(sceneLightTime_ * 2.4f);
     const float actionBoost =
-        enemy_.GetActionKind() == ActionKind::Warp ? 1.35f :
-        enemy_.GetActionKind() == ActionKind::Wave ? 1.20f :
-        enemy_.GetActionKind() == ActionKind::Shot ? 1.10f : 1.0f;
+        enemy_.GetActionKind() == ActionKind::Warp   ? 1.35f
+        : enemy_.GetActionKind() == ActionKind::Wave ? 1.20f
+        : enemy_.GetActionKind() == ActionKind::Shot ? 1.10f
+                                                     : 1.0f;
 
     XMFLOAT3 duelCenter = {
         (playerPos.x + enemyPos.x) * 0.5f,
@@ -808,7 +598,8 @@ void GameScene::UpdateSceneLighting() {
 bool GameScene::ProjectWorldToScreen(const XMFLOAT3 &worldPos,
                                      XMFLOAT2 &outScreen) const {
     const Camera *currentCamera = &camera_;
-    if (currentCamera == nullptr || ctx_ == nullptr || ctx_->winApp == nullptr) {
+    if (currentCamera == nullptr || ctx_ == nullptr ||
+        ctx_->winApp == nullptr) {
         return false;
     }
 
@@ -968,17 +759,15 @@ void GameScene::UpdateEnemySlashEffects() {
                 (slashStartWorld.x + slashEndWorld.x) * 0.5f,
                 (slashStartWorld.y + slashEndWorld.y) * 0.5f,
                 (slashStartWorld.z + slashEndWorld.z) * 0.5f};
-            RequestEffect(EffectParticlePreset::ChargeSpark,
-                          effectPosition);
+            RequestEffect(EffectParticlePreset::ChargeSpark, effectPosition);
             if (ctx_ != nullptr && ctx_->effects != nullptr) {
                 const bool isSweep = (worldActionKind == ActionKind::Sweep);
                 const uint32_t particleCount =
                     isSweep ? enemySlashParticleCountSweep_
                             : enemySlashParticleCountSmash_;
-                ctx_->effects->EmitArcSparks(slashStartWorld, slashEndWorld,
-                                             particleCount,
-                                             enemySlashParticleEmitScale_,
-                                             isSweep);
+                ctx_->effects->EmitArcSparks(
+                    slashStartWorld, slashEndWorld, particleCount,
+                    enemySlashParticleEmitScale_, isSweep);
             }
         }
     }
@@ -1084,11 +873,12 @@ void GameScene::DrawWarpSmokePass() {
     }
 
     XMFLOAT2 targetScreenF{};
-    bool hasTarget = ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
+    bool hasTarget =
+        ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
     XMFLOAT2 sourceScreenF{};
-    bool hasSource = enemy_.HasWarpDeparturePos() &&
-                     ProjectWorldToScreen(enemy_.GetWarpDeparturePos(),
-                                          sourceScreenF);
+    bool hasSource =
+        enemy_.HasWarpDeparturePos() &&
+        ProjectWorldToScreen(enemy_.GetWarpDeparturePos(), sourceScreenF);
 
     auto drawSmoke = [&](const XMFLOAT2 &center, float scale, float alpha,
                          bool arrival) {
@@ -1103,11 +893,11 @@ void GameScene::DrawWarpSmokePass() {
                                  std::sinf(angle * 1.25f) * drift * 0.45f);
             const float radius =
                 (arrival ? 72.0f : 48.0f) * scale * (0.65f + 0.55f * r);
-            const int a = static_cast<int>(std::clamp(alpha * (1.0f - r * 0.18f),
-                                                      0.0f, 1.0f) *
-                                           115.0f);
+            const int a = static_cast<int>(
+                std::clamp(alpha * (1.0f - r * 0.18f), 0.0f, 1.0f) * 115.0f);
             const ImU32 dark = IM_COL32(18, 6, 12, a);
-            const ImU32 red = IM_COL32(180, 18, 38, static_cast<int>(a * 0.48f));
+            const ImU32 red =
+                IM_COL32(180, 18, 38, static_cast<int>(a * 0.48f));
             drawList->AddCircleFilled(pos, radius, dark, 40);
             if ((i % 2) == 0) {
                 drawList->AddCircle(pos, radius * 0.72f, red, 36, 2.0f);
@@ -1115,8 +905,8 @@ void GameScene::DrawWarpSmokePass() {
         }
     };
 
-    if (hasSource && (warpStep == ActionStep::Start ||
-                      warpStep == ActionStep::Move)) {
+    if (hasSource &&
+        (warpStep == ActionStep::Start || warpStep == ActionStep::Move)) {
         drawSmoke(sourceScreenF, warpSourceSmokeBloomScale_, stepAlpha, false);
     }
     if (hasTarget) {
@@ -1126,7 +916,6 @@ void GameScene::DrawWarpSmokePass() {
     }
 #endif
 }
-
 
 void GameScene::DrawWarpDistortionPass() {
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
@@ -1155,21 +944,25 @@ void GameScene::DrawWarpDistortionPass() {
     }
 
     XMFLOAT2 targetScreenF{};
-    bool hasTarget = ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
+    bool hasTarget =
+        ProjectWorldToScreen(enemy_.GetWarpTargetPos(), targetScreenF);
 
     XMFLOAT2 sourceScreenF{};
-    bool hasSource = enemy_.HasWarpDeparturePos() &&
-                     ProjectWorldToScreen(enemy_.GetWarpDeparturePos(),
-                                          sourceScreenF);
+    bool hasSource =
+        enemy_.HasWarpDeparturePos() &&
+        ProjectWorldToScreen(enemy_.GetWarpDeparturePos(), sourceScreenF);
     if (!hasSource && !hasTarget) {
         return;
     }
 
     float time = enemy_.GetCurrentActionTimePublic();
-    float baseRadius = warpDistortionRadiusPx_ * (0.85f + 0.30f * stepIntensity);
-    float jitter = warpDistortionJitterPx_ * (0.80f + 0.40f * std::sinf(time * 20.0f));
-    float alpha = warpDistortionAlpha_ + warpDistortionMoveAlphaBonus_ *
-                                              (warpStep == ActionStep::Move ? 1.0f : 0.0f);
+    float baseRadius =
+        warpDistortionRadiusPx_ * (0.85f + 0.30f * stepIntensity);
+    float jitter =
+        warpDistortionJitterPx_ * (0.80f + 0.40f * std::sinf(time * 20.0f));
+    float alpha =
+        warpDistortionAlpha_ + warpDistortionMoveAlphaBonus_ *
+                                   (warpStep == ActionStep::Move ? 1.0f : 0.0f);
 
     DistortionEffectParams params{};
     params.preset = DistortionPreset::WarpPortal;
@@ -1191,9 +984,7 @@ void GameScene::DrawWarpDistortionPass() {
         PostEffectRenderer::PostEffectType::Distortion, params);
 }
 
-void GameScene::UpdateCamera(Input *input) {
-    battleCamera_.UpdateInput(input);
-}
+void GameScene::UpdateCamera(Input *input) { battleCamera_.UpdateInput(input); }
 
 void GameScene::UpdateSceneCamera() {
     battleCamera_.Apply(camera_, ctx_->deltaTime, player_, enemy_);
@@ -1203,7 +994,7 @@ void GameScene::UpdateSceneCamera() {
 }
 
 ////////////////////////////
-//lightring
+// lightring
 ///////////////////////////
 void GameScene::SpawnElectricRing(const XMFLOAT3 &worldPos, bool isWarpEnd) {
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr) {
@@ -1224,4 +1015,3 @@ void GameScene::UpdateElectricRing() {
     ctx_->renderer.postEffectRenderer->UpdateScreenEffects(
         ctx_->deltaTime, *currentCamera, ctx_->frame.width, ctx_->frame.height);
 }
-

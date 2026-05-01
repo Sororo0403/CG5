@@ -12,6 +12,7 @@
     <ClCompile Include="src\enemy\EnemyDecision.cpp" />
     <ClCompile Include="src\enemy\EnemyMovement.cpp" />
     <ClCompile Include="src\enemy\EnemyPresentation.cpp" />
+    <ClCompile Include="src\enemy\EnemyAnimationController.cpp" />
     <ClCompile Include="src\enemy\EnemyTuning.cpp" />
     <ClCompile Include="src\enemy\EnemyTuningPresetIO.cpp" />
     <ClCompile Include="src\enemy\Bullet.cpp" />
@@ -30,6 +31,7 @@
     <ClInclude Include="include\enemy\Bullet.h" />
     <ClInclude Include="include\enemy\Enemy.h" />
     <ClInclude Include="include\enemy\EnemyActionData.h" />
+    <ClInclude Include="include\enemy\EnemyAnimationController.h" />
     <ClInclude Include="include\enemy\EnemyPresentation.h" />
     <ClInclude Include="include\enemy\EnemyTuningPreset.h" />
     <ClInclude Include="include\enemy\EnemyTuningPresetIO.h" />

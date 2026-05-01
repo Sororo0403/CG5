@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "CombatSystem.h"
 #include "Enemy.h"
+#include "EnemyAnimationController.h"
 #include "EffectParticleSystem.h"
 #include "IEditableScene.h"
 #include "IntroCameraController.h"
@@ -67,8 +68,6 @@ class GameScene : public BaseScene, public IEditableScene {
     void UpdateCamera(Input *input);
     void UpdateSceneCamera();
     void UpdateSceneLighting();
-    void SyncEnemyAnimation();
-    void SetEnemyAnimationFrozen(bool frozen);
     float ComputeGameplayTimeScale() const;
     void UpdateCounterVignette(float deltaTime);
     void DrawCounterVignette();
@@ -98,13 +97,10 @@ class GameScene : public BaseScene, public IEditableScene {
 
     Player player_;
     Enemy enemy_;
+    EnemyAnimationController enemyAnimation_;
     CombatSystem combatSystem_;
     uint32_t playerModelId_ = 0;
     uint32_t enemyModelId_ = 0;
-    std::string enemyAnimationName_{};
-    bool enemyAnimationLoop_ = true;
-    bool enemyIntroAnimationStarted_ = false;
-    IntroPhase enemyIntroPhase_ = IntroPhase::SecondSlash;
 
 #ifdef _DEBUG
     bool dbgFreezeEnemyMotion_ = false;
@@ -125,7 +121,6 @@ class GameScene : public BaseScene, public IEditableScene {
     bool counterCinematicActive_ = false;
     bool hasGameStarted_ = false;
     bool demoIntroSkipped_ = false;
-    bool enemyAnimationFrozen_ = false;
     float counterTimeScale_ = 0.05f;
 
     // Enemy slash presentation
