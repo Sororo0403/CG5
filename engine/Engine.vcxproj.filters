@@ -22,6 +22,12 @@
     <Filter Include="include\graphics">
       <UniqueIdentifier>{cf901ebd-4ec3-4245-abfb-a4f8a060fe78}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include\graphics\posteffect">
+      <UniqueIdentifier>{4b7eaf0a-9190-48bd-8cc1-4fe10e04c44d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\graphics\posteffect\pass">
+      <UniqueIdentifier>{70f5d5fb-28d9-4515-bf4a-166ebc0892e6}</UniqueIdentifier>
+    </Filter>
     <Filter Include="include\core">
       <UniqueIdentifier>{426c453d-acbc-4090-be64-3dc3056a4c6d}</UniqueIdentifier>
     </Filter>
@@ -48,6 +54,12 @@
     </Filter>
     <Filter Include="src\graphics">
       <UniqueIdentifier>{97862079-a97b-4220-a22d-7186c388520a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\graphics\posteffect">
+      <UniqueIdentifier>{ee27e84e-5feb-4c9c-8670-20656555f785}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\graphics\posteffect\pass">
+      <UniqueIdentifier>{e3be1491-380b-4f8d-b8ba-ad8b57f0cde9}</UniqueIdentifier>
     </Filter>
     <Filter Include="src\imgui">
       <UniqueIdentifier>{9fdd27b8-e9de-4df3-816a-806d9fd09028}</UniqueIdentifier>
@@ -149,6 +161,30 @@
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\PostEffectRenderer.cpp">
       <Filter>src\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\ColorGradingPass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\DistortionPass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\EdgePass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\FilterPass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\NoisePass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\OverlayPass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\RadialBlurPass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\graphics\posteffect\pass\VignettePass.cpp">
+      <Filter>src\graphics\posteffect\pass</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\RenderTexture.cpp">
       <Filter>src\graphics</Filter>
@@ -298,6 +334,36 @@
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\PostEffectRenderer.h">
       <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\IPostEffectPass.h">
+      <Filter>include\graphics\posteffect</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\PostEffectPassContext.h">
+      <Filter>include\graphics\posteffect</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\ColorGradingPass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\DistortionPass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\EdgePass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\FilterPass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\NoisePass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\OverlayPass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\RadialBlurPass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\posteffect\pass\VignettePass.h">
+      <Filter>include\graphics\posteffect\pass</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\RenderTexture.h">
       <Filter>include\graphics</Filter>

@@ -1,89 +1,29 @@
 #pragma once
-#include <DirectXMath.h>
+#include "posteffect/PostEffectPassContext.h"
+#include "posteffect/pass/ColorGradingPass.h"
+#include "posteffect/pass/DistortionPass.h"
+#include "posteffect/pass/EdgePass.h"
+#include "posteffect/pass/FilterPass.h"
+#include "posteffect/pass/NoisePass.h"
+#include "posteffect/pass/OverlayPass.h"
+#include "posteffect/pass/RadialBlurPass.h"
+#include "posteffect/pass/VignettePass.h"
 #include <d3d12.h>
-#include <cstdint>
 #include <wrl.h>
 
 class Camera;
 class DirectXCommon;
 class SrvManager;
 
-struct ElectricRingParamGPU {
-    DirectX::XMFLOAT2 center = {0.5f, 0.5f};
-    float radius = 0.0f;
-    float time = 0.0f;
-    float ringWidth = 0.0f;
-    float distortionWidth = 0.0f;
-    float distortionStrength = 0.0f;
-    float swirlStrength = 0.0f;
-    float cloudScale = 0.0f;
-    float cloudIntensity = 0.0f;
-    float brightness = 0.0f;
-    float haloIntensity = 0.0f;
-    DirectX::XMFLOAT2 aspectInvAspect = {1.0f, 1.0f};
-    float innerFade = 0.0f;
-    float outerFade = 0.0f;
-    float enabled = 0.0f;
-};
-
-enum class DistortionPreset {
-    WarpPortal,
-    Shockwave,
-    UltimateBurst,
-    HeatHaze,
-    WaterRipple,
-};
-
-enum class DistortionPhase { Start, Sustain, End };
-
-struct DistortionEffectParams {
-    DistortionPreset preset = DistortionPreset::WarpPortal;
-    DistortionPhase phase = DistortionPhase::Start;
-    bool hasOrigin = false;
-    bool hasTarget = false;
-    DirectX::XMFLOAT2 originScreen = {0.0f, 0.0f};
-    DirectX::XMFLOAT2 targetScreen = {0.0f, 0.0f};
-    float time = 0.0f;
-    float intensity = 1.0f;
-    float baseRadius = 100.0f;
-    float jitter = 0.0f;
-    float alpha = 0.0f;
-    float thickness = 4.0f;
-    float lineLength = 72.0f;
-    float footOffset = 0.0f;
-    float previewOffset = 46.0f;
-};
-
 /// <summary>
 /// テクスチャを画面全体へ描画するポストエフェクト用レンダラー
 /// </summary>
 class PostEffectRenderer {
   public:
-    enum class ColorMode : int32_t {
-        None = 0,
-        Grayscale = 1,
-        Sepia = 2,
-    };
-
-    enum class FilterMode : int32_t {
-        None = 0,
-        Box3x3 = 1,
-        Box5x5 = 2,
-        Gaussian3x3 = 3,
-        GaussianBlur7x7 = 4,
-    };
-
-    enum class EdgeMode : int32_t {
-        None = 0,
-        Luminance = 1,
-        Depth = 2,
-    };
-
-    enum class RandomMode : int32_t {
-        None = 0,
-        GrayscaleNoise = 1,
-        OverlayNoise = 2,
-    };
+    using ColorMode = ColorGradingMode;
+    using FilterMode = ::FilterMode;
+    using EdgeMode = ::EdgeMode;
+    using RandomMode = NoiseMode;
 
     enum class PostEffectType {
         CounterVignette,
@@ -118,7 +58,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在の色変換エフェクトの種類を取得する
     /// </summary>
-    ColorMode GetColorMode() const { return colorMode_; }
+    ColorMode GetColorMode() const { return colorGradingPass_.GetMode(); }
 
     /// <summary>
     /// 平滑化フィルターの種類を設定する
@@ -128,7 +68,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在の平滑化フィルターの種類を取得する
     /// </summary>
-    FilterMode GetFilterMode() const { return filterMode_; }
+    FilterMode GetFilterMode() const { return filterPass_.GetMode(); }
 
     /// <summary>
     /// エッジ抽出の種類を設定する
@@ -138,7 +78,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在のエッジ抽出の種類を取得する
     /// </summary>
-    EdgeMode GetEdgeMode() const { return edgeMode_; }
+    EdgeMode GetEdgeMode() const { return edgePass_.GetMode(); }
 
     /// <summary>
     /// 輝度エッジの閾値を設定する
@@ -149,7 +89,7 @@ class PostEffectRenderer {
     /// 輝度エッジの閾値を取得する
     /// </summary>
     float GetLuminanceEdgeThreshold() const {
-        return luminanceEdgeThreshold_;
+        return edgePass_.GetLuminanceThreshold();
     }
 
     /// <summary>
@@ -160,7 +100,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 深度エッジの閾値を取得する
     /// </summary>
-    float GetDepthEdgeThreshold() const { return depthEdgeThreshold_; }
+    float GetDepthEdgeThreshold() const { return edgePass_.GetDepthThreshold(); }
 
     /// <summary>
     /// 深度復元に使うNear/Farを設定する
@@ -175,7 +115,7 @@ class PostEffectRenderer {
     /// <summary>
     /// ビネット効果が有効か取得する
     /// </summary>
-    bool IsVignettingEnabled() const { return enableVignetting_; }
+    bool IsVignettingEnabled() const { return vignettePass_.IsEnabled(); }
 
     /// <summary>
     /// ラジアルブラーの中心座標を設定する
@@ -185,7 +125,9 @@ class PostEffectRenderer {
     /// <summary>
     /// ラジアルブラーの中心座標を取得する
     /// </summary>
-    const float *GetRadialBlurCenter() const { return radialBlurCenter_; }
+    const float *GetRadialBlurCenter() const {
+        return radialBlurPass_.GetCenter();
+    }
 
     /// <summary>
     /// ラジアルブラーの強さを設定する
@@ -195,7 +137,7 @@ class PostEffectRenderer {
     /// <summary>
     /// ラジアルブラーの強さを取得する
     /// </summary>
-    float GetRadialBlurStrength() const { return radialBlurStrength_; }
+    float GetRadialBlurStrength() const { return radialBlurPass_.GetStrength(); }
 
     /// <summary>
     /// ラジアルブラーのサンプル数を設定する
@@ -205,7 +147,9 @@ class PostEffectRenderer {
     /// <summary>
     /// ラジアルブラーのサンプル数を取得する
     /// </summary>
-    int32_t GetRadialBlurSampleCount() const { return radialBlurSampleCount_; }
+    int32_t GetRadialBlurSampleCount() const {
+        return radialBlurPass_.GetSampleCount();
+    }
 
     /// <summary>
     /// 疑似乱数ノイズの表示方法を設定する
@@ -215,7 +159,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 疑似乱数ノイズの表示方法を取得する
     /// </summary>
-    RandomMode GetRandomMode() const { return randomMode_; }
+    RandomMode GetRandomMode() const { return noisePass_.GetMode(); }
 
     /// <summary>
     /// ノイズを重ねる強さを設定する
@@ -225,7 +169,7 @@ class PostEffectRenderer {
     /// <summary>
     /// ノイズを重ねる強さを取得する
     /// </summary>
-    float GetRandomStrength() const { return randomStrength_; }
+    float GetRandomStrength() const { return noisePass_.GetStrength(); }
 
     /// <summary>
     /// ノイズの粒の細かさを設定する
@@ -235,7 +179,7 @@ class PostEffectRenderer {
     /// <summary>
     /// ノイズの粒の細かさを取得する
     /// </summary>
-    float GetRandomScale() const { return randomScale_; }
+    float GetRandomScale() const { return noisePass_.GetScale(); }
 
     /// <summary>
     /// ノイズ生成に使う時間を設定する
@@ -253,51 +197,12 @@ class PostEffectRenderer {
     const ElectricRingParamGPU &GetElectricRingParam() const;
 
   private:
-    struct ActiveElectricRing {
-        bool active = false;
-        DirectX::XMFLOAT3 worldPos = {0.0f, 0.0f, 0.0f};
-        float time = 0.0f;
-        float lifeTime = 0.0f;
-        float startRadius = 0.02f;
-        float endRadius = 0.28f;
-        float ringWidth = 0.015f;
-        float distortionWidth = 0.045f;
-        float distortionStrength = 0.018f;
-        float swirlStrength = 0.006f;
-        float cloudScale = 3.5f;
-        float cloudIntensity = 1.4f;
-        float brightness = 2.4f;
-        float haloIntensity = 1.0f;
-    };
-
-    struct EffectConstBuffer {
-        int32_t colorMode = 0;
-        int32_t enableVignetting = 0;
-        int32_t filterMode = 0;
-        int32_t padding0 = 0;
-        float texelSize[2]{};
-        float padding1[2]{};
-        int32_t edgeMode = 0;
-        float luminanceEdgeThreshold = 0.2f;
-        float depthEdgeThreshold = 0.02f;
-        float padding2 = 0.0f;
-        float nearZ = 0.1f;
-        float farZ = 100.0f;
-        float padding3[2]{};
-        float radialBlurCenter[2]{0.5f, 0.5f};
-        float radialBlurStrength = 0.0f;
-        int32_t radialBlurSampleCount = 10;
-        int32_t randomMode = 0;
-        float randomStrength = 0.0f;
-        float randomScale = 240.0f;
-        float randomTime = 0.0f;
-    };
-
     void CreateRootSignature();
     void CreatePipelineState();
     void CreateConstantBuffer();
-    void UpdateConstantBuffer();
-    void DrawDistortionEffect(const DistortionEffectParams &params) const;
+    void UpdateConstantBuffer(const PostEffectConstants &constants);
+    PostEffectConstants BuildConstants(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
+                                       D3D12_GPU_DESCRIPTOR_HANDLE depthHandle);
 
     DirectXCommon *dxCommon_ = nullptr;
     SrvManager *srvManager_ = nullptr;
@@ -305,34 +210,18 @@ class PostEffectRenderer {
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
     Microsoft::WRL::ComPtr<ID3D12Resource> constBuffer_;
-    EffectConstBuffer *mappedConstBuffer_ = nullptr;
+    PostEffectConstants *mappedConstBuffer_ = nullptr;
     D3D12_VIEWPORT viewport_{};
     D3D12_RECT scissorRect_{};
-    ColorMode colorMode_ = ColorMode::None;
-    FilterMode filterMode_ = FilterMode::None;
-    EdgeMode edgeMode_ = EdgeMode::None;
-    bool enableVignetting_ = true;
-    float luminanceEdgeThreshold_ = 0.2f;
-    float depthEdgeThreshold_ = 0.02f;
-    float nearZ_ = 0.1f;
-    float farZ_ = 100.0f;
-    float radialBlurCenter_[2]{0.5f, 0.5f};
-    float radialBlurStrength_ = 0.0f;
-    int32_t radialBlurSampleCount_ = 10;
-    RandomMode randomMode_ = RandomMode::None;
-    float randomStrength_ = 0.0f;
-    float randomScale_ = 240.0f;
-    float randomTime_ = 0.0f;
     int width_ = 1;
     int height_ = 1;
 
-    bool counterVignetteRequested_ = false;
-    bool demoPlayIndicatorVisible_ = false;
-    float counterVignetteAlpha_ = 0.0f;
-    float counterVignetteFadeSpeed_ = 8.0f;
-    float demoPlayEffectTime_ = 0.0f;
-    ActiveElectricRing activeElectricRing_{};
-    ElectricRingParamGPU electricRingParam_{};
-    bool distortionRequested_ = false;
-    DistortionEffectParams distortionParams_{};
+    ColorGradingPass colorGradingPass_{};
+    FilterPass filterPass_{};
+    EdgePass edgePass_{};
+    NoisePass noisePass_{};
+    RadialBlurPass radialBlurPass_{};
+    VignettePass vignettePass_{};
+    DistortionPass distortionPass_{};
+    OverlayPass overlayPass_{};
 };
