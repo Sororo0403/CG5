@@ -3,6 +3,7 @@
 #include "IEditableScene.h"
 #include "imgui.h"
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <string>
 #include <utility>
@@ -15,6 +16,18 @@ constexpr float kHierarchyWidth = 260.0f;
 constexpr float kInspectorWidth = 320.0f;
 constexpr float kConsoleHeight = 170.0f;
 constexpr const char *kLevelDirectory = "resources/levels";
+
+bool HasSceneFilenameInput(const char *input) {
+    if (!input) {
+        return false;
+    }
+    for (const char *cursor = input; *cursor != '\0'; ++cursor) {
+        if (!std::isspace(static_cast<unsigned char>(*cursor))) {
+            return true;
+        }
+    }
+    return false;
+}
 
 std::filesystem::path MakeScenePathFromInput(const char *input) {
     std::filesystem::path filename(input ? input : "");
@@ -99,6 +112,7 @@ void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture,
 
     DrawSceneBrowserModal(context);
     DrawUnsavedChangesModal(context);
+    DrawOverwriteSceneModal(context);
 #else
     (void)scene;
     (void)renderTexture;
@@ -205,19 +219,29 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
         }
     } else {
         ImGui::SameLine();
+        if (ImGui::Button("New")) {
+            RequestNewScene(context);
+        }
+
+        ImGui::SameLine();
         if (ImGui::Button("Play")) {
             StartPlay(context);
         }
 
         ImGui::SameLine();
         if (ImGui::Button("Save")) {
-            std::string message;
-            const bool saved =
-                context.scene && context.scene->SaveScene(&message);
-            statusMessage_ = saved ? "Saved successfully" : "Failed to save";
-            console_.AddLog(saved ? message : "Failed to save scene: " + message);
-            if (saved) {
-                commandManager_.Clear();
+            if (context.scene && context.scene->HasScenePath()) {
+                std::string message;
+                const bool saved = context.scene->SaveScene(&message);
+                statusMessage_ =
+                    saved ? "Saved successfully" : "Failed to save";
+                console_.AddLog(saved ? message
+                                      : "Failed to save scene: " + message);
+                if (saved) {
+                    commandManager_.Clear();
+                }
+            } else {
+                RequestSaveSceneAs(context);
             }
         }
 
@@ -227,16 +251,7 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
                          saveAsName_.size());
         ImGui::SameLine();
         if (ImGui::Button("Save As")) {
-            std::string message;
-            const std::string path =
-                MakeScenePathFromInput(saveAsName_.data()).generic_string();
-            const bool saved =
-                context.scene && context.scene->SaveSceneAs(path, &message);
-            statusMessage_ = saved ? "Saved successfully" : "Failed to save";
-            console_.AddLog(saved ? message : "Failed to save scene: " + message);
-            if (saved) {
-                commandManager_.Clear();
-            }
+            RequestSaveSceneAs(context);
         }
 
         ImGui::SameLine();
@@ -342,9 +357,56 @@ void EditorLayer::DrawUnsavedChangesModal(EditorContext &context) {
         pendingAction_ = PendingAction::None;
         pendingScenePath_.clear();
         statusMessage_ = "Canceled";
+        console_.AddLog("Canceled");
         ImGui::CloseCurrentPopup();
     }
     ImGui::EndPopup();
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::DrawOverwriteSceneModal(EditorContext &context) {
+#ifdef _DEBUG
+    if (!pendingSaveAsPath_.empty()) {
+        ImGui::OpenPopup("Overwrite Scene");
+    }
+    if (!ImGui::BeginPopupModal("Overwrite Scene", nullptr,
+                                ImGuiWindowFlags_AlwaysAutoResize)) {
+        return;
+    }
+
+    ImGui::Text("Scene file already exists. Overwrite it?");
+    ImGui::TextDisabled("%s", pendingSaveAsPath_.c_str());
+    ImGui::Spacing();
+    if (ImGui::Button("Overwrite")) {
+        console_.AddLog("Overwriting existing scene: " + pendingSaveAsPath_);
+        ExecuteSaveSceneAs(context, pendingSaveAsPath_);
+        pendingSaveAsPath_.clear();
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Cancel")) {
+        pendingSaveAsPath_.clear();
+        statusMessage_ = "Canceled";
+        console_.AddLog("Canceled");
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::RequestNewScene(EditorContext &context) {
+#ifdef _DEBUG
+    if (context.scene && context.scene->IsSceneDirty()) {
+        pendingAction_ = PendingAction::NewScene;
+        return;
+    }
+    pendingAction_ = PendingAction::NewScene;
+    ExecutePendingAction(context);
+    pendingAction_ = PendingAction::None;
 #else
     (void)context;
 #endif // _DEBUG
@@ -355,6 +417,49 @@ void EditorLayer::RequestLoadScene(const std::string &path) {
     pendingScenePath_ = path;
     pendingAction_ = PendingAction::LoadScene;
 #else
+    (void)path;
+#endif // _DEBUG
+}
+
+void EditorLayer::RequestSaveSceneAs(EditorContext &context) {
+#ifdef _DEBUG
+    if (!context.scene) {
+        statusMessage_ = "Failed to save";
+        console_.AddLog("Failed to save scene: no editable scene");
+        return;
+    }
+    if (!HasSceneFilenameInput(saveAsName_.data())) {
+        statusMessage_ = "Failed to save";
+        console_.AddLog("Failed to save scene: file name is empty");
+        return;
+    }
+
+    const std::string path =
+        MakeScenePathFromInput(saveAsName_.data()).generic_string();
+    if (std::filesystem::exists(path)) {
+        pendingSaveAsPath_ = path;
+        return;
+    }
+    ExecuteSaveSceneAs(context, path);
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::ExecuteSaveSceneAs(EditorContext &context,
+                                     const std::string &path) {
+#ifdef _DEBUG
+    std::string message;
+    const bool saved =
+        context.scene && context.scene->SaveSceneAs(path, &message);
+    statusMessage_ = saved ? "Saved successfully" : "Failed to save";
+    console_.AddLog(saved ? message : "Failed to save scene: " + message);
+    if (saved) {
+        saveAsNameInitialized_ = false;
+        commandManager_.Clear();
+    }
+#else
+    (void)context;
     (void)path;
 #endif // _DEBUG
 }
@@ -419,6 +524,20 @@ void EditorLayer::StopPlay(EditorContext &context) {
 
 void EditorLayer::ExecutePendingAction(EditorContext &context) {
 #ifdef _DEBUG
+    if (pendingAction_ == PendingAction::NewScene) {
+        std::string message;
+        const bool created = context.scene && context.scene->NewScene(&message);
+        statusMessage_ =
+            created ? "New scene created" : "Failed to create scene";
+        console_.AddLog(created ? message
+                                : "Failed to create scene: " + message);
+        saveAsNameInitialized_ = false;
+        if (created) {
+            commandManager_.Clear();
+        }
+        return;
+    }
+
     if (pendingAction_ == PendingAction::LoadScene) {
         std::string message;
         const bool loaded = context.scene &&

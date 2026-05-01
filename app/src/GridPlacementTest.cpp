@@ -29,6 +29,10 @@ namespace {
 constexpr float kFloorHeight = 0.0f;
 constexpr float kMarkerHeight = 0.08f;
 
+std::vector<std::string> MakeEmptySceneRows() {
+    return std::vector<std::string>(7, std::string(10, '0'));
+}
+
 const char *GetPlacementKindName(PlacementObjectKind kind) {
     switch (kind) {
     case PlacementObjectKind::Floor:
@@ -848,15 +852,61 @@ int GridPlacementTest::GetHoveredGridY() const {
 }
 
 bool GridPlacementTest::SaveScene(std::string *message) {
+    if (!HasScenePath()) {
+        if (message) {
+            *message = "Scene has no save path";
+        }
+        return false;
+    }
     return SaveSceneAs(currentScenePath_, message);
 }
 
 bool GridPlacementTest::LoadScene(std::string *message) {
+    if (!HasScenePath()) {
+        if (message) {
+            *message = "Scene has no load path";
+        }
+        return false;
+    }
     return LoadSceneFromPath(currentScenePath_, message);
+}
+
+bool GridPlacementTest::NewScene(std::string *message) {
+    map_.SetRows(MakeEmptySceneRows());
+    map_.SetTileSize(1.0f);
+    placementTileSize_ = map_.GetTileSize();
+    objects_.clear();
+    selectedObjectId_ = 0;
+    nextObjectId_ = 1;
+    placementCursorX_ = 1;
+    placementCursorY_ = 1;
+    hoveredGridX_ = 0;
+    hoveredGridY_ = 0;
+    hasHoveredGridCell_ = false;
+    placementBrush_ = 1;
+    SetCurrentScenePath("");
+    RecomputePlayerSpawnFromObjects();
+    ResetPlayerToSpawn();
+    lastAppliedTileSize_ = placementTileSize_;
+    lastAppliedFloorScale_ = floorScale_;
+    lastAppliedWallScale_ = wallScale_;
+    lastAppliedWallHeight_ = wallHeight_;
+    lastAppliedMarkerScale_ = markerScale_;
+    MarkSceneDirty();
+    if (message) {
+        *message = "New scene created";
+    }
+    return true;
 }
 
 bool GridPlacementTest::SaveSceneAs(const std::string &path,
                                     std::string *message) {
+    if (path.empty()) {
+        if (message) {
+            *message = "Scene path is empty";
+        }
+        return false;
+    }
     EditableSceneDocument document = BuildSceneDocument();
     const std::string targetName = std::filesystem::path(path).stem().string();
     if (!targetName.empty()) {
@@ -873,12 +923,32 @@ bool GridPlacementTest::SaveSceneAs(const std::string &path,
 
 bool GridPlacementTest::LoadSceneFromPath(const std::string &path,
                                           std::string *message) {
+    if (path.empty()) {
+        if (message) {
+            *message = "Scene path is empty";
+        }
+        return false;
+    }
+
     EditableSceneDocument document{};
     if (!SceneSerializer::Load(path, document, message)) {
         return false;
     }
 
+    const bool wasDirty = sceneDirty_;
+    std::string previousState;
+    std::string restoreMessage;
+    CaptureSceneState(&previousState, &restoreMessage);
+
     if (!ApplySceneDocument(document, message)) {
+        if (!previousState.empty()) {
+            RestoreSceneState(previousState, nullptr);
+            if (wasDirty) {
+                MarkSceneDirty();
+            } else {
+                ClearSceneDirty();
+            }
+        }
         return false;
     }
     ResetPlayerToSpawn();
@@ -899,6 +969,10 @@ std::string GridPlacementTest::GetCurrentScenePath() const {
 
 std::string GridPlacementTest::GetCurrentSceneName() const {
     return currentSceneName_;
+}
+
+bool GridPlacementTest::HasScenePath() const {
+    return !currentScenePath_.empty();
 }
 
 bool GridPlacementTest::CaptureSceneState(std::string *outState,
@@ -1279,11 +1353,17 @@ bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document
 }
 
 void GridPlacementTest::SetCurrentScenePath(const std::string &path) {
-    currentScenePath_ = path.empty() ? "resources/levels/game_stage.json" : path;
+    if (path.empty()) {
+        currentScenePath_.clear();
+        currentSceneName_ = "untitled";
+        return;
+    }
+
+    currentScenePath_ = path;
     std::filesystem::path scenePath(currentScenePath_);
     currentSceneName_ = scenePath.stem().string();
     if (currentSceneName_.empty()) {
-        currentSceneName_ = "Untitled";
+        currentSceneName_ = "untitled";
     }
 }
 

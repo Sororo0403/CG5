@@ -22,8 +22,13 @@ class EditorLayer {
     void DrawToolbar(EditorContext &context);
     void DrawSceneBrowserModal(EditorContext &context);
     void DrawUnsavedChangesModal(EditorContext &context);
+    void DrawOverwriteSceneModal(EditorContext &context);
     void ApplyViewportInputState(const EditorContext &context);
+    void RequestNewScene(EditorContext &context);
     void RequestLoadScene(const std::string &path);
+    void RequestSaveSceneAs(EditorContext &context);
+    void ExecuteSaveSceneAs(EditorContext &context,
+                            const std::string &path);
     void StartPlay(EditorContext &context);
     void StopPlay(EditorContext &context);
     void ExecutePendingAction(EditorContext &context);
@@ -31,6 +36,7 @@ class EditorLayer {
 
     enum class PendingAction {
         None,
+        NewScene,
         LoadScene,
     };
 
@@ -43,6 +49,7 @@ class EditorLayer {
     std::array<char, 128> saveAsName_{};
     std::string statusMessage_;
     std::string pendingScenePath_;
+    std::string pendingSaveAsPath_;
     std::string playStartSceneState_;
     PendingAction pendingAction_ = PendingAction::None;
     bool playSessionActive_ = false;

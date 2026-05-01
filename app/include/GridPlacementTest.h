@@ -73,11 +73,13 @@ class GridPlacementTest : public IEditableScene {
     void OnEditableObjectChanged(size_t index) override;
     bool SaveScene(std::string *message) override;
     bool LoadScene(std::string *message) override;
+    bool NewScene(std::string *message) override;
     bool SaveSceneAs(const std::string &path, std::string *message) override;
     bool LoadSceneFromPath(const std::string &path,
                            std::string *message) override;
     std::string GetCurrentScenePath() const override;
     std::string GetCurrentSceneName() const override;
+    bool HasScenePath() const override;
     bool CaptureSceneState(std::string *outState,
                            std::string *message) const override;
     bool RestoreSceneState(const std::string &state,

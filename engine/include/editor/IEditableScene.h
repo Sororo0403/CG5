@@ -34,6 +34,12 @@ class IEditableScene {
 
     virtual bool SaveScene(std::string *message) = 0;
     virtual bool LoadScene(std::string *message) = 0;
+    virtual bool NewScene(std::string *message) {
+        if (message) {
+            *message = "New scene is not supported";
+        }
+        return false;
+    }
     virtual bool SaveSceneAs(const std::string &path, std::string *message) {
         (void)path;
         return SaveScene(message);
@@ -45,6 +51,7 @@ class IEditableScene {
     }
     virtual std::string GetCurrentScenePath() const { return {}; }
     virtual std::string GetCurrentSceneName() const { return {}; }
+    virtual bool HasScenePath() const { return !GetCurrentScenePath().empty(); }
     virtual bool CaptureSceneState(std::string *outState,
                                    std::string *message) const {
         (void)outState;
