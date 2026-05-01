@@ -102,6 +102,7 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\scene\BattleCameraController.cpp" />
+    <ClCompile Include="src\scene\BattleEffectDirector.cpp" />
     <ClCompile Include="src\scene\CombatSystem.cpp" />
     <ClCompile Include="src\scene\IntroCameraController.cpp" />
     <ClCompile Include="src\enemy\EnemyMelee.cpp" />
@@ -137,6 +138,7 @@ if exist "$(SolutionDir)engine\externals\assimp\bin\assimp-vc145-mt.dll" xcopy /
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\scene\BattleCameraController.h" />
+    <ClInclude Include="include\scene\BattleEffectDirector.h" />
     <ClInclude Include="include\scene\CombatSystem.h" />
     <ClInclude Include="include\scene\IntroCameraController.h" />
     <ClInclude Include="include\enemy\Bullet.h" />
