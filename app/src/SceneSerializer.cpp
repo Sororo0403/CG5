@@ -1,4 +1,5 @@
 #include "SceneSerializer.h"
+#include <algorithm>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <sstream>
@@ -6,7 +7,7 @@
 
 namespace {
 
-constexpr int kCurrentSceneVersion = 1;
+constexpr int kCurrentSceneVersion = 2;
 
 void SetMessage(std::string *message, const std::string &text) {
     if (message) {
@@ -14,12 +15,27 @@ void SetMessage(std::string *message, const std::string &text) {
     }
 }
 
-bool ReadFloat3(const nlohmann::json &json, DirectX::XMFLOAT3 &value) {
+std::map<std::string, std::string> MakeDefaultGridLegend() {
+    return {
+        {"0", "empty"},
+        {"1", "floor"},
+        {"2", "wall"},
+        {"3", "player_start"},
+        {"4", "goal_marker"},
+    };
+}
+
+bool ReadFloat3(const nlohmann::json &json, DirectX::XMFLOAT3 &value,
+                std::string *message, const std::string &fieldName) {
     if (!json.is_array() || json.size() != 3) {
+        SetMessage(message, "Invalid transform " + fieldName +
+                                ": expected array of 3 numbers");
         return false;
     }
     for (const nlohmann::json &element : json) {
         if (!element.is_number()) {
+            SetMessage(message, "Invalid transform " + fieldName +
+                                    ": expected array of 3 numbers");
             return false;
         }
     }
@@ -29,12 +45,17 @@ bool ReadFloat3(const nlohmann::json &json, DirectX::XMFLOAT3 &value) {
     return true;
 }
 
-bool ReadFloat4(const nlohmann::json &json, DirectX::XMFLOAT4 &value) {
+bool ReadFloat4(const nlohmann::json &json, DirectX::XMFLOAT4 &value,
+                std::string *message, const std::string &fieldName) {
     if (!json.is_array() || json.size() != 4) {
+        SetMessage(message, "Invalid transform " + fieldName +
+                                ": expected array of 4 numbers");
         return false;
     }
     for (const nlohmann::json &element : json) {
         if (!element.is_number()) {
+            SetMessage(message, "Invalid transform " + fieldName +
+                                    ": expected array of 4 numbers");
             return false;
         }
     }
@@ -45,8 +66,81 @@ bool ReadFloat4(const nlohmann::json &json, DirectX::XMFLOAT4 &value) {
     return true;
 }
 
-bool LoadObject(const nlohmann::json &objectJson, EditableSceneObject &object,
-                std::string *message) {
+bool ReadTransform(const nlohmann::json &objectJson,
+                   EditableSceneObject &object, std::string *message) {
+    if (!objectJson.contains("transform")) {
+        object.hasTransform = false;
+        return true;
+    }
+    if (!objectJson["transform"].is_object()) {
+        SetMessage(message, "Invalid object transform: transform must be object");
+        return false;
+    }
+
+    const nlohmann::json &transformJson = objectJson["transform"];
+    if (!transformJson.contains("position") ||
+        !ReadFloat3(transformJson["position"], object.transform.position,
+                    message, "position") ||
+        !transformJson.contains("rotation") ||
+        !ReadFloat4(transformJson["rotation"], object.transform.rotation,
+                    message, "rotation") ||
+        !transformJson.contains("scale") ||
+        !ReadFloat3(transformJson["scale"], object.transform.scale, message,
+                    "scale")) {
+        return false;
+    }
+    object.hasTransform = true;
+    return true;
+}
+
+bool ReadRows(const nlohmann::json &rowsJson, const std::string &sourceName,
+              std::vector<std::string> &rows, std::string *message) {
+    if (!rowsJson.is_array()) {
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": grid rows must be array");
+        return false;
+    }
+
+    size_t expectedWidth = 0;
+    for (const nlohmann::json &row : rowsJson) {
+        if (!row.is_string()) {
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": grid rows must be strings");
+            return false;
+        }
+        std::string rowText = row.get<std::string>();
+        if (rowText.empty()) {
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": grid rows must not be empty strings");
+            return false;
+        }
+        if (expectedWidth == 0) {
+            expectedWidth = rowText.size();
+        } else if (rowText.size() != expectedWidth) {
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": grid rows must have equal length");
+            return false;
+        }
+        rows.push_back(std::move(rowText));
+    }
+    if (rows.empty()) {
+        SetMessage(message, "Invalid scene json in " + sourceName +
+                                ": grid rows must not be empty");
+        return false;
+    }
+    return true;
+}
+
+char ReadMapCode(const nlohmann::json &json, const char fallback) {
+    if (!json.is_string()) {
+        return fallback;
+    }
+    const std::string text = json.get<std::string>();
+    return text.empty() ? fallback : text[0];
+}
+
+bool LoadObjectV1(const nlohmann::json &objectJson,
+                  EditableSceneObject &object, std::string *message) {
     if (!objectJson.is_object()) {
         SetMessage(message, "Invalid scene json: object must be object");
         return false;
@@ -58,34 +152,108 @@ bool LoadObject(const nlohmann::json &objectJson, EditableSceneObject &object,
 
     object.id = objectJson.value("id", 0ull);
     object.name = objectJson.value("name", std::string{});
-    object.kind = objectJson.value("kind", std::string{});
-    object.gridX = objectJson.value("gridX", 0);
-    object.gridY = objectJson.value("gridY", 0);
-    object.collider = objectJson.value("collider", std::string{});
+    object.type = objectJson.value("kind", std::string{});
+    object.enabled = objectJson.value("visible", true);
     object.locked = objectJson.value("locked", false);
-    object.visible = objectJson.value("visible", true);
+    object.gridPlacement.gridX = objectJson.value("gridX", 0);
+    object.gridPlacement.gridY = objectJson.value("gridY", 0);
+    object.gridPlacement.mapCode =
+        ReadMapCode(objectJson.value("mapCode", nlohmann::json{"0"}), '0');
+    object.collider.mode = objectJson.value("collider", std::string{});
+    object.collider.enabled = !object.collider.mode.empty();
+    return ReadTransform(objectJson, object, message);
+}
 
-    const std::string mapCode =
-        objectJson.value("mapCode", std::string{"0"});
-    object.mapCode = mapCode.empty() ? '0' : mapCode[0];
-
-    if (!objectJson.contains("transform") ||
-        !objectJson["transform"].is_object()) {
-        SetMessage(message, "Invalid object transform");
+bool LoadObjectV2(const nlohmann::json &objectJson,
+                  EditableSceneObject &object, std::string *message) {
+    if (!objectJson.is_object()) {
+        SetMessage(message, "Invalid scene json: object must be object");
         return false;
     }
 
-    const nlohmann::json &transformJson = objectJson["transform"];
-    if (!transformJson.contains("position") ||
-        !ReadFloat3(transformJson["position"], object.transform.position) ||
-        !transformJson.contains("rotation") ||
-        !ReadFloat4(transformJson["rotation"], object.transform.rotation) ||
-        !transformJson.contains("scale") ||
-        !ReadFloat3(transformJson["scale"], object.transform.scale)) {
-        SetMessage(message, "Invalid object transform");
+    if (objectJson.contains("type")) {
+        if (!objectJson["type"].is_string()) {
+            SetMessage(message, "Invalid scene json: object type must be string");
+            return false;
+        }
+        object.type = objectJson["type"].get<std::string>();
+    } else if (objectJson.contains("kind") && objectJson["kind"].is_string()) {
+        object.type = objectJson["kind"].get<std::string>();
+    } else {
+        SetMessage(message, "Invalid scene json: object type must be string");
         return false;
     }
 
+    object.id = objectJson.value("id", 0ull);
+    object.name = objectJson.value("name", std::string{});
+    object.enabled =
+        objectJson.contains("enabled")
+            ? objectJson.value("enabled", true)
+            : objectJson.value("visible", true);
+    object.locked = objectJson.value("locked", false);
+
+    if (objectJson.contains("components")) {
+        if (!objectJson["components"].is_object()) {
+            SetMessage(message,
+                       "Invalid scene json: object components must be object");
+            return false;
+        }
+        const nlohmann::json &components = objectJson["components"];
+        if (components.contains("GridPlacement")) {
+            const nlohmann::json &grid = components["GridPlacement"];
+            if (!grid.is_object()) {
+                SetMessage(message,
+                           "Invalid scene json: GridPlacement must be object");
+                return false;
+            }
+            object.gridPlacement.enabled = true;
+            object.gridPlacement.gridX = grid.value("gridX", 0);
+            object.gridPlacement.gridY = grid.value("gridY", 0);
+            object.gridPlacement.mapCode =
+                ReadMapCode(grid.value("mapCode", nlohmann::json{"0"}), '0');
+        }
+        if (components.contains("Collider")) {
+            const nlohmann::json &collider = components["Collider"];
+            if (!collider.is_object()) {
+                SetMessage(message,
+                           "Invalid scene json: Collider must be object");
+                return false;
+            }
+            object.collider.enabled = true;
+            object.collider.mode = collider.value("mode", std::string{});
+        }
+    } else {
+        object.gridPlacement.gridX = objectJson.value("gridX", 0);
+        object.gridPlacement.gridY = objectJson.value("gridY", 0);
+        object.gridPlacement.mapCode =
+            ReadMapCode(objectJson.value("mapCode", nlohmann::json{"0"}),
+                        '0');
+        object.collider.mode = objectJson.value("collider", std::string{});
+        object.collider.enabled = !object.collider.mode.empty();
+    }
+
+    return ReadTransform(objectJson, object, message);
+}
+
+bool ReadLegend(const nlohmann::json &gridJson,
+                EditableSceneDocument::Grid &grid, std::string *message) {
+    grid.legend = MakeDefaultGridLegend();
+    if (!gridJson.contains("legend")) {
+        return true;
+    }
+    if (!gridJson["legend"].is_object()) {
+        SetMessage(message, "Invalid scene json: grid.legend must be object");
+        return false;
+    }
+    for (auto it = gridJson["legend"].begin(); it != gridJson["legend"].end();
+         ++it) {
+        if (!it.value().is_string()) {
+            SetMessage(message,
+                       "Invalid scene json: grid.legend values must be strings");
+            return false;
+        }
+        grid.legend[it.key()] = it.value().get<std::string>();
+    }
     return true;
 }
 
@@ -100,6 +268,10 @@ bool LoadDocumentFromJson(const nlohmann::json &root,
     }
 
     EditableSceneDocument document{};
+    document.version = kCurrentSceneVersion;
+    document.grid.legend = MakeDefaultGridLegend();
+
+    int sourceVersion = 1;
     if (root.contains("version")) {
         if (!root["version"].is_number_integer()) {
             SetMessage(message, "Invalid scene json in " + sourceName +
@@ -107,12 +279,18 @@ bool LoadDocumentFromJson(const nlohmann::json &root,
             return false;
         }
         document.hasVersion = true;
-        document.version = root["version"].get<int>();
-        if (document.version > kCurrentSceneVersion) {
+        sourceVersion = root["version"].get<int>();
+        if (sourceVersion > kCurrentSceneVersion) {
             SetMessage(message, "Unsupported scene version " +
-                                    std::to_string(document.version) +
-                                    " in " + sourceName + " (current: " +
+                                    std::to_string(sourceVersion) + " in " +
+                                    sourceName + " (current: " +
                                     std::to_string(kCurrentSceneVersion) + ")");
+            return false;
+        }
+        if (sourceVersion < 1) {
+            SetMessage(message, "Invalid scene version " +
+                                    std::to_string(sourceVersion) + " in " +
+                                    sourceName);
             return false;
         }
     }
@@ -122,40 +300,60 @@ bool LoadDocumentFromJson(const nlohmann::json &root,
                                 ": name must be string");
         return false;
     }
-    if (root.contains("tileSize") && !root["tileSize"].is_number()) {
-        SetMessage(message, "Invalid scene json in " + sourceName +
-                                ": tileSize must be number");
-        return false;
-    }
     document.name = root.value("name", std::string{"game_stage"});
-    document.tileSize = root.value("tileSize", 1.0f);
 
-    if (!root.contains("rows") || !root["rows"].is_array()) {
-        SetMessage(message, "Invalid scene json in " + sourceName +
-                                ": rows must be array");
-        return false;
-    }
-    for (const nlohmann::json &row : root["rows"]) {
-        if (!row.is_string()) {
-            SetMessage(message, "Invalid scene json in " + sourceName +
-                                    ": rows must be strings");
+    if (sourceVersion >= 2 && root.contains("settings")) {
+        if (!root["settings"].is_object()) {
+            SetMessage(message,
+                       "Invalid scene json: settings must be object");
             return false;
         }
-        document.rows.push_back(row.get<std::string>());
-    }
-    if (document.rows.empty()) {
-        SetMessage(message, "Invalid scene json in " + sourceName +
-                                ": rows must not be empty");
-        return false;
+        const nlohmann::json &settings = root["settings"];
+        if (settings.contains("tileSize") &&
+            !settings["tileSize"].is_number()) {
+            SetMessage(message,
+                       "Invalid scene json: settings.tileSize must be number");
+            return false;
+        }
+        document.settings.tileSize = settings.value("tileSize", 1.0f);
+    } else {
+        if (root.contains("tileSize") && !root["tileSize"].is_number()) {
+            SetMessage(message, "Invalid scene json in " + sourceName +
+                                    ": tileSize must be number");
+            return false;
+        }
+        document.settings.tileSize = root.value("tileSize", 1.0f);
     }
 
-    if (!root.contains("objects")) {
-        if (document.hasVersion) {
-            SetMessage(message, "Invalid scene json in " + sourceName +
-                                    ": objects must be array");
+    if (sourceVersion >= 2 && root.contains("grid")) {
+        if (!root["grid"].is_object()) {
+            SetMessage(message, "Invalid scene json: grid must be object");
+            return false;
+        }
+        const nlohmann::json &gridJson = root["grid"];
+        if (!gridJson.contains("rows") ||
+            !ReadRows(gridJson["rows"], sourceName, document.grid.rows,
+                      message) ||
+            !ReadLegend(gridJson, document.grid, message)) {
             return false;
         }
     } else {
+        if (!root.contains("rows") ||
+            !ReadRows(root["rows"], sourceName, document.grid.rows, message)) {
+            return false;
+        }
+        if (root.contains("legend") && root["legend"].is_object()) {
+            for (auto it = root["legend"].begin(); it != root["legend"].end();
+                 ++it) {
+                if (it.value().is_string()) {
+                    document.grid.legend[it.key()] =
+                        it.value().get<std::string>();
+                }
+            }
+        }
+    }
+
+    if (root.contains("objects")) {
         if (!root["objects"].is_array()) {
             SetMessage(message, "Invalid scene json in " + sourceName +
                                     ": objects must be array");
@@ -164,7 +362,10 @@ bool LoadDocumentFromJson(const nlohmann::json &root,
         document.hasObjects = true;
         for (const nlohmann::json &objectJson : root["objects"]) {
             EditableSceneObject object{};
-            if (!LoadObject(objectJson, object, message)) {
+            const bool loaded = sourceVersion >= 2
+                                    ? LoadObjectV2(objectJson, object, message)
+                                    : LoadObjectV1(objectJson, object, message);
+            if (!loaded) {
                 return false;
             }
             document.objects.push_back(object);
@@ -172,14 +373,14 @@ bool LoadDocumentFromJson(const nlohmann::json &root,
     }
 
     outDocument = std::move(document);
-    if (outDocument.hasVersion && outDocument.version < kCurrentSceneVersion) {
-        SetMessage(message, "Loaded older scene version " +
-                                std::to_string(outDocument.version) +
-                                " from " + sourceName);
-    } else if (outDocument.hasVersion) {
-        SetMessage(message, "Loaded scene: " + sourceName);
+    if (sourceVersion < kCurrentSceneVersion) {
+        SetMessage(message, document.hasVersion
+                                ? "Loaded older scene version " +
+                                      std::to_string(sourceVersion) +
+                                      " from " + sourceName
+                                : "Loaded legacy scene format: " + sourceName);
     } else {
-        SetMessage(message, "Loaded legacy scene format: " + sourceName);
+        SetMessage(message, "Loaded scene: " + sourceName);
     }
     return true;
 }
@@ -188,28 +389,22 @@ nlohmann::json BuildSceneJson(const EditableSceneDocument &document) {
     nlohmann::json root;
     root["version"] = kCurrentSceneVersion;
     root["name"] = document.name;
-    root["tileSize"] = document.tileSize;
-    root["legend"] = {
-        {"0", "empty"},
-        {"1", "floor"},
-        {"2", "wall"},
-        {"3", "player_start"},
-        {"4", "goal_marker"},
+    root["settings"] = {{"tileSize", document.settings.tileSize}};
+    root["grid"] = {
+        {"rows", document.grid.rows},
+        {"legend",
+         document.grid.legend.empty() ? MakeDefaultGridLegend()
+                                      : document.grid.legend},
     };
-    root["rows"] = document.rows;
     root["objects"] = nlohmann::json::array();
 
     for (const EditableSceneObject &object : document.objects) {
         nlohmann::json objectJson;
         objectJson["id"] = object.id;
         objectJson["name"] = object.name;
-        objectJson["kind"] = object.kind;
-        objectJson["gridX"] = object.gridX;
-        objectJson["gridY"] = object.gridY;
-        objectJson["mapCode"] = std::string(1, object.mapCode);
-        objectJson["collider"] = object.collider;
+        objectJson["type"] = object.type;
+        objectJson["enabled"] = object.enabled;
         objectJson["locked"] = object.locked;
-        objectJson["visible"] = object.visible;
         objectJson["transform"] = {
             {"position",
              {object.transform.position.x, object.transform.position.y,
@@ -220,6 +415,13 @@ nlohmann::json BuildSceneJson(const EditableSceneDocument &document) {
             {"scale",
              {object.transform.scale.x, object.transform.scale.y,
               object.transform.scale.z}},
+        };
+        objectJson["components"] = {
+            {"GridPlacement",
+             {{"gridX", object.gridPlacement.gridX},
+              {"gridY", object.gridPlacement.gridY},
+              {"mapCode", std::string(1, object.gridPlacement.mapCode)}}},
+            {"Collider", {{"mode", object.collider.mode}}},
         };
         root["objects"].push_back(objectJson);
     }
@@ -313,10 +515,24 @@ bool SceneSerializer::Save(const std::filesystem::path &path,
 bool SceneSerializer::SaveToString(const EditableSceneDocument &document,
                                    std::string &outText,
                                    std::string *message) {
-    if (document.rows.empty()) {
-        SetMessage(message, "Cannot save scene: rows must not be empty");
+    if (document.grid.rows.empty()) {
+        SetMessage(message, "Cannot save scene: grid rows must not be empty");
         return false;
     }
+
+    const size_t width = document.grid.rows.front().size();
+    if (width == 0) {
+        SetMessage(message, "Cannot save scene: grid rows must not be empty");
+        return false;
+    }
+    for (const std::string &row : document.grid.rows) {
+        if (row.size() != width) {
+            SetMessage(message,
+                       "Cannot save scene: grid rows must have equal length");
+            return false;
+        }
+    }
+
     const nlohmann::json root = BuildSceneJson(document);
     outText = root.dump(2);
     return true;

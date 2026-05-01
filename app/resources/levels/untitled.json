@@ -1,22 +1,97 @@
 {
-  "legend": {
-    "0": "empty",
-    "1": "floor",
-    "2": "wall",
-    "3": "player_start",
-    "4": "goal_marker"
+  "grid": {
+    "legend": {
+      "0": "empty",
+      "1": "floor",
+      "2": "wall",
+      "3": "player_start",
+      "4": "goal_marker"
+    },
+    "rows": [
+      "0000000000",
+      "0000000000",
+      "0000000000",
+      "0000000000",
+      "0000000000",
+      "2000000000",
+      "0000000000"
+    ]
   },
   "name": "untitled",
-  "objects": [],
-  "rows": [
-    "0000000000",
-    "0000000000",
-    "0000000000",
-    "0000000000",
-    "0000000000",
-    "0000000000",
-    "0000000000"
+  "objects": [
+    {
+      "components": {
+        "Collider": {
+          "mode": "Walkable"
+        },
+        "GridPlacement": {
+          "gridX": 0,
+          "gridY": 5,
+          "mapCode": "2"
+        }
+      },
+      "enabled": true,
+      "id": 1,
+      "locked": false,
+      "name": "Floor",
+      "transform": {
+        "position": [
+          -4.5,
+          0.0,
+          2.0
+        ],
+        "rotation": [
+          -0.7071067690849304,
+          0.0,
+          0.0,
+          0.7071067094802856
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "type": "Floor"
+    },
+    {
+      "components": {
+        "Collider": {
+          "mode": "Blocked"
+        },
+        "GridPlacement": {
+          "gridX": 0,
+          "gridY": 5,
+          "mapCode": "2"
+        }
+      },
+      "enabled": true,
+      "id": 2,
+      "locked": false,
+      "name": "Wall",
+      "transform": {
+        "position": [
+          -4.302853107452393,
+          1.7303674221038818,
+          3.8025903701782227
+        ],
+        "rotation": [
+          -0.0,
+          0.3826834559440613,
+          -0.0,
+          0.9238795042037964
+        ],
+        "scale": [
+          0.8199999928474426,
+          0.9150000214576721,
+          0.8199999928474426
+        ]
+      },
+      "type": "Wall"
+    }
   ],
-  "tileSize": 1.0,
-  "version": 1
+  "settings": {
+    "tileSize": 1.0
+  },
+  "version": 2
 }

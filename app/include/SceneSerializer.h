@@ -2,6 +2,7 @@
 #include <DirectXMath.h>
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -14,23 +15,41 @@ struct EditableSceneTransform {
 struct EditableSceneObject {
     uint64_t id = 0;
     std::string name;
-    std::string kind;
-    int gridX = 0;
-    int gridY = 0;
-    char mapCode = '0';
-    std::string collider;
+    std::string type;
+    bool enabled = true;
     bool locked = false;
-    bool visible = true;
+    bool hasTransform = false;
     EditableSceneTransform transform;
+
+    struct GridPlacementComponent {
+        bool enabled = true;
+        int gridX = 0;
+        int gridY = 0;
+        char mapCode = '0';
+    } gridPlacement;
+
+    struct ColliderComponent {
+        bool enabled = false;
+        std::string mode;
+    } collider;
 };
 
 struct EditableSceneDocument {
-    int version = 1;
+    struct Settings {
+        float tileSize = 1.0f;
+    };
+
+    struct Grid {
+        std::vector<std::string> rows;
+        std::map<std::string, std::string> legend;
+    };
+
+    int version = 2;
     bool hasVersion = false;
     bool hasObjects = false;
     std::string name = "game_stage";
-    float tileSize = 1.0f;
-    std::vector<std::string> rows;
+    Settings settings;
+    Grid grid;
     std::vector<EditableSceneObject> objects;
 };
 

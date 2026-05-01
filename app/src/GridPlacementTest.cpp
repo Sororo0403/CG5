@@ -1277,25 +1277,27 @@ void GridPlacementTest::RecomputePlayerSpawnFromObjects() {
 
 EditableSceneDocument GridPlacementTest::BuildSceneDocument() const {
     EditableSceneDocument document{};
-    document.version = 1;
+    document.version = 2;
     document.hasVersion = true;
     document.hasObjects = true;
     document.name = currentSceneName_;
-    document.tileSize = map_.GetTileSize();
-    document.rows = map_.GetRows();
+    document.settings.tileSize = map_.GetTileSize();
+    document.grid.rows = map_.GetRows();
     for (const PlacementObject &object : objects_) {
         EditableSceneObject sceneObject{};
         sceneObject.id = object.id;
         sceneObject.name = object.name;
-        sceneObject.kind = GetPlacementKindName(object.kind);
-        sceneObject.gridX = object.gridX;
-        sceneObject.gridY = object.gridY;
-        sceneObject.mapCode = object.mapCode;
-        sceneObject.collider =
+        sceneObject.type = GetPlacementKindName(object.kind);
+        sceneObject.enabled = object.visible;
+        sceneObject.locked = object.locked;
+        sceneObject.hasTransform = true;
+        sceneObject.gridPlacement.gridX = object.gridX;
+        sceneObject.gridPlacement.gridY = object.gridY;
+        sceneObject.gridPlacement.mapCode = object.mapCode;
+        sceneObject.collider.enabled = true;
+        sceneObject.collider.mode =
             object.collider.empty() ? GetDefaultCollider(object.kind)
                                     : object.collider;
-        sceneObject.locked = object.locked;
-        sceneObject.visible = object.visible;
         sceneObject.transform.position = object.transform.position;
         sceneObject.transform.rotation = object.transform.rotation;
         sceneObject.transform.scale = object.transform.scale;
@@ -1306,15 +1308,15 @@ EditableSceneDocument GridPlacementTest::BuildSceneDocument() const {
 
 bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document,
                                            std::string *message) {
-    if (document.rows.empty()) {
+    if (document.grid.rows.empty()) {
         if (message) {
             *message = "Invalid scene document: rows must not be empty";
         }
         return false;
     }
 
-    map_.SetRows(document.rows);
-    map_.SetTileSize((std::max)(0.25f, document.tileSize));
+    map_.SetRows(document.grid.rows);
+    map_.SetTileSize((std::max)(0.25f, document.settings.tileSize));
     placementTileSize_ = map_.GetTileSize();
 
     if (!document.hasObjects || document.objects.empty()) {
@@ -1325,29 +1327,34 @@ bool GridPlacementTest::ApplySceneDocument(const EditableSceneDocument &document
     std::vector<PlacementObject> loadedObjects;
     uint64_t maxId = 0;
     for (const EditableSceneObject &sceneObject : document.objects) {
-        PlacementObject object{};
-        object.id = sceneObject.id;
-        if (!IsPlacementObjectKind(sceneObject.kind, &object.kind)) {
+        PlacementObjectKind kind = PlacementObjectKind::Floor;
+        if (!IsPlacementObjectKind(sceneObject.type, &kind)) {
             if (message) {
-                *message = "Invalid scene object kind: " + sceneObject.kind;
+                *message = "Invalid scene object type: " + sceneObject.type;
             }
             return false;
         }
 
+        PlacementObject object = CreatePlacementObject(
+            kind, sceneObject.gridPlacement.gridX,
+            sceneObject.gridPlacement.gridY);
+        object.id = sceneObject.id;
         object.name = sceneObject.name;
-        object.gridX = sceneObject.gridX;
-        object.gridY = sceneObject.gridY;
-        object.mapCode = sceneObject.mapCode == '0'
+        object.gridX = sceneObject.gridPlacement.gridX;
+        object.gridY = sceneObject.gridPlacement.gridY;
+        object.mapCode = sceneObject.gridPlacement.mapCode == '0'
                              ? GetDefaultMapCode(object.kind)
-                             : sceneObject.mapCode;
-        object.collider = sceneObject.collider.empty()
+                             : sceneObject.gridPlacement.mapCode;
+        object.collider = sceneObject.collider.mode.empty()
                               ? GetDefaultCollider(object.kind)
-                              : sceneObject.collider;
+                              : sceneObject.collider.mode;
         object.locked = sceneObject.locked;
-        object.visible = sceneObject.visible;
-        object.transform.position = sceneObject.transform.position;
-        object.transform.rotation = sceneObject.transform.rotation;
-        object.transform.scale = sceneObject.transform.scale;
+        object.visible = sceneObject.enabled;
+        if (sceneObject.hasTransform) {
+            object.transform.position = sceneObject.transform.position;
+            object.transform.rotation = sceneObject.transform.rotation;
+            object.transform.scale = sceneObject.transform.scale;
+        }
 
         if (object.id == 0 || object.id <= maxId) {
             object.id = maxId + 1;
