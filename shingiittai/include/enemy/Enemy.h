@@ -373,6 +373,7 @@ class Enemy {
     void DebugSetBossPhase(BossPhase phase);
 
     const Transform &GetTransform() const { return tf_; }
+    void SetTransform(const Transform &transform) { tf_ = transform; }
     bool IsAlive() const { return !runtime_.deathFinished; }
     float GetHP() const { return runtime_.hp; }
 

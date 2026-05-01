@@ -3,24 +3,81 @@
 #include "Bullet.h"
 #include "Camera.h"
 #include "Enemy.h"
+#include "IEditableScene.h"
 #include "Player.h"
 #include "Transform.h"
 #include "VignetteRenderer.h"
 #include <DirectXMath.h>
 #include <cstdint>
 #include <string>
+#include <utility>
+#include <vector>
 
 #ifdef _DEBUG
 #include "DebugCamera.h"
 #endif // _DEBUG
 
-class GameScene : public BaseScene {
+class GameScene : public BaseScene, public IEditableScene {
   public:
     void Initialize(const SceneContext &ctx) override;
     void Update() override;
     void Draw() override;
 
+    const Camera *GetCurrentCamera() const { return currentCamera_; }
+
+    size_t GetEditableObjectCount() const override;
+    IEditableObject *GetEditableObject(size_t index) override;
+    const IEditableObject *GetEditableObject(size_t index) const override;
+    uint64_t GetSelectedObjectId() const override;
+    void SetSelectedObjectById(uint64_t id) override;
+    int GetSelectedEditableObjectIndex() const override;
+    void SetSelectedEditableObjectIndex(int index) override;
+    void OnEditableObjectChanged(size_t index) override;
+    bool SaveScene(std::string *message) override;
+    bool LoadScene(std::string *message) override;
+    bool NewScene(std::string *message) override;
+    bool SaveSceneAs(const std::string &path, std::string *message) override;
+    bool SaveSceneSnapshot(const std::string &path,
+                           std::string *message) const override;
+    bool LoadSceneFromPath(const std::string &path,
+                           std::string *message) override;
+    std::string GetCurrentScenePath() const override;
+    std::string GetCurrentSceneName() const override;
+    bool CaptureSceneState(std::string *outState,
+                           std::string *message) const override;
+    bool RestoreSceneState(const std::string &state,
+                           std::string *message) override;
+    bool IsSceneDirty() const override;
+    void MarkSceneDirty() override;
+    void ClearSceneDirty() override;
+    bool CanEditObjects() const override;
+    void SetGameplayPaused(bool paused) override;
+    bool IsGameplayPaused() const override;
+    void ResetGameplay() override;
+
   private:
+    struct SceneEditableObject : public IEditableObject {
+        GameScene *scene = nullptr;
+        uint64_t id = 0;
+        std::string name;
+        std::string type;
+        bool locked = false;
+        bool visible = true;
+
+        SceneEditableObject() = default;
+        SceneEditableObject(GameScene *scene, uint64_t id, std::string name,
+                            std::string type, bool locked, bool visible)
+            : scene(scene), id(id), name(std::move(name)), type(std::move(type)),
+              locked(locked), visible(visible) {}
+
+        EditableObjectDesc GetEditorDesc() const override;
+        void SetEditorName(const std::string &name) override;
+        bool SetEditorLocked(bool locked) override;
+        bool SetEditorVisible(bool visible) override;
+        EditableTransform GetEditorTransform() const override;
+        void SetEditorTransform(const EditableTransform &transform) override;
+    };
+
     void UpdateCamera(Input *input);
     void UpdateBattleCamera();
     void UpdateSceneLighting();
@@ -266,4 +323,10 @@ class GameScene : public BaseScene {
     float magnetismicWarpBonusSize_ = 0.65f;
     float magnetismicYOffset_ = 1.20f;
     float magnetismicAlphaScale_ = 1.0f;
+
+    std::vector<SceneEditableObject> editableObjects_{};
+    uint64_t selectedEditableObjectId_ = 0;
+    std::string currentScenePath_ = "resources/levels/shingiittai_editor.json";
+    bool sceneDirty_ = false;
+    bool gameplayPaused_ = false;
 };

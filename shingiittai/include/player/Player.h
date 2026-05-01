@@ -49,6 +49,7 @@ class Player {
     Sword &GetRightSword() { return rightSword_; }
     bool IsGuarding() const;
     const Transform &GetTransform() const { return tf_; }
+    void SetTransform(const Transform &transform) { tf_ = transform; }
 
     float GetHP() const { return hp_; }
     float GetMaxHP() const { return maxHp_; }

@@ -1,12 +1,15 @@
 #include "DebugDraw.h"
 #include "DirectXCommon.h"
 #include "ElectricRingEffectRenderer.h"
+#include "EditorLayer.h"
+#include "EngineRuntime.h"
 #include "GameScene.h"
 #include "GpuSlashParticleSystem.h"
 #include "Input.h"
 #include "LightManager.h"
 #include "MagnetismicRenderer.h"
 #include "ModelManager.h"
+#include "RenderTexture.h"
 #include "SceneContext.h"
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
@@ -118,11 +121,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ImguiManager imguiManager;
     imguiManager.Initialize(&winApp, &dxCommon, &srvManager);
     sceneCtx.imgui = &imguiManager;
+
+    RenderTexture editorViewportTexture;
+    editorViewportTexture.Initialize(&dxCommon, &srvManager, width, height);
+    EditorLayer editorLayer;
 #endif
 
     SceneManager sceneManager;
     sceneManager.Initialize(sceneCtx);
-    sceneManager.ChangeScene(std::make_unique<GameScene>());
+    auto gameScene = std::make_unique<GameScene>();
+    GameScene *gameScenePtr = gameScene.get();
+    sceneManager.ChangeScene(std::move(gameScene));
 
     LARGE_INTEGER freq;
     QueryPerformanceFrequency(&freq);
@@ -157,15 +166,36 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
         sceneCtx.deltaTime = deltaTime;
 
         input.Update(deltaTime);
+#ifdef _DEBUG
+        if (input.IsKeyTrigger(DIK_F1)) {
+            EngineRuntime::GetInstance().ToggleMode();
+        }
+#endif
         sceneManager.Update();
 
         dxCommon.BeginFrame();
-        dxCommon.SetBackBufferRenderTarget(true);
 
 #ifdef _DEBUG
         imguiManager.Begin(dxCommon.GetCommandList());
-#endif
+        if (EngineRuntime::GetInstance().IsEditorMode()) {
+            editorViewportTexture.Resize(width, height);
+            editorViewportTexture.BeginRender({0.04f, 0.05f, 0.07f, 1.0f});
+            sceneManager.Draw();
+            editorViewportTexture.EndRender();
+
+            dxCommon.SetBackBufferRenderTarget(true);
+            editorLayer.Draw(gameScenePtr, &editorViewportTexture,
+                             gameScenePtr != nullptr
+                                 ? gameScenePtr->GetCurrentCamera()
+                                 : nullptr);
+        } else {
+            dxCommon.SetBackBufferRenderTarget(true);
+            sceneManager.Draw();
+        }
+#else
+        dxCommon.SetBackBufferRenderTarget(true);
         sceneManager.Draw();
+#endif
 #ifdef _DEBUG
         imguiManager.End(dxCommon.GetCommandList());
 #endif

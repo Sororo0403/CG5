@@ -2,6 +2,7 @@
 #include "CollisionUtil.h"
 #include "DirectXCommon.h"
 #include "EnemyMotionDebugScene.h"
+#include "EngineRuntime.h"
 #include "Input.h"
 #include "ModelManager.h"
 #include "SceneManager.h"
@@ -24,7 +25,10 @@
 #endif
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include "EnemyTuningPresetIO.h"
 
 using namespace DirectX;
@@ -319,6 +323,331 @@ void GameScene::Initialize(const SceneContext &ctx) {
     if (ctx_ != nullptr && ctx_->electricRingParam != nullptr) {
         ctx_->electricRingParam->enabled = 0.0f;
     }
+
+    editableObjects_.clear();
+    editableObjects_.push_back({this, 1, "Player", "Actor", false, true});
+    editableObjects_.push_back({this, 2, "Enemy", "Actor", false, true});
+    selectedEditableObjectId_ = editableObjects_.empty() ? 0 : editableObjects_[0].id;
+    sceneDirty_ = false;
+    gameplayPaused_ = false;
+}
+
+namespace {
+
+nlohmann::json ToJson(const Transform &transform) {
+    return {
+        {"position",
+         {transform.position.x, transform.position.y, transform.position.z}},
+        {"rotation",
+         {transform.rotation.x, transform.rotation.y, transform.rotation.z,
+          transform.rotation.w}},
+        {"scale", {transform.scale.x, transform.scale.y, transform.scale.z}},
+    };
+}
+
+Transform TransformFromJson(const nlohmann::json &json,
+                            const Transform &fallback) {
+    Transform transform = fallback;
+    if (json.contains("position") && json["position"].is_array() &&
+        json["position"].size() >= 3) {
+        transform.position = {json["position"][0].get<float>(),
+                              json["position"][1].get<float>(),
+                              json["position"][2].get<float>()};
+    }
+    if (json.contains("rotation") && json["rotation"].is_array() &&
+        json["rotation"].size() >= 4) {
+        transform.rotation = {json["rotation"][0].get<float>(),
+                              json["rotation"][1].get<float>(),
+                              json["rotation"][2].get<float>(),
+                              json["rotation"][3].get<float>()};
+    }
+    if (json.contains("scale") && json["scale"].is_array() &&
+        json["scale"].size() >= 3) {
+        transform.scale = {json["scale"][0].get<float>(),
+                           json["scale"][1].get<float>(),
+                           json["scale"][2].get<float>()};
+    }
+    return transform;
+}
+
+EditableTransform ToEditableTransform(const Transform &transform) {
+    return {transform.position, transform.rotation, transform.scale};
+}
+
+Transform FromEditableTransform(const EditableTransform &transform) {
+    return {transform.position, transform.rotation, transform.scale};
+}
+
+} // namespace
+
+EditableObjectDesc GameScene::SceneEditableObject::GetEditorDesc() const {
+    EditableObjectDesc desc{};
+    desc.id = id;
+    desc.name = name;
+    desc.type = type;
+    desc.collider = "None";
+    desc.editable = true;
+    desc.locked = locked;
+    desc.visible = visible;
+    return desc;
+}
+
+void GameScene::SceneEditableObject::SetEditorName(const std::string &newName) {
+    name = newName;
+}
+
+bool GameScene::SceneEditableObject::SetEditorLocked(bool newLocked) {
+    locked = newLocked;
+    return true;
+}
+
+bool GameScene::SceneEditableObject::SetEditorVisible(bool newVisible) {
+    visible = newVisible;
+    return true;
+}
+
+EditableTransform GameScene::SceneEditableObject::GetEditorTransform() const {
+    if (scene == nullptr) {
+        return {};
+    }
+    if (id == 1) {
+        return ToEditableTransform(scene->player_.GetTransform());
+    }
+    if (id == 2) {
+        return ToEditableTransform(scene->enemy_.GetTransform());
+    }
+    return {};
+}
+
+void GameScene::SceneEditableObject::SetEditorTransform(
+    const EditableTransform &transform) {
+    if (scene == nullptr) {
+        return;
+    }
+    if (id == 1) {
+        scene->player_.SetTransform(FromEditableTransform(transform));
+    } else if (id == 2) {
+        scene->enemy_.SetTransform(FromEditableTransform(transform));
+    }
+}
+
+size_t GameScene::GetEditableObjectCount() const { return editableObjects_.size(); }
+
+IEditableObject *GameScene::GetEditableObject(size_t index) {
+    if (index >= editableObjects_.size()) {
+        return nullptr;
+    }
+    return &editableObjects_[index];
+}
+
+const IEditableObject *GameScene::GetEditableObject(size_t index) const {
+    if (index >= editableObjects_.size()) {
+        return nullptr;
+    }
+    return &editableObjects_[index];
+}
+
+uint64_t GameScene::GetSelectedObjectId() const {
+    return selectedEditableObjectId_;
+}
+
+void GameScene::SetSelectedObjectById(uint64_t id) {
+    selectedEditableObjectId_ = 0;
+    for (const SceneEditableObject &object : editableObjects_) {
+        if (object.id == id) {
+            selectedEditableObjectId_ = id;
+            return;
+        }
+    }
+}
+
+int GameScene::GetSelectedEditableObjectIndex() const {
+    for (size_t i = 0; i < editableObjects_.size(); ++i) {
+        if (editableObjects_[i].id == selectedEditableObjectId_) {
+            return static_cast<int>(i);
+        }
+    }
+    return -1;
+}
+
+void GameScene::SetSelectedEditableObjectIndex(int index) {
+    if (index < 0 || index >= static_cast<int>(editableObjects_.size())) {
+        selectedEditableObjectId_ = 0;
+        return;
+    }
+    selectedEditableObjectId_ = editableObjects_[static_cast<size_t>(index)].id;
+}
+
+void GameScene::OnEditableObjectChanged(size_t index) {
+    if (index < editableObjects_.size()) {
+        sceneDirty_ = true;
+    }
+}
+
+bool GameScene::SaveScene(std::string *message) {
+    return SaveSceneAs(currentScenePath_, message);
+}
+
+bool GameScene::LoadScene(std::string *message) {
+    return LoadSceneFromPath(currentScenePath_, message);
+}
+
+bool GameScene::NewScene(std::string *message) {
+    player_.SetTransform({{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
+                          {1.0f, 1.0f, 1.0f}});
+    enemy_.SetTransform({{0.0f, 0.0f, 6.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
+                         {1.0f, 1.0f, 1.0f}});
+    currentScenePath_.clear();
+    sceneDirty_ = true;
+    if (message) {
+        *message = "New Shingiittai editor scene created";
+    }
+    return true;
+}
+
+bool GameScene::SaveSceneAs(const std::string &path, std::string *message) {
+    const bool saved = SaveSceneSnapshot(path, message);
+    if (saved) {
+        currentScenePath_ = path;
+        sceneDirty_ = false;
+    }
+    return saved;
+}
+
+bool GameScene::SaveSceneSnapshot(const std::string &path,
+                                  std::string *message) const {
+    try {
+        std::filesystem::path scenePath(path);
+        if (scenePath.has_parent_path()) {
+            std::filesystem::create_directories(scenePath.parent_path());
+        }
+
+        nlohmann::json json;
+        json["name"] = GetCurrentSceneName();
+        json["objects"]["player"] = ToJson(player_.GetTransform());
+        json["objects"]["enemy"] = ToJson(enemy_.GetTransform());
+
+        std::ofstream ofs(scenePath);
+        ofs << json.dump(2);
+        if (message) {
+            *message = "Saved scene: " + scenePath.string();
+        }
+        return true;
+    } catch (const std::exception &e) {
+        if (message) {
+            *message = e.what();
+        }
+        return false;
+    }
+}
+
+bool GameScene::LoadSceneFromPath(const std::string &path,
+                                  std::string *message) {
+    try {
+        std::ifstream ifs(path);
+        if (!ifs) {
+            if (message) {
+                *message = "Scene file not found: " + path;
+            }
+            return false;
+        }
+        nlohmann::json json;
+        ifs >> json;
+        const auto &objects = json["objects"];
+        if (objects.contains("player")) {
+            player_.SetTransform(
+                TransformFromJson(objects["player"], player_.GetTransform()));
+        }
+        if (objects.contains("enemy")) {
+            enemy_.SetTransform(
+                TransformFromJson(objects["enemy"], enemy_.GetTransform()));
+        }
+        currentScenePath_ = path;
+        sceneDirty_ = false;
+        if (message) {
+            *message = "Loaded scene: " + path;
+        }
+        return true;
+    } catch (const std::exception &e) {
+        if (message) {
+            *message = e.what();
+        }
+        return false;
+    }
+}
+
+std::string GameScene::GetCurrentScenePath() const { return currentScenePath_; }
+
+std::string GameScene::GetCurrentSceneName() const {
+    if (currentScenePath_.empty()) {
+        return "Untitled";
+    }
+    return std::filesystem::path(currentScenePath_).stem().string();
+}
+
+bool GameScene::CaptureSceneState(std::string *outState,
+                                  std::string *message) const {
+    if (outState == nullptr) {
+        if (message) {
+            *message = "Missing output state";
+        }
+        return false;
+    }
+
+    nlohmann::json json;
+    json["objects"]["player"] = ToJson(player_.GetTransform());
+    json["objects"]["enemy"] = ToJson(enemy_.GetTransform());
+    json["selected"] = selectedEditableObjectId_;
+    json["dirty"] = sceneDirty_;
+    *outState = json.dump();
+    if (message) {
+        *message = "Scene state captured";
+    }
+    return true;
+}
+
+bool GameScene::RestoreSceneState(const std::string &state,
+                                  std::string *message) {
+    try {
+        nlohmann::json json = nlohmann::json::parse(state);
+        const auto &objects = json["objects"];
+        if (objects.contains("player")) {
+            player_.SetTransform(
+                TransformFromJson(objects["player"], player_.GetTransform()));
+        }
+        if (objects.contains("enemy")) {
+            enemy_.SetTransform(
+                TransformFromJson(objects["enemy"], enemy_.GetTransform()));
+        }
+        selectedEditableObjectId_ = json.value("selected", selectedEditableObjectId_);
+        sceneDirty_ = json.value("dirty", sceneDirty_);
+        if (message) {
+            *message = "Scene state restored";
+        }
+        return true;
+    } catch (const std::exception &e) {
+        if (message) {
+            *message = e.what();
+        }
+        return false;
+    }
+}
+
+bool GameScene::IsSceneDirty() const { return sceneDirty_; }
+
+void GameScene::MarkSceneDirty() { sceneDirty_ = true; }
+
+void GameScene::ClearSceneDirty() { sceneDirty_ = false; }
+
+bool GameScene::CanEditObjects() const { return true; }
+
+void GameScene::SetGameplayPaused(bool paused) { gameplayPaused_ = paused; }
+
+bool GameScene::IsGameplayPaused() const { return gameplayPaused_; }
+
+void GameScene::ResetGameplay() {
+    player_.SetTransform({{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 1.0f},
+                          {1.0f, 1.0f, 1.0f}});
 }
 
 void GameScene::Update() {
@@ -932,7 +1261,14 @@ void GameScene::Update() {
 }
 
 float GameScene::ComputeGameplayTimeScale() const {
-    return 1.0f;
+    const EngineRuntime &runtime = EngineRuntime::GetInstance();
+    if (gameplayPaused_) {
+        return 0.0f;
+    }
+    if (runtime.IsEditorMode() && runtime.Settings().pauseGameInTuningMode) {
+        return 0.0f;
+    }
+    return runtime.Settings().timeScale;
 }
 
 void GameScene::SetEnemyAnimationFrozen(bool frozen) {
@@ -1067,8 +1403,16 @@ void GameScene::SyncEnemyAnimation() {
 void GameScene::Draw() {
     ctx_->model->PreDraw();
 
-    player_.Draw(ctx_->model, *currentCamera_);
-    enemy_.Draw(ctx_->model, *currentCamera_);
+    const bool playerVisible =
+        editableObjects_.size() < 1 || editableObjects_[0].visible;
+    const bool enemyVisible =
+        editableObjects_.size() < 2 || editableObjects_[1].visible;
+    if (playerVisible) {
+        player_.Draw(ctx_->model, *currentCamera_);
+    }
+    if (enemyVisible) {
+        enemy_.Draw(ctx_->model, *currentCamera_);
+    }
     int aliveBulletCount = 0;
     for (const auto &bullet : enemy_.GetBullets()) {
         if (bullet.isAlive) {
@@ -1170,6 +1514,9 @@ void GameScene::Draw() {
     ctx_->model->ClearDrawEffect();
 #endif // _DEBUG
     ctx_->model->PostDraw();
+    if (EngineRuntime::GetInstance().IsEditorMode()) {
+        return;
+    }
     DrawMagnetismic();
     if (ctx_->swordTrailRenderer != nullptr) {
         ctx_->swordTrailRenderer->Draw(*currentCamera_);
