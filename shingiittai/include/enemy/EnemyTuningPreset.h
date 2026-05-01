@@ -15,6 +15,39 @@ struct AttackTimingParamPreset {
     float recoveryStartTime = 0.0f;
 };
 
+struct EnemyMovementPreset {
+    float hitReactionMoveSpeed = 3.5f;
+
+    float chargeTurnSpeed = 6.0f;
+    float recoveryTurnSpeed = 2.0f;
+    float idleTurnSpeed = 8.0f;
+
+    float stagnantDistanceThreshold = 0.15f;
+    float stagnantTimeThreshold = 1.2f;
+    int stagnantWarpBonus = 5;
+
+    float closePressureDistance = 3.0f;
+    float closePressureTimeThreshold = 1.0f;
+
+    float farDistanceWarpTimeThreshold = 2.0f;
+    int farDistanceWarpBonus = 50;
+
+    float warpNearRadiusMin = 1.8f;
+    float warpNearRadiusMax = 3.0f;
+    float warpApproachForwardDistance = 2.3f;
+    float warpApproachSideDistance = 2.1f;
+    float warpApproachLongFrontDistance = 4.0f;
+
+    float stalkDurationMin = 0.45f;
+    float stalkDurationMax = 1.10f;
+    float stalkMoveSpeed = 2.2f;
+    float stalkStrafeRadiusWeight = 0.75f;
+    float stalkForwardAdjustWeight = 0.35f;
+    float stalkNearEnterChance = 0.28f;
+    float stalkMidEnterChance = 0.18f;
+    int stalkRepeatLimit = 2;
+};
+
 struct EnemyTuningPreset {
     float enemyMaxHp = 1000.0f;
     float phase2HealthRatioThreshold = 0.60f;
@@ -70,4 +103,6 @@ struct EnemyTuningPreset {
     float sweepWarpSmashChance = 0.45f;
     float waveWarpSmashMinDistance = 4.5f;
     float waveWarpSmashChance = 0.50f;
+
+    EnemyMovementPreset movement;
 };

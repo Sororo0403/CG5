@@ -171,6 +171,31 @@ EnemyTuningPreset Enemy::CreateTuningPreset() const {
     p.waveWarpSmashMinDistance = config_.chain.waveWarpSmashMinDistance;
     p.waveWarpSmashChance = config_.chain.waveWarpSmashChance;
 
+    p.movement.hitReactionMoveSpeed = hitReactionMoveSpeed_;
+    p.movement.chargeTurnSpeed = chargeTurnSpeed_;
+    p.movement.recoveryTurnSpeed = recoveryTurnSpeed_;
+    p.movement.idleTurnSpeed = idleTurnSpeed_;
+    p.movement.stagnantDistanceThreshold = stagnantDistanceThreshold_;
+    p.movement.stagnantTimeThreshold = stagnantTimeThreshold_;
+    p.movement.stagnantWarpBonus = stagnantWarpBonus_;
+    p.movement.closePressureDistance = closePressureDistance_;
+    p.movement.closePressureTimeThreshold = closePressureTimeThreshold_;
+    p.movement.farDistanceWarpTimeThreshold = farDistanceWarpTimeThreshold_;
+    p.movement.farDistanceWarpBonus = farDistanceWarpBonus_;
+    p.movement.warpNearRadiusMin = warpNearRadiusMin_;
+    p.movement.warpNearRadiusMax = warpNearRadiusMax_;
+    p.movement.warpApproachForwardDistance = warpApproachForwardDistance_;
+    p.movement.warpApproachSideDistance = warpApproachSideDistance_;
+    p.movement.warpApproachLongFrontDistance = warpApproachLongFrontDistance_;
+    p.movement.stalkDurationMin = stalkDurationMin_;
+    p.movement.stalkDurationMax = stalkDurationMax_;
+    p.movement.stalkMoveSpeed = stalkMoveSpeed_;
+    p.movement.stalkStrafeRadiusWeight = stalkStrafeRadiusWeight_;
+    p.movement.stalkForwardAdjustWeight = stalkForwardAdjustWeight_;
+    p.movement.stalkNearEnterChance = stalkNearEnterChance_;
+    p.movement.stalkMidEnterChance = stalkMidEnterChance_;
+    p.movement.stalkRepeatLimit = stalkRepeatLimit_;
+
     return p;
 }
 
@@ -255,6 +280,74 @@ void Enemy::ApplyTuningPreset(const EnemyTuningPreset &p) {
     config_.chain.sweepWarpSmashChance = p.sweepWarpSmashChance;
     config_.chain.waveWarpSmashMinDistance = p.waveWarpSmashMinDistance;
     config_.chain.waveWarpSmashChance = p.waveWarpSmashChance;
+
+    hitReactionMoveSpeed_ =
+        (p.movement.hitReactionMoveSpeed < 0.0f) ? 0.0f
+                                                 : p.movement.hitReactionMoveSpeed;
+    chargeTurnSpeed_ =
+        (p.movement.chargeTurnSpeed < 0.0f) ? 0.0f : p.movement.chargeTurnSpeed;
+    recoveryTurnSpeed_ = (p.movement.recoveryTurnSpeed < 0.0f)
+                             ? 0.0f
+                             : p.movement.recoveryTurnSpeed;
+    idleTurnSpeed_ =
+        (p.movement.idleTurnSpeed < 0.0f) ? 0.0f : p.movement.idleTurnSpeed;
+
+    stagnantDistanceThreshold_ = (p.movement.stagnantDistanceThreshold < 0.0f)
+                                     ? 0.0f
+                                     : p.movement.stagnantDistanceThreshold;
+    stagnantTimeThreshold_ = (p.movement.stagnantTimeThreshold < 0.0f)
+                                 ? 0.0f
+                                 : p.movement.stagnantTimeThreshold;
+    stagnantWarpBonus_ =
+        (p.movement.stagnantWarpBonus < 0) ? 0 : p.movement.stagnantWarpBonus;
+
+    closePressureDistance_ = (p.movement.closePressureDistance < 0.0f)
+                                 ? 0.0f
+                                 : p.movement.closePressureDistance;
+    closePressureTimeThreshold_ = (p.movement.closePressureTimeThreshold < 0.0f)
+                                      ? 0.0f
+                                      : p.movement.closePressureTimeThreshold;
+
+    farDistanceWarpTimeThreshold_ =
+        (p.movement.farDistanceWarpTimeThreshold < 0.0f)
+            ? 0.0f
+            : p.movement.farDistanceWarpTimeThreshold;
+    farDistanceWarpBonus_ = (p.movement.farDistanceWarpBonus < 0)
+                                ? 0
+                                : p.movement.farDistanceWarpBonus;
+
+    warpNearRadiusMin_ = (p.movement.warpNearRadiusMin < 0.0f)
+                             ? 0.0f
+                             : p.movement.warpNearRadiusMin;
+    warpNearRadiusMax_ = (p.movement.warpNearRadiusMax < warpNearRadiusMin_)
+                             ? warpNearRadiusMin_
+                             : p.movement.warpNearRadiusMax;
+    warpApproachForwardDistance_ =
+        (p.movement.warpApproachForwardDistance < 0.0f)
+            ? 0.0f
+            : p.movement.warpApproachForwardDistance;
+    warpApproachSideDistance_ = (p.movement.warpApproachSideDistance < 0.0f)
+                                    ? 0.0f
+                                    : p.movement.warpApproachSideDistance;
+    warpApproachLongFrontDistance_ =
+        (p.movement.warpApproachLongFrontDistance < 0.0f)
+            ? 0.0f
+            : p.movement.warpApproachLongFrontDistance;
+
+    stalkDurationMin_ = (p.movement.stalkDurationMin < 0.0f)
+                            ? 0.0f
+                            : p.movement.stalkDurationMin;
+    stalkDurationMax_ = (p.movement.stalkDurationMax < stalkDurationMin_)
+                            ? stalkDurationMin_
+                            : p.movement.stalkDurationMax;
+    stalkMoveSpeed_ =
+        (p.movement.stalkMoveSpeed < 0.0f) ? 0.0f : p.movement.stalkMoveSpeed;
+    stalkStrafeRadiusWeight_ = p.movement.stalkStrafeRadiusWeight;
+    stalkForwardAdjustWeight_ = p.movement.stalkForwardAdjustWeight;
+    stalkNearEnterChance_ = p.movement.stalkNearEnterChance;
+    stalkMidEnterChance_ = p.movement.stalkMidEnterChance;
+    stalkRepeatLimit_ =
+        (p.movement.stalkRepeatLimit < 0) ? 0 : p.movement.stalkRepeatLimit;
 
     if (config_.core.nearAttackDistance > config_.core.farAttackDistance) {
         config_.core.farAttackDistance = config_.core.nearAttackDistance;

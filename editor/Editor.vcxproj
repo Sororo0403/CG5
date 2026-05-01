@@ -84,6 +84,8 @@
     <ClCompile Include="$(SolutionDir)editor\src\editor\EditableObjectFactory.cpp" />
     <ClCompile Include="$(SolutionDir)editor\src\editor\EditorLayer.cpp" />
     <ClCompile Include="$(SolutionDir)editor\src\editor\panels\ConsolePanel.cpp" />
+    <ClCompile Include="$(SolutionDir)editor\src\editor\panels\EnemyTuningPanel.cpp" />
+    <ClCompile Include="$(SolutionDir)editor\src\editor\panels\GameplayPanel.cpp" />
     <ClCompile Include="$(SolutionDir)editor\src\editor\panels\HierarchyPanel.cpp" />
     <ClCompile Include="$(SolutionDir)editor\src\editor\panels\InspectorPanel.cpp" />
     <ClCompile Include="$(SolutionDir)editor\src\editor\panels\ViewportPanel.cpp" />
@@ -95,6 +97,8 @@
     <ClInclude Include="$(SolutionDir)editor\include\editor\EditableObjectFactory.h" />
     <ClInclude Include="$(SolutionDir)editor\include\editor\EditorCommand.h" />
     <ClInclude Include="$(SolutionDir)editor\include\editor\panels\ConsolePanel.h" />
+    <ClInclude Include="$(SolutionDir)editor\include\editor\panels\EnemyTuningPanel.h" />
+    <ClInclude Include="$(SolutionDir)editor\include\editor\panels\GameplayPanel.h" />
     <ClInclude Include="$(SolutionDir)editor\include\editor\panels\HierarchyPanel.h" />
     <ClInclude Include="$(SolutionDir)editor\include\editor\panels\InspectorPanel.h" />
     <ClInclude Include="$(SolutionDir)editor\include\editor\panels\ViewportPanel.h" />

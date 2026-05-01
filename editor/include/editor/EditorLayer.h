@@ -3,6 +3,7 @@
 #include "EditorConsole.h"
 #include "EditorContext.h"
 #include "panels/ConsolePanel.h"
+#include "panels/GameplayPanel.h"
 #include "panels/HierarchyPanel.h"
 #include "panels/InspectorPanel.h"
 #include "panels/ViewportPanel.h"
@@ -57,6 +58,7 @@ class EditorLayer {
     HierarchyPanel hierarchyPanel_;
     ViewportPanel viewportPanel_;
     InspectorPanel inspectorPanel_;
+    GameplayPanel gameplayPanel_;
     ConsolePanel consolePanel_;
     std::array<char, 128> saveAsName_{};
     std::string statusMessage_;

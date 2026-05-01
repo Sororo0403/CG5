@@ -151,6 +151,13 @@ void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture,
         {kInspectorWidth, (std::max)(0.0f, size.y - kToolbarHeight - kConsoleHeight)});
     inspectorPanel_.Draw(context);
 
+    ImGui::SetNextWindowPos(
+        {origin.x + size.x - kInspectorWidth - 24.0f,
+         origin.y + kToolbarHeight + 24.0f},
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize({420.0f, 640.0f}, ImGuiCond_FirstUseEver);
+    gameplayPanel_.Draw(context);
+
     ImGui::SetNextWindowPos({origin.x, origin.y + size.y - kConsoleHeight});
     ImGui::SetNextWindowSize({size.x, kConsoleHeight});
     consolePanel_.Draw(console_);

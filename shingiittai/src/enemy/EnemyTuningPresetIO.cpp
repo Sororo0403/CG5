@@ -2,12 +2,15 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 namespace {
+
+using json = nlohmann::json;
 
 bool EndsWithInsensitive(const std::string &value, const std::string &suffix) {
     if (value.size() < suffix.size()) {
@@ -271,6 +274,360 @@ bool LoadNumericCsv(const std::string &path, EnemyTuningPreset &p) {
     return true;
 }
 
+void ReadFloat(const json &node, const char *key, float &outValue) {
+    if (node.contains(key) && node[key].is_number()) {
+        outValue = node[key].get<float>();
+    }
+}
+
+void ReadInt(const json &node, const char *key, int &outValue) {
+    if (node.contains(key) && node[key].is_number_integer()) {
+        outValue = node[key].get<int>();
+    }
+}
+
+void ReadFloat3(const json &node, DirectX::XMFLOAT3 &outValue) {
+    if (!node.is_array() || node.size() < 3) {
+        return;
+    }
+    outValue = {node[0].get<float>(), node[1].get<float>(),
+                node[2].get<float>()};
+}
+
+void ReadAttackParam(const json &node, AttackParamPreset &outValue) {
+    ReadFloat(node, "damage", outValue.damage);
+    ReadFloat(node, "knockback", outValue.knockback);
+    if (node.contains("hitBoxSize")) {
+        ReadFloat3(node["hitBoxSize"], outValue.hitBoxSize);
+    }
+}
+
+void ReadTiming(const json &node, AttackTimingParamPreset &outValue) {
+    ReadFloat(node, "totalTime", outValue.totalTime);
+    ReadFloat(node, "trackingEndTime", outValue.trackingEndTime);
+    ReadFloat(node, "activeStartTime", outValue.activeStartTime);
+    ReadFloat(node, "activeEndTime", outValue.activeEndTime);
+    ReadFloat(node, "recoveryStartTime", outValue.recoveryStartTime);
+}
+
+void ReadAttackRange(const json &node, EnemyTuningPreset &outValue) {
+    if (node.is_number()) {
+        outValue.nearAttackDistance = node.get<float>();
+        outValue.farAttackDistance = outValue.nearAttackDistance;
+        return;
+    }
+    if (node.is_array() && node.size() >= 2) {
+        outValue.nearAttackDistance = node[0].get<float>();
+        outValue.farAttackDistance = node[1].get<float>();
+        return;
+    }
+    if (node.is_object()) {
+        ReadFloat(node, "near", outValue.nearAttackDistance);
+        ReadFloat(node, "far", outValue.farAttackDistance);
+    }
+}
+
+void ReadMovement(const json &node, EnemyMovementPreset &outValue) {
+    ReadFloat(node, "hitReactionMoveSpeed", outValue.hitReactionMoveSpeed);
+
+    ReadFloat(node, "chargeTurnSpeed", outValue.chargeTurnSpeed);
+    ReadFloat(node, "recoveryTurnSpeed", outValue.recoveryTurnSpeed);
+    ReadFloat(node, "idleTurnSpeed", outValue.idleTurnSpeed);
+
+    ReadFloat(node, "stagnantDistanceThreshold",
+              outValue.stagnantDistanceThreshold);
+    ReadFloat(node, "stagnantTimeThreshold", outValue.stagnantTimeThreshold);
+    ReadInt(node, "stagnantWarpBonus", outValue.stagnantWarpBonus);
+
+    ReadFloat(node, "closePressureDistance", outValue.closePressureDistance);
+    ReadFloat(node, "closePressureTimeThreshold",
+              outValue.closePressureTimeThreshold);
+
+    ReadFloat(node, "farDistanceWarpTimeThreshold",
+              outValue.farDistanceWarpTimeThreshold);
+    ReadInt(node, "farDistanceWarpBonus", outValue.farDistanceWarpBonus);
+
+    ReadFloat(node, "warpNearRadiusMin", outValue.warpNearRadiusMin);
+    ReadFloat(node, "warpNearRadiusMax", outValue.warpNearRadiusMax);
+    ReadFloat(node, "warpApproachForwardDistance",
+              outValue.warpApproachForwardDistance);
+    ReadFloat(node, "warpApproachSideDistance",
+              outValue.warpApproachSideDistance);
+    ReadFloat(node, "warpApproachLongFrontDistance",
+              outValue.warpApproachLongFrontDistance);
+
+    ReadFloat(node, "stalkDurationMin", outValue.stalkDurationMin);
+    ReadFloat(node, "stalkDurationMax", outValue.stalkDurationMax);
+    ReadFloat(node, "stalkMoveSpeed", outValue.stalkMoveSpeed);
+    ReadFloat(node, "stalkStrafeRadiusWeight",
+              outValue.stalkStrafeRadiusWeight);
+    ReadFloat(node, "stalkForwardAdjustWeight",
+              outValue.stalkForwardAdjustWeight);
+    ReadFloat(node, "stalkNearEnterChance", outValue.stalkNearEnterChance);
+    ReadFloat(node, "stalkMidEnterChance", outValue.stalkMidEnterChance);
+    ReadInt(node, "stalkRepeatLimit", outValue.stalkRepeatLimit);
+}
+
+void ReadSmash(const json &node, EnemyTuningPreset &outValue) {
+    if (node.contains("attack")) {
+        ReadAttackParam(node["attack"], outValue.smash);
+    } else {
+        ReadAttackParam(node, outValue.smash);
+    }
+    ReadFloat(node, "chargeTime", outValue.smashChargeTime);
+    ReadFloat(node, "attackForwardOffset", outValue.smashAttackForwardOffset);
+    ReadFloat(node, "attackHeightOffset", outValue.smashAttackHeightOffset);
+    if (node.contains("timing")) {
+        ReadTiming(node["timing"], outValue.smashTiming);
+    }
+}
+
+void ReadSweep(const json &node, EnemyTuningPreset &outValue) {
+    if (node.contains("attack")) {
+        ReadAttackParam(node["attack"], outValue.sweep);
+    } else {
+        ReadAttackParam(node, outValue.sweep);
+    }
+    ReadFloat(node, "chargeTime", outValue.sweepChargeTime);
+    ReadFloat(node, "attackSideOffset", outValue.sweepAttackSideOffset);
+    ReadFloat(node, "attackHeightOffset", outValue.sweepAttackHeightOffset);
+    if (node.contains("timing")) {
+        ReadTiming(node["timing"], outValue.sweepTiming);
+    }
+}
+
+void ReadShot(const json &node, EnemyTuningPreset &outValue) {
+    if (node.contains("attack")) {
+        ReadAttackParam(node["attack"], outValue.bullet);
+    } else {
+        ReadAttackParam(node, outValue.bullet);
+    }
+    ReadFloat(node, "chargeTime", outValue.shotChargeTime);
+    ReadFloat(node, "recoveryTime", outValue.shotRecoveryTime);
+    ReadFloat(node, "interval", outValue.shotInterval);
+    ReadInt(node, "minCount", outValue.shotMinCount);
+    ReadInt(node, "maxCount", outValue.shotMaxCount);
+    ReadFloat(node, "bulletSpeed", outValue.bulletSpeed);
+    ReadFloat(node, "bulletLifeTime", outValue.bulletLifeTime);
+    ReadFloat(node, "spawnHeightOffset", outValue.bulletSpawnHeightOffset);
+}
+
+void ReadWave(const json &node, EnemyTuningPreset &outValue) {
+    if (node.contains("attack")) {
+        ReadAttackParam(node["attack"], outValue.wave);
+    } else {
+        ReadAttackParam(node, outValue.wave);
+    }
+    ReadFloat(node, "chargeTime", outValue.waveChargeTime);
+    ReadFloat(node, "recoveryTime", outValue.waveRecoveryTime);
+    ReadFloat(node, "speed", outValue.waveSpeed);
+    ReadFloat(node, "maxDistance", outValue.waveMaxDistance);
+    ReadFloat(node, "spawnForwardOffset", outValue.waveSpawnForwardOffset);
+    ReadFloat(node, "spawnHeightOffset", outValue.waveSpawnHeightOffset);
+}
+
+bool LoadJson(const std::string &path, EnemyTuningPreset &p) {
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) {
+        return false;
+    }
+
+    json rootJson;
+    try {
+        ifs >> rootJson;
+    } catch (const json::exception &) {
+        return false;
+    }
+
+    const json &root = rootJson.contains("enemy") ? rootJson["enemy"] : rootJson;
+
+    ReadFloat(root, "HP", p.enemyMaxHp);
+    ReadFloat(root, "hp", p.enemyMaxHp);
+    ReadFloat(root, "maxHp", p.enemyMaxHp);
+
+    if (root.contains("attackRange")) {
+        ReadAttackRange(root["attackRange"], p);
+    }
+
+    if (root.contains("core")) {
+        const json &core = root["core"];
+        ReadFloat(core, "maxHp", p.enemyMaxHp);
+        ReadFloat(core, "hp", p.enemyMaxHp);
+        ReadFloat(core, "phase2HealthRatioThreshold",
+                  p.phase2HealthRatioThreshold);
+        ReadFloat(core, "nearAttackDistance", p.nearAttackDistance);
+        ReadFloat(core, "farAttackDistance", p.farAttackDistance);
+        if (core.contains("attackRange")) {
+            ReadAttackRange(core["attackRange"], p);
+        }
+    }
+
+    if (root.contains("attacks")) {
+        const json &attacks = root["attacks"];
+        if (attacks.contains("smash")) {
+            ReadSmash(attacks["smash"], p);
+        }
+        if (attacks.contains("sweep")) {
+            ReadSweep(attacks["sweep"], p);
+        }
+        if (attacks.contains("shot")) {
+            ReadShot(attacks["shot"], p);
+        }
+        if (attacks.contains("bullet")) {
+            ReadShot(attacks["bullet"], p);
+        }
+        if (attacks.contains("wave")) {
+            ReadWave(attacks["wave"], p);
+        }
+    }
+
+    if (root.contains("attackCooldown") && root["attackCooldown"].is_object()) {
+        const json &cooldown = root["attackCooldown"];
+        ReadFloat(cooldown, "shotInterval", p.shotInterval);
+        ReadFloat(cooldown, "shotRecoveryTime", p.shotRecoveryTime);
+        ReadFloat(cooldown, "waveRecoveryTime", p.waveRecoveryTime);
+    }
+
+    if (root.contains("warp")) {
+        const json &warp = root["warp"];
+        ReadFloat(warp, "startTime", p.warpStartTime);
+        ReadFloat(warp, "moveTime", p.warpMoveTime);
+        ReadFloat(warp, "endTime", p.warpEndTime);
+    }
+
+    if (root.contains("chain")) {
+        const json &chain = root["chain"];
+        ReadInt(chain, "warpApproachMaxSteps", p.warpApproachChainMaxSteps);
+        ReadInt(chain, "warpEscapeMaxSteps", p.warpEscapeChainMaxSteps);
+        ReadFloat(chain, "approachContinueDistance",
+                  p.approachChainContinueDistance);
+        ReadFloat(chain, "escapeContinueDistance",
+                  p.escapeChainContinueDistance);
+        ReadFloat(chain, "sweepWarpSmashMaxDistance",
+                  p.sweepWarpSmashMaxDistance);
+        ReadFloat(chain, "sweepWarpSmashChance", p.sweepWarpSmashChance);
+        ReadFloat(chain, "waveWarpSmashMinDistance",
+                  p.waveWarpSmashMinDistance);
+        ReadFloat(chain, "waveWarpSmashChance", p.waveWarpSmashChance);
+    }
+
+    if (root.contains("movement")) {
+        ReadMovement(root["movement"], p.movement);
+    }
+
+    if (root.contains("speed") && root["speed"].is_object()) {
+        const json &speed = root["speed"];
+        ReadFloat(speed, "bullet", p.bulletSpeed);
+        ReadFloat(speed, "wave", p.waveSpeed);
+        ReadFloat(speed, "stalk", p.movement.stalkMoveSpeed);
+        ReadFloat(speed, "turnIdle", p.movement.idleTurnSpeed);
+        ReadFloat(speed, "turnCharge", p.movement.chargeTurnSpeed);
+        ReadFloat(speed, "turnRecovery", p.movement.recoveryTurnSpeed);
+    }
+
+    return true;
+}
+
+json Float3ToJson(const DirectX::XMFLOAT3 &value) {
+    return {value.x, value.y, value.z};
+}
+
+json AttackParamToJson(const AttackParamPreset &value) {
+    return {{"damage", value.damage},
+            {"knockback", value.knockback},
+            {"hitBoxSize", Float3ToJson(value.hitBoxSize)}};
+}
+
+json TimingToJson(const AttackTimingParamPreset &value) {
+    return {{"totalTime", value.totalTime},
+            {"trackingEndTime", value.trackingEndTime},
+            {"activeStartTime", value.activeStartTime},
+            {"activeEndTime", value.activeEndTime},
+            {"recoveryStartTime", value.recoveryStartTime}};
+}
+
+json MovementToJson(const EnemyMovementPreset &value) {
+    return {{"hitReactionMoveSpeed", value.hitReactionMoveSpeed},
+            {"chargeTurnSpeed", value.chargeTurnSpeed},
+            {"recoveryTurnSpeed", value.recoveryTurnSpeed},
+            {"idleTurnSpeed", value.idleTurnSpeed},
+            {"stagnantDistanceThreshold", value.stagnantDistanceThreshold},
+            {"stagnantTimeThreshold", value.stagnantTimeThreshold},
+            {"stagnantWarpBonus", value.stagnantWarpBonus},
+            {"closePressureDistance", value.closePressureDistance},
+            {"closePressureTimeThreshold", value.closePressureTimeThreshold},
+            {"farDistanceWarpTimeThreshold", value.farDistanceWarpTimeThreshold},
+            {"farDistanceWarpBonus", value.farDistanceWarpBonus},
+            {"warpNearRadiusMin", value.warpNearRadiusMin},
+            {"warpNearRadiusMax", value.warpNearRadiusMax},
+            {"warpApproachForwardDistance", value.warpApproachForwardDistance},
+            {"warpApproachSideDistance", value.warpApproachSideDistance},
+            {"warpApproachLongFrontDistance",
+             value.warpApproachLongFrontDistance},
+            {"stalkDurationMin", value.stalkDurationMin},
+            {"stalkDurationMax", value.stalkDurationMax},
+            {"stalkMoveSpeed", value.stalkMoveSpeed},
+            {"stalkStrafeRadiusWeight", value.stalkStrafeRadiusWeight},
+            {"stalkForwardAdjustWeight", value.stalkForwardAdjustWeight},
+            {"stalkNearEnterChance", value.stalkNearEnterChance},
+            {"stalkMidEnterChance", value.stalkMidEnterChance},
+            {"stalkRepeatLimit", value.stalkRepeatLimit}};
+}
+
+json PresetToJson(const EnemyTuningPreset &p) {
+    json root;
+    root["core"] = {{"maxHp", p.enemyMaxHp},
+                    {"phase2HealthRatioThreshold",
+                     p.phase2HealthRatioThreshold},
+                    {"nearAttackDistance", p.nearAttackDistance},
+                    {"farAttackDistance", p.farAttackDistance}};
+    root["attacks"]["smash"] = {
+        {"attack", AttackParamToJson(p.smash)},
+        {"chargeTime", p.smashChargeTime},
+        {"attackForwardOffset", p.smashAttackForwardOffset},
+        {"attackHeightOffset", p.smashAttackHeightOffset},
+        {"timing", TimingToJson(p.smashTiming)}};
+    root["attacks"]["sweep"] = {
+        {"attack", AttackParamToJson(p.sweep)},
+        {"chargeTime", p.sweepChargeTime},
+        {"attackSideOffset", p.sweepAttackSideOffset},
+        {"attackHeightOffset", p.sweepAttackHeightOffset},
+        {"timing", TimingToJson(p.sweepTiming)}};
+    root["attacks"]["shot"] = {
+        {"attack", AttackParamToJson(p.bullet)},
+        {"chargeTime", p.shotChargeTime},
+        {"recoveryTime", p.shotRecoveryTime},
+        {"interval", p.shotInterval},
+        {"minCount", p.shotMinCount},
+        {"maxCount", p.shotMaxCount},
+        {"bulletSpeed", p.bulletSpeed},
+        {"bulletLifeTime", p.bulletLifeTime},
+        {"spawnHeightOffset", p.bulletSpawnHeightOffset}};
+    root["attacks"]["wave"] = {
+        {"attack", AttackParamToJson(p.wave)},
+        {"chargeTime", p.waveChargeTime},
+        {"recoveryTime", p.waveRecoveryTime},
+        {"speed", p.waveSpeed},
+        {"maxDistance", p.waveMaxDistance},
+        {"spawnForwardOffset", p.waveSpawnForwardOffset},
+        {"spawnHeightOffset", p.waveSpawnHeightOffset}};
+    root["warp"] = {{"startTime", p.warpStartTime},
+                    {"moveTime", p.warpMoveTime},
+                    {"endTime", p.warpEndTime}};
+    root["chain"] = {{"warpApproachMaxSteps", p.warpApproachChainMaxSteps},
+                     {"warpEscapeMaxSteps", p.warpEscapeChainMaxSteps},
+                     {"approachContinueDistance",
+                      p.approachChainContinueDistance},
+                     {"escapeContinueDistance", p.escapeChainContinueDistance},
+                     {"sweepWarpSmashMaxDistance",
+                      p.sweepWarpSmashMaxDistance},
+                     {"sweepWarpSmashChance", p.sweepWarpSmashChance},
+                     {"waveWarpSmashMinDistance", p.waveWarpSmashMinDistance},
+                     {"waveWarpSmashChance", p.waveWarpSmashChance}};
+    root["movement"] = MovementToJson(p.movement);
+    return root;
+}
+
 } // namespace
 
 bool EnemyTuningPresetIO::Save(const std::string &path,
@@ -278,6 +635,11 @@ bool EnemyTuningPresetIO::Save(const std::string &path,
     std::ofstream ofs(path);
     if (!ofs.is_open()) {
         return false;
+    }
+
+    if (EndsWithInsensitive(path, ".json")) {
+        ofs << PresetToJson(p).dump(2);
+        return true;
     }
 
     if (EndsWithInsensitive(path, ".csv")) {
@@ -378,6 +740,9 @@ bool EnemyTuningPresetIO::Save(const std::string &path,
 }
 
 bool EnemyTuningPresetIO::Load(const std::string &path, EnemyTuningPreset &p) {
+    if (EndsWithInsensitive(path, ".json")) {
+        return LoadJson(path, p);
+    }
     if (EndsWithInsensitive(path, ".csv")) {
         return LoadNumericCsv(path, p);
     }

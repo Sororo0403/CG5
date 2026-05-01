@@ -162,16 +162,16 @@ void EnemyMotionDebugScene::Initialize(const SceneContext &ctx) {
     upload.Finish();
     texture->ReleaseUploadBuffers();
 
+    EnemyTuningPreset enemyPreset{};
+    if (EnemyTuningPresetIO::Load("resources/enemy_tuning.json", enemyPreset) ||
+        EnemyTuningPresetIO::Load("resources/enemy_tuning.csv", enemyPreset) ||
+        EnemyTuningPresetIO::Load("resources/enemy_tuning.txt", enemyPreset)) {
+        enemy_.ApplyTuningPreset(enemyPreset);
+    }
+
     enemy_.Initialize(enemyModel, bulletModel);
     enemyModelId_ = enemyModel;
     enemy_.DebugResetState();
-
-    EnemyTuningPreset enemyPreset{};
-    if (EnemyTuningPresetIO::Load("resources/enemy_tuning.csv", enemyPreset) ||
-        EnemyTuningPresetIO::Load("resources/enemy_tuning.txt", enemyPreset)) {
-        enemy_.ApplyTuningPreset(enemyPreset);
-        enemy_.DebugResetState();
-    }
 
     previewPlayerPos_ = {0.0f, 0.0f, 0.0f};
     playerObs_.position = previewPlayerPos_;
