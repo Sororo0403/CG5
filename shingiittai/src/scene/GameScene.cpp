@@ -8,9 +8,25 @@
 #include "SceneManager.h"
 #include "TextureManager.h"
 #include "WinApp.h"
-#include <cmath>
 
 using namespace DirectX;
+
+namespace {
+PlayerCombatObservation MakePassivePlayerObservation(const Player &player) {
+    PlayerCombatObservation playerObs{};
+    playerObs.position = player.GetTransform().position;
+    playerObs.velocity = player.GetVelocity();
+    playerObs.isGuarding = false;
+    playerObs.isCounterStance = false;
+    playerObs.justCountered = false;
+    playerObs.justCounterFailed = false;
+    playerObs.justCounterEarly = false;
+    playerObs.justCounterLate = false;
+    playerObs.isAttacking = false;
+    playerObs.counterAxis = CounterAxis::None;
+    return playerObs;
+}
+} // namespace
 
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
@@ -60,12 +76,12 @@ void GameScene::Initialize(const SceneContext &ctx) {
     }
 
     enemyAnimation_.Sync(ctx_->model, enemy_);
-    UpdateSceneLighting();
+    lighting_.Reset();
+    lighting_.Update(*ctx_, player_, enemy_, 0.0f);
     combatSystem_.Reset();
     battleEffects_.Reset();
+    gameFlow_.Reset();
     counterCinematicActive_ = false;
-    hasGameStarted_ = false;
-    demoIntroSkipped_ = false;
     if (ctx_ != nullptr && ctx_->renderer.postEffectRenderer != nullptr) {
         ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
         ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
@@ -89,71 +105,21 @@ void GameScene::Update() {
 
     UpdateCamera(input);
 
-    if (!hasGameStarted_) {
-        if (!demoIntroSkipped_) {
-            enemy_.SkipIntro();
-            demoIntroSkipped_ = true;
-            enemyAnimation_.Sync(ctx_->model, enemy_);
-        }
-
-        if (input != nullptr && input->IsKeyTrigger(DIK_SPACE)) {
-            hasGameStarted_ = true;
-            enemy_.RestartIntro();
-            enemyAnimation_.ResetIntro();
-            counterCinematicActive_ = false;
-            enemyAnimation_.SetFrozen(ctx_->model, false);
-            enemyAnimation_.Sync(ctx_->model, enemy_);
-            return;
-        } else {
-            sceneLightTime_ += baseDeltaTime;
-            UpdateSceneLighting();
-
-            ctx_->model->UpdateAnimation(playerModelId_, baseDeltaTime);
-
-            PlayerCombatObservation playerObs{};
-            playerObs.position = player_.GetTransform().position;
-            playerObs.velocity = player_.GetVelocity();
-            playerObs.isGuarding = false;
-            playerObs.isCounterStance = false;
-            playerObs.justCountered = false;
-            playerObs.justCounterFailed = false;
-            playerObs.justCounterEarly = false;
-            playerObs.justCounterLate = false;
-            playerObs.isAttacking = false;
-            playerObs.counterAxis = CounterAxis::None;
-
-            if (!freezeEnemyMotion) {
-                enemy_.Update(playerObs, gameplayDeltaTime);
-            }
-
-            enemyAnimation_.Sync(ctx_->model, enemy_);
-            enemyAnimation_.SetFrozen(ctx_->model, false);
-            enemyAnimation_.Update(ctx_->model, gameplayDeltaTime);
-
-            UpdateSceneCamera();
-            counterCinematicActive_ = false;
-            UpdateCounterVignette(baseDeltaTime);
-            return;
-        }
+    const GameFlowController::UpdateResult flowResult =
+        gameFlow_.Update(input, enemy_, enemyAnimation_, ctx_->model);
+    if (flowResult.startedThisFrame) {
+        counterCinematicActive_ = false;
+        UpdateCounterVignette(baseDeltaTime);
+        return;
     }
 
-    if (enemy_.IsIntroActive()) {
-        sceneLightTime_ += baseDeltaTime;
-        UpdateSceneLighting();
+    if (flowResult.nonBattleFrame) {
+        lighting_.Update(*ctx_, player_, enemy_, baseDeltaTime);
 
         ctx_->model->UpdateAnimation(playerModelId_, baseDeltaTime);
 
-        PlayerCombatObservation playerObs{};
-        playerObs.position = player_.GetTransform().position;
-        playerObs.velocity = player_.GetVelocity();
-        playerObs.isGuarding = false;
-        playerObs.isCounterStance = false;
-        playerObs.justCountered = false;
-        playerObs.justCounterFailed = false;
-        playerObs.justCounterEarly = false;
-        playerObs.justCounterLate = false;
-        playerObs.isAttacking = false;
-        playerObs.counterAxis = CounterAxis::None;
+        PlayerCombatObservation playerObs =
+            MakePassivePlayerObservation(player_);
 
         if (!freezeEnemyMotion) {
             enemy_.Update(playerObs, gameplayDeltaTime);
@@ -170,11 +136,9 @@ void GameScene::Update() {
     }
 
     ctx_->model->UpdateAnimation(playerModelId_, playerDeltaTime);
-    // 蠖薙◁E��雁�E螳・
-    // 蜈医↓繝励Ξ繧�E�繝､繝ｼ繧呈峩譁E��縺励※縲√◎縺�E�邨先棡繧脱nemy縺�E�貂｡縺・
+
     player_.Update(input, playerDeltaTime, enemy_.GetTransform().position,
                    battleCamera_.GetYaw());
-    sceneLightTime_ += baseDeltaTime;
 
     const auto playerSlashStates = player_.GetSwordSlashStates();
 
@@ -206,7 +170,7 @@ void GameScene::Update() {
     if (!freezeEnemyMotion) {
         enemy_.Update(playerObs, enemyDeltaTime);
     }
-    UpdateSceneLighting();
+    lighting_.Update(*ctx_, player_, enemy_, baseDeltaTime);
 
     enemyAnimation_.Sync(ctx_->model, enemy_);
     enemyAnimation_.SetFrozen(ctx_->model, counterCinematicActive_);
@@ -262,7 +226,7 @@ void GameScene::UpdateCounterVignette(float deltaTime) {
     ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(
         counterCinematicActive_);
     ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
-        !hasGameStarted_);
+        gameFlow_.ShouldShowDemoIndicator());
     (void)deltaTime;
 }
 
@@ -278,7 +242,7 @@ void GameScene::DrawDemoPlayIndicator() {
         return;
     }
     ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
-        !hasGameStarted_);
+        gameFlow_.ShouldShowDemoIndicator());
 }
 
 void GameScene::Draw() {
@@ -297,74 +261,11 @@ void GameScene::Draw() {
     DrawCounterVignette();
 }
 
-void GameScene::UpdateSceneLighting() {
-    if (ctx_ == nullptr || ctx_->model == nullptr) {
-        return;
-    }
-
-    const XMFLOAT3 &playerPos = player_.GetTransform().position;
-    const XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
-    XMFLOAT3 accentAnchor = enemy_.GetTransform().position;
-    if (enemy_.GetActionKind() == ActionKind::Warp) {
-        accentAnchor = enemy_.GetWarpTargetPos();
-    }
-
-    const float pulse = 0.82f + 0.18f * std::sinf(sceneLightTime_ * 2.4f);
-    const float actionBoost =
-        enemy_.GetActionKind() == ActionKind::Warp   ? 1.35f
-        : enemy_.GetActionKind() == ActionKind::Wave ? 1.20f
-        : enemy_.GetActionKind() == ActionKind::Shot ? 1.10f
-                                                     : 1.0f;
-
-    XMFLOAT3 duelCenter = {
-        (playerPos.x + enemyPos.x) * 0.5f,
-        (playerPos.y + enemyPos.y) * 0.5f,
-        (playerPos.z + enemyPos.z) * 0.5f,
-    };
-
-    SceneLighting lighting{};
-    lighting.keyLightDirection = {-0.45f, -1.0f, 0.30f};
-    lighting.keyLightColor = {1.25f, 1.14f, 1.02f, 1.0f};
-    lighting.fillLightDirection = {0.70f, -0.28f, -0.65f};
-    lighting.fillLightColor = {0.20f, 0.34f, 0.58f, 0.42f};
-    lighting.ambientColor = {0.22f, 0.24f, 0.28f, 1.0f};
-    lighting.lightingParams = {56.0f, 0.40f, 3.2f, 0.18f};
-
-    lighting.pointLights[0].positionRange = {
-        duelCenter.x,
-        duelCenter.y + 2.4f,
-        duelCenter.z - 0.7f,
-        8.5f,
-    };
-    lighting.pointLights[0].colorIntensity = {
-        1.00f,
-        0.48f,
-        0.26f,
-        1.15f * pulse,
-    };
-
-    lighting.pointLights[1].positionRange = {
-        accentAnchor.x,
-        enemyPos.y + 1.6f,
-        accentAnchor.z + 0.35f,
-        6.8f,
-    };
-    lighting.pointLights[1].colorIntensity = {
-        0.24f,
-        0.52f,
-        1.00f,
-        0.70f * actionBoost,
-    };
-
-    lighting.pointLightCount = 2;
-    ctx_->model->SetSceneLighting(lighting);
-}
-
 void GameScene::UpdateCamera(Input *input) { battleCamera_.UpdateInput(input); }
 
 void GameScene::UpdateSceneCamera() {
     battleCamera_.Apply(camera_, ctx_->deltaTime, player_, enemy_);
-    if (enemy_.IsIntroActive()) {
+    if (gameFlow_.IsIntro(enemy_)) {
         introCamera_.Apply(camera_, ctx_->deltaTime, enemy_);
     }
 }
