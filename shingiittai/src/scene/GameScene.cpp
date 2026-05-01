@@ -162,23 +162,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     float aspect = static_cast<float>(ctx_->winApp->GetWidth()) /
                    static_cast<float>(ctx_->winApp->GetHeight());
 
-    camera_.Initialize(aspect);
-    camera_.SetMode(CameraMode::LookAt);
-    camera_.UpdateMatrices();
-    camera_.SetPerspectiveFovDeg(currentFovDeg_);
-#ifdef _DEBUG
-    debugCamera_.Initialize(aspect);
-    debugCamera_.SetMode(CameraMode::Free);
-    debugCamera_.UpdateMatrices();
-
-    tripodCamera_.Initialize(aspect);
-    camera_.SetMode(CameraMode::LookAt);
-    tripodCamera_.SetPosition(tripodPos_);
-    tripodCamera_.LookAt(tripodTarget_);
-    tripodCamera_.UpdateMatrices();
-#endif
-
-    currentCamera_ = &camera_;
+    battleCamera_.Initialize(aspect);
 
     DirectXCommon *dx = ctx_->dxCommon;
     ModelManager *model = ctx_->model;
@@ -230,30 +214,9 @@ void GameScene::Initialize(const SceneContext &ctx) {
     enemy_.Initialize(enemyModel, bulletModel);
     enemyModelId_ = enemyModel;
 
-    // 荳莠�E�遘ｰ繧�E�繝｡繝ｩ蛻晁E��蜷代″
-    cameraYaw_ = 0.0f;
-    cameraPitch_ = 0.0f;
-    isLockOn_ = true;
-    rushChargeAssistStrength_ = 4.0f;
-    rushChargeAssistMaxStep_ = 6.0f;
-    rushActiveAssistStrength_ = 5.0f;
-    rushActiveAssistMaxStep_ = 8.0f;
-    rushLeadDistance_ = 2.5f;
-    currentFovDeg_ = normalFovDeg_;
-    targetFovDeg_ = normalFovDeg_;
-
-    // 閧�E�雜翫�E�荳我ｺ�E�遘ｰ繧�E�繝｡繝ｩ蛻晁E��蜷代″
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
-    lockOnOrbitCameraPos_ = {playerPos.x, playerPos.y + lockOnOrbitHeight_,
-                             playerPos.z - lockOnOrbitRadius_};
-    lockOnLookAt_ = {
-        playerPos.x * lockOnLookPlayerWeight_ +
-            enemyPos.x * lockOnLookEnemyWeight_,
-        (playerPos.y + cameraLookHeight_) * 0.52f +
-            (enemyPos.y + 1.30f) * 0.48f,
-        playerPos.z * lockOnLookPlayerWeight_ +
-            enemyPos.z * lockOnLookEnemyWeight_};
+    battleCamera_.ResetForBattle(playerPos, enemyPos);
     if (Model *playerModelData = model->GetModel(playerModelId_)) {
         if (!playerModelData->animations.empty()) {
             model->PlayAnimation(playerModelId_,
@@ -712,16 +675,10 @@ void GameScene::Update() {
     }
 
     ctx_->model->UpdateAnimation(playerModelId_, playerDeltaTime);
-#ifdef _DEBUG
-    if (currentCamera_ == &debugCamera_) {
-        return;
-    }
-#endif
-
     // 蠖薙◁E��雁�E螳・
     // 蜈医↓繝励Ξ繧�E�繝､繝ｼ繧呈峩譁E��縺励※縲√◎縺�E�邨先棡繧脱nemy縺�E�貂｡縺・
     player_.Update(input, playerDeltaTime, enemy_.GetTransform().position,
-                   cameraYaw_);
+                   battleCamera_.GetYaw());
     sceneLightTime_ += baseDeltaTime;
 
     const auto playerSlashStates = player_.GetSwordSlashStates();
@@ -1178,8 +1135,9 @@ void GameScene::SetEnemyAnimationFrozen(bool frozen) {
 }
 
 void GameScene::UpdateCounterVignette(float deltaTime) {
+    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
-        currentCamera_ == nullptr) {
+        currentCamera == nullptr) {
         return;
     }
     ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(
@@ -1260,16 +1218,21 @@ void GameScene::SyncEnemyAnimation() {
 
 void GameScene::Draw() {
     ctx_->model->PreDraw();
+    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    if (currentCamera == nullptr) {
+        ctx_->model->PostDraw();
+        return;
+    }
 
     const bool playerVisible =
         editableObjects_.size() < 1 || editableObjects_[0].visible;
     const bool enemyVisible =
         editableObjects_.size() < 2 || editableObjects_[1].visible;
     if (playerVisible) {
-        player_.Draw(ctx_->model, *currentCamera_);
+        player_.Draw(ctx_->model, *currentCamera);
     }
     if (enemyVisible) {
-        enemy_.Draw(ctx_->model, *currentCamera_);
+        enemy_.Draw(ctx_->model, *currentCamera);
     }
     int aliveBulletCount = 0;
     for (const auto &bullet : enemy_.GetBullets()) {
@@ -1298,7 +1261,7 @@ void GameScene::Draw() {
     // 繝励Ξ繧�E�繝､繝ｼ譛ｬ菴・
     hitBoxEffect.color = {0.20f, 0.95f, 0.28f, 0.45f};
     ctx_->model->SetDrawEffect(hitBoxEffect);
-    ctx_->debugDraw->DrawOBB(ctx_->model, player_.GetOBB(), *currentCamera_);
+    ctx_->debugDraw->DrawOBB(ctx_->model, player_.GetOBB(), *currentCamera);
 
     // 繝励Ξ繧�E�繝､繝ｼ蜑｣
     hitBoxEffect.color = {0.20f, 0.85f, 1.00f, 0.42f};
@@ -1307,7 +1270,7 @@ void GameScene::Draw() {
         if (sword == nullptr) {
             continue;
         }
-        ctx_->debugDraw->DrawOBB(ctx_->model, sword->GetOBB(), *currentCamera_);
+        ctx_->debugDraw->DrawOBB(ctx_->model, sword->GetOBB(), *currentCamera);
     }
 
     // 繝懊せ驛ｨ菴・
@@ -1315,13 +1278,13 @@ void GameScene::Draw() {
         hitBoxEffect.color = {1.00f, 0.28f, 0.20f, 0.40f};
         ctx_->model->SetDrawEffect(hitBoxEffect);
         ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetBodyOBB(),
-                                 *currentCamera_);
+                                 *currentCamera);
         hitBoxEffect.color = {1.00f, 0.45f, 0.25f, 0.35f};
         ctx_->model->SetDrawEffect(hitBoxEffect);
         ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetLeftHandOBB(),
-                                 *currentCamera_);
+                                 *currentCamera);
         ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetRightHandOBB(),
-                                 *currentCamera_);
+                                 *currentCamera);
 
         const bool isEnemySmashActive =
             (enemy_.GetActionKind() == ActionKind::Smash &&
@@ -1337,7 +1300,7 @@ void GameScene::Draw() {
             hitBoxEffect.intensity = 0.62f;
             ctx_->model->SetDrawEffect(hitBoxEffect);
             ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetAttackOBB(),
-                                     *currentCamera_);
+                                     *currentCamera);
             hitBoxEffect.intensity = 0.45f;
         }
 
@@ -1353,7 +1316,7 @@ void GameScene::Draw() {
             bulletBox.center = bullet.position;
             bulletBox.size = enemy_.GetBulletHitBoxSize();
             bulletBox.rotation = player_.GetTransform().rotation;
-            ctx_->debugDraw->DrawOBB(ctx_->model, bulletBox, *currentCamera_);
+            ctx_->debugDraw->DrawOBB(ctx_->model, bulletBox, *currentCamera);
         }
 
         // 豕｢蜍輔ヲ繝�Eヨ蛻�E�螳・
@@ -1368,7 +1331,7 @@ void GameScene::Draw() {
             waveBox.center = wave.position;
             waveBox.size = enemy_.GetWaveHitBoxSize();
             waveBox.rotation = player_.GetTransform().rotation;
-            ctx_->debugDraw->DrawOBB(ctx_->model, waveBox, *currentCamera_);
+            ctx_->debugDraw->DrawOBB(ctx_->model, waveBox, *currentCamera);
         }
     }
     ctx_->model->ClearDrawEffect();
@@ -1379,7 +1342,7 @@ void GameScene::Draw() {
         return;
     }
     if (ctx_->effects != nullptr) {
-        ctx_->effects->Draw(*currentCamera_);
+        ctx_->effects->Draw(*currentCamera);
     }
     DrawWarpSmokePass();
     DrawWarpDistortionPass();
@@ -1452,11 +1415,12 @@ void GameScene::UpdateSceneLighting() {
 
 bool GameScene::ProjectWorldToScreen(const XMFLOAT3 &worldPos,
                                      XMFLOAT2 &outScreen) const {
-    if (currentCamera_ == nullptr || ctx_ == nullptr || ctx_->winApp == nullptr) {
+    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
+    if (currentCamera == nullptr || ctx_ == nullptr || ctx_->winApp == nullptr) {
         return false;
     }
 
-    XMMATRIX viewProj = currentCamera_->GetView() * currentCamera_->GetProj();
+    XMMATRIX viewProj = currentCamera->GetView() * currentCamera->GetProj();
     XMVECTOR pos = XMVectorSet(worldPos.x, worldPos.y, worldPos.z, 1.0f);
     XMVECTOR clip = XMVector4Transform(pos, viewProj);
     float w = XMVectorGetW(clip);
@@ -1931,485 +1895,12 @@ void GameScene::DrawWarpDistortionPass() {
         PostEffectRenderer::PostEffectType::Distortion, params);
 }
 
-// void GameScene::UpdateCamera(Input *input) {
-// #ifdef _DEBUG
-//     if (input->IsKeyTrigger(DIK_F11)) {
-//         if (currentCamera_ == &camera_) {
-//             currentCamera_ = &debugCamera_;
-//         } else {
-//             currentCamera_ = &camera_;
-//         }
-//     }
-//
-//     if (currentCamera_ == &debugCamera_) {
-//         debugCamera_.Update(*input, ctx_->deltaTime);
-//         currentCamera_->UpdateMatrices();
-//         return;
-//     }
-// #else
-//     (void)input;
-// #endif
-// }
-
-// void GameScene::UpdateBattleCamera() {
-//     auto &playerTf = player_.GetTransform();
-//     auto &enemyTf = enemy_.GetTransform();
-//
-//     XMFLOAT3 playerPos = playerTf.position;
-//     XMFLOAT3 enemyPos = enemyTf.position;
-//
-//     XMVECTOR playerPosV = XMLoadFloat3(&playerPos);
-//     XMVECTOR enemyPosV = XMLoadFloat3(&enemyPos);
-//
-//     XMVECTOR forward = XMVector3Normalize(enemyPosV - playerPosV);
-//
-//     XMVECTOR camPos = playerPosV - forward * kCameraDistance +
-//                       XMVectorSet(0, kCameraHeight, 0, 0);
-//
-//     XMFLOAT3 cameraPos;
-//     XMStoreFloat3(&cameraPos, camPos);
-//
-//     camera_.SetPosition(cameraPos);
-//     camera_.LookAt({enemyPos.x, kCameraHeight, enemyPos.z});
-// }
-
 void GameScene::UpdateCamera(Input *input) {
-#ifdef _DEBUG
-    // 蛻・�E�譖ｿ縺・
-    if (input->IsKeyTrigger(DIK_F11)) {
-        currentCamera_ = &debugCamera_;
-    }
-    if (input->IsKeyTrigger(DIK_F10)) {
-        currentCamera_ = &camera_;
-    }
-    if (input->IsKeyTrigger(DIK_F9)) {
-        currentCamera_ = &tripodCamera_;
-    }
-
-    // DebugCamera
-    if (currentCamera_ == &debugCamera_) {
-        debugCamera_.Update(*input, ctx_->deltaTime);
-        debugCamera_.UpdateMatrices();
-        return;
-    }
-
-    // TripodCamera・亥�E�悟�E蝗ｺ螳夲�E�・
-    if (currentCamera_ == &tripodCamera_) {
-        tripodCamera_.SetPosition(tripodPos_);
-        tripodCamera_.LookAt(tripodTarget_);
-        tripodCamera_.UpdateMatrices();
-        return;
-    }
-#endif
-
-    // ===== 騾壼�E��E�繧�E�繝｡繝ｩ =====
-
-    // 繝ｭ繝�Eけ繧�E�繝ｳ蛻・�E�譖ｿ縺・
-    if (input->IsKeyTrigger(DIK_Q)) {
-        isLockOn_ = !isLockOn_;
-    }
-
-    float yawInput = 0.0f;
-    float pitchInput = 0.0f;
-
-#ifdef _DEBUG
-    if (input->IsKeyPress(DIK_LEFT)) {
-        yawInput -= 1.0f;
-    }
-    if (input->IsKeyPress(DIK_RIGHT)) {
-        yawInput += 1.0f;
-    }
-    if (input->IsKeyPress(DIK_UP)) {
-        pitchInput += 1.0f;
-    }
-    if (input->IsKeyPress(DIK_DOWN)) {
-        pitchInput -= 1.0f;
-    }
-#endif
-
-    cameraYaw_ += yawInput * cameraLookSensitivity_;
-    cameraPitch_ += pitchInput * cameraLookSensitivity_;
-
-    if (cameraPitch_ < cameraPitchMin_) {
-        cameraPitch_ = cameraPitchMin_;
-    }
-    if (cameraPitch_ > cameraPitchMax_) {
-        cameraPitch_ = cameraPitchMax_;
-    }
-
-    // 箝�E譛驥崎ｦ・�E�壹�E�E��薙〒繧�E�繝｡繝ｩ遒ｺ螳・
-    UpdateBattleCamera();
-
-    // 箝�E譛驥崎ｦ・�E�夊｡悟�E譖ｴ譁E��
-    camera_.UpdateMatrices();
+    battleCamera_.Update(input, ctx_->deltaTime, player_, enemy_);
 }
 
 void GameScene::UpdateBattleCamera() {
-    const auto &playerTf = player_.GetTransform();
-    const auto &enemyTf = enemy_.GetTransform();
-
-    const DirectX::XMFLOAT3 &playerPos = playerTf.position;
-    const DirectX::XMFLOAT3 &enemyPos = enemyTf.position;
-
-    // 謨�E�陦悟虚迥�E�諷九ｒ蜿門�E�・
-    const ActionKind enemyActionKind = enemy_.GetActionKind();
-    const ActionStep enemyActionStep = enemy_.GetActionStep();
-
-    const bool isEnemyWarpStart = (enemyActionKind == ActionKind::Warp &&
-                                   enemyActionStep == ActionStep::Start);
-
-    const bool isEnemyWarpMove = (enemyActionKind == ActionKind::Warp &&
-                                  enemyActionStep == ActionStep::Move);
-
-    const bool isEnemyWarpEnd = (enemyActionKind == ActionKind::Warp &&
-                                 enemyActionStep == ActionStep::End);
-    const bool isEnemyIntro = enemy_.IsIntroActive();
-    const float enemyIntroRatio = enemy_.GetIntroRatio();
-    const bool isEnemyPhaseTransition = enemy_.IsPhaseTransitionActive();
-    const float enemyPhaseTransitionRatio = enemy_.GetPhaseTransitionRatio();
-
-    // =========================
-    // FOV繧�E�繝ｼ繧�E�繝�Eヨ豎ｺ螳・
-    // =========================
-    targetFovDeg_ = normalFovDeg_;
-
-    if (isLockOn_) {
-        targetFovDeg_ = lockOnFovDeg_;
-    }
-
-    if (isEnemyWarpStart || isEnemyWarpMove || isEnemyWarpEnd) {
-        targetFovDeg_ = warpFovDeg_;
-    }
-
-    if (isEnemyIntro) {
-        targetFovDeg_ = enemyIntroFovDeg_;
-    }
-
-    if (isEnemyPhaseTransition) {
-        targetFovDeg_ = phaseTransitionFovDeg_;
-    }
-
-    float usedFovLerpSpeed = fovLerpSpeed_;
-    if (isEnemyIntro) {
-        usedFovLerpSpeed = enemyIntroFovLerpSpeed_;
-    }
-    if (isEnemyPhaseTransition) {
-        usedFovLerpSpeed = phaseTransitionFovLerpSpeed_;
-    }
-    float fovAlpha = usedFovLerpSpeed * ctx_->deltaTime;
-    if (fovAlpha > 1.0f) {
-        fovAlpha = 1.0f;
-    }
-
-    currentFovDeg_ += (targetFovDeg_ - currentFovDeg_) * fovAlpha;
-    camera_.SetPerspectiveFovDeg(currentFovDeg_);
-
-    // =========================
-    // 繝ｭ繝�Eけ繧�E�繝ｳ荳�E�縺�E�縺・yaw 陬懷勧
-    // =========================
-    if (isLockOn_ || isEnemyIntro) {
-        DirectX::XMFLOAT3 assistTarget = enemyPos;
-
-        float assistStrength = lockOnAssistStrength_;
-        float assistMaxStep = lockOnAssistMaxStep_;
-
-        if (isEnemyIntro) {
-            assistStrength = lockOnAssistStrength_ * 1.55f;
-            assistMaxStep = lockOnAssistMaxStep_ * 1.55f;
-        } else if (isEnemyWarpStart) {
-            assistStrength = warpStartAssistStrength_;
-            assistMaxStep = warpStartAssistMaxStep_;
-        } else if (isEnemyWarpMove) {
-            // 繝ｯ繝ｼ繝礼�E��E�蜍穂ｸ�E�縺�E�辟｡送E�E↓謖ｯ繧雁屓縺輔�E縺・
-            assistStrength = 0.0f;
-            assistMaxStep = 0.0f;
-        } else if (isEnemyWarpEnd) {
-            assistStrength = warpEndAssistStrength_;
-            assistMaxStep = warpEndAssistMaxStep_;
-        } else if (isEnemyPhaseTransition) {
-            assistStrength = lockOnAssistStrength_ * 1.35f;
-            assistMaxStep = lockOnAssistMaxStep_ * 1.35f;
-        }
-
-        float dx = assistTarget.x - playerPos.x;
-        float dz = assistTarget.z - playerPos.z;
-
-        float targetYaw = std::atan2f(dx, dz);
-        float diff = targetYaw - cameraYaw_;
-
-        while (diff > 3.14159265f) {
-            diff -= 6.28318530f;
-        }
-        while (diff < -3.14159265f) {
-            diff += 6.28318530f;
-        }
-
-        float inputMagnitude = 0.0f;
-#ifdef _DEBUG
-        Input *input = ctx_->input;
-        if (input->IsKeyPress(DIK_LEFT) || input->IsKeyPress(DIK_RIGHT)) {
-            inputMagnitude = 1.0f;
-        }
-#endif
-
-        float assistScale = 1.0f;
-        if (inputMagnitude > 0.0f) {
-            assistScale = lockOnInputReduce_;
-        }
-
-        float maxStep = assistMaxStep * assistScale * ctx_->deltaTime;
-        float applied = diff * assistStrength * assistScale * ctx_->deltaTime;
-
-        if (applied > maxStep) {
-            applied = maxStep;
-        } else if (applied < -maxStep) {
-            applied = -maxStep;
-        }
-
-        cameraYaw_ += applied;
-    }
-
-    // =========================
-    // yaw / pitch 縺九ｉ蝓�E�貁E�E�E��E�繧剁E��懊ａE
-    // =========================
-    float cosPitch = std::cosf(cameraPitch_);
-    DirectX::XMFLOAT3 forward = {std::sinf(cameraYaw_) * cosPitch,
-                                 std::sinf(cameraPitch_),
-                                 std::cosf(cameraYaw_) * cosPitch};
-
-    DirectX::XMFLOAT3 right = {std::cosf(cameraYaw_), 0.0f,
-                               -std::sinf(cameraYaw_)};
-
-    // =========================
-    // 繧�E�繝｡繝ｩ蝓ｺ貁E��せ
-    // =========================
-    DirectX::XMFLOAT3 cameraTargetBase = {
-        playerPos.x, playerPos.y + cameraLookHeight_, playerPos.z};
-
-    DirectX::XMFLOAT3 cameraPos{};
-
-    if (isLockOn_) {
-        // ---------------------------------
-        // 繝ｭ繝�Eけ繧�E�繝ｳ譎�E 謨�E�縺�E�縺�E�繝ｩ繧�E�繝ｳ蝓ｺ貁E��〒蜀・�E��E�霑ｽ蠕�E
-        // ---------------------------------
-        float toEnemyX = enemyPos.x - playerPos.x;
-        float toEnemyZ = enemyPos.z - playerPos.z;
-        float distXZ = std::sqrt(toEnemyX * toEnemyX + toEnemyZ * toEnemyZ);
-
-        if (distXZ < 0.0001f) {
-            distXZ = 1.0f;
-        }
-
-        float invLen = 1.0f / distXZ;
-        float lineX = toEnemyX * invLen;
-        float lineZ = toEnemyZ * invLen;
-
-        // 謨�E�譁E��蜷代Λ繧�E�繝ｳ縺�E�蟁E��縺吶�E�蜿�E�繝吶け繝医΁E
-        float orbitRightX = lineZ;
-        float orbitRightZ = -lineX;
-
-        // 謨�E�縺�E�縺�E�霍晞屬縺�E�蟁E���E�縺�E�縺大�E�後ｍ縺�E�蠑輔￥
-        float pullT = 0.0f;
-        {
-            float minD = lockOnDistanceMin_;
-            float maxD = lockOnDistanceMax_;
-            float range = maxD - minD;
-            if (range > 0.0001f) {
-                pullT = (distXZ - minD) / range;
-            }
-            if (pullT < 0.0f) {
-                pullT = 0.0f;
-            }
-            if (pullT > 1.0f) {
-                pullT = 1.0f;
-            }
-        }
-
-        float usedRadius = lockOnOrbitRadius_ + lockOnOrbitPullBackMax_ * pullT;
-        if (isEnemyIntro) {
-            usedRadius -= enemyIntroPushIn_ * enemyIntroRatio;
-        }
-        if (isEnemyPhaseTransition) {
-            usedRadius -= phaseTransitionPushIn_ * enemyPhaseTransitionRatio;
-        }
-
-        // cameraYaw_ 縺�E�謨�E�譁E��蜷代Λ繧�E�繝ｳ縺�E�縺�E�蟾�E�縺�E�縲∝�E蠑ｧ荳翫・蟾�E�蜿�E�菴咲�E��E�繧呈ｱ�E�繧√ａE
-        float lineYaw = std::atan2f(lineX, lineZ);
-        float yawDiff = cameraYaw_ - lineYaw;
-
-        while (yawDiff > 3.14159265f) {
-            yawDiff -= 6.28318530f;
-        }
-        while (yawDiff < -3.14159265f) {
-            yawDiff += 6.28318530f;
-        }
-
-        // 逵滓ｨ�E�縺�E�縺�E�蝗槭�E�縺吶℁E��九�E隕九▼繧峨�E�縺�E�縺�E�蛻�E�髯・
-        const float maxOrbitAngle = 0.65f;
-        if (yawDiff > maxOrbitAngle) {
-            yawDiff = maxOrbitAngle;
-        } else if (yawDiff < -maxOrbitAngle) {
-            yawDiff = -maxOrbitAngle;
-        }
-
-        float sinA = std::sinf(yawDiff);
-        float cosA = std::cosf(yawDiff);
-
-        DirectX::XMFLOAT3 pairCenter = {
-            playerPos.x * lockOnLookPlayerWeight_ +
-                enemyPos.x * lockOnLookEnemyWeight_,
-            (playerPos.y + cameraLookHeight_) * 0.55f +
-                (enemyPos.y + 1.35f) * 0.45f,
-            playerPos.z * lockOnLookPlayerWeight_ +
-                enemyPos.z * lockOnLookEnemyWeight_};
-
-        DirectX::XMFLOAT3 desiredCameraPos = {
-            pairCenter.x - lineX * usedRadius * cosA +
-                orbitRightX * usedRadius * sinA +
-                orbitRightX * lockOnOrbitSideBias_,
-            pairCenter.y + lockOnOrbitHeight_ + 0.20f * pullT,
-            pairCenter.z - lineZ * usedRadius * cosA +
-                orbitRightZ * usedRadius * sinA +
-                orbitRightZ * lockOnOrbitSideBias_};
-
-        float posAlpha = lockOnOrbitLerpSpeed_ * ctx_->deltaTime;
-        if (posAlpha > 1.0f) {
-            posAlpha = 1.0f;
-        }
-
-        lockOnOrbitCameraPos_.x +=
-            (desiredCameraPos.x - lockOnOrbitCameraPos_.x) * posAlpha;
-        lockOnOrbitCameraPos_.y +=
-            (desiredCameraPos.y - lockOnOrbitCameraPos_.y) * posAlpha;
-        lockOnOrbitCameraPos_.z +=
-            (desiredCameraPos.z - lockOnOrbitCameraPos_.z) * posAlpha;
-
-        cameraPos = lockOnOrbitCameraPos_;
-    } else {
-        // ---------------------------------
-        // 騾壼�E��E�譎�E 閧�E�雜翫�E�荳我ｺ�E�遘ｰ
-        // ---------------------------------
-        float dx = enemyPos.x - playerPos.x;
-        float dz = enemyPos.z - playerPos.z;
-        float enemyDistanceXZ = std::sqrt(dx * dx + dz * dz);
-        float dynamicDistance = cameraDistance_;
-        if (enemyDistanceXZ > 5.0f) {
-            dynamicDistance +=
-                (std::min)(1.1f, (enemyDistanceXZ - 5.0f) * 0.18f);
-        }
-
-        cameraPos = {cameraTargetBase.x - forward.x * dynamicDistance +
-                         right.x * cameraSideOffset_,
-                     cameraTargetBase.y + cameraHeight_ -
-                         forward.y * dynamicDistance,
-                     cameraTargetBase.z - forward.z * dynamicDistance +
-                         right.z * cameraSideOffset_};
-
-        if (isEnemyIntro) {
-            cameraPos.x += forward.x * enemyIntroPushIn_ * enemyIntroRatio;
-            cameraPos.y += 0.18f * enemyIntroRatio;
-            cameraPos.z += forward.z * enemyIntroPushIn_ * enemyIntroRatio;
-        }
-        if (isEnemyPhaseTransition) {
-            cameraPos.x += forward.x * phaseTransitionPushIn_ *
-                           enemyPhaseTransitionRatio;
-            cameraPos.y += 0.12f * enemyPhaseTransitionRatio;
-            cameraPos.z += forward.z * phaseTransitionPushIn_ *
-                           enemyPhaseTransitionRatio;
-        }
-
-        // 髱槭Ο繝�Eけ譎ゅ・蜀・�E��E�逕ｨ迴�E�蝨�E�蛟､繧貞�E譛�E
-        lockOnOrbitCameraPos_ = cameraPos;
-    }
-
-    // =========================
-    // 豕ｨ隕也せ
-    // =========================
-    DirectX::XMFLOAT3 lookAt{};
-
-    if (isLockOn_) {
-        DirectX::XMFLOAT3 desiredLookAt = {
-            playerPos.x * lockOnLookPlayerWeight_ +
-                enemyPos.x * lockOnLookEnemyWeight_,
-            (playerPos.y + cameraLookHeight_) * 0.52f +
-                (enemyPos.y + 1.30f) * 0.48f,
-            playerPos.z * lockOnLookPlayerWeight_ +
-                enemyPos.z * lockOnLookEnemyWeight_};
-
-        float lookAlpha = lockOnLookAtLerpSpeed_ * ctx_->deltaTime;
-        if (lookAlpha > 1.0f) {
-            lookAlpha = 1.0f;
-        }
-
-        lockOnLookAt_.x += (desiredLookAt.x - lockOnLookAt_.x) * lookAlpha;
-        lockOnLookAt_.y += (desiredLookAt.y - lockOnLookAt_.y) * lookAlpha;
-        lockOnLookAt_.z += (desiredLookAt.z - lockOnLookAt_.z) * lookAlpha;
-
-        lookAt = lockOnLookAt_;
-    } else {
-        lookAt = {cameraTargetBase.x + forward.x * cameraLookAhead_,
-                  cameraTargetBase.y + forward.y * cameraLookAhead_,
-                  cameraTargetBase.z + forward.z * cameraLookAhead_};
-
-        lockOnLookAt_ = lookAt;
-    }
-
-    if (isEnemyIntro) {
-        DirectX::XMFLOAT3 introLookAt = {
-            playerPos.x * (1.0f - enemyIntroLookAtEnemyWeight_) +
-                enemyPos.x * enemyIntroLookAtEnemyWeight_,
-            (playerPos.y + cameraLookHeight_) *
-                    (1.0f - enemyIntroLookAtEnemyWeight_) +
-                (enemyPos.y + enemyIntroLookAtHeight_) *
-                    enemyIntroLookAtEnemyWeight_,
-            playerPos.z * (1.0f - enemyIntroLookAtEnemyWeight_) +
-                enemyPos.z * enemyIntroLookAtEnemyWeight_};
-
-        float blend = enemyIntroRatio;
-        lookAt.x += (introLookAt.x - lookAt.x) * blend;
-        lookAt.y += (introLookAt.y - lookAt.y) * blend;
-        lookAt.z += (introLookAt.z - lookAt.z) * blend;
-    }
-
-    if (isEnemyPhaseTransition) {
-        DirectX::XMFLOAT3 transitionLookAt = {
-            playerPos.x * (1.0f - phaseTransitionLookAtEnemyWeight_) +
-                enemyPos.x * phaseTransitionLookAtEnemyWeight_,
-            (playerPos.y + cameraLookHeight_) *
-                    (1.0f - phaseTransitionLookAtEnemyWeight_) +
-                (enemyPos.y + phaseTransitionLookAtHeight_) *
-                    phaseTransitionLookAtEnemyWeight_,
-            playerPos.z * (1.0f - phaseTransitionLookAtEnemyWeight_) +
-                enemyPos.z * phaseTransitionLookAtEnemyWeight_};
-
-        float blend = enemyPhaseTransitionRatio;
-        lookAt.x += (transitionLookAt.x - lookAt.x) * blend;
-        lookAt.y += (transitionLookAt.y - lookAt.y) * blend;
-        lookAt.z += (transitionLookAt.z - lookAt.z) * blend;
-    }
-
-    if (isEnemyIntro) {
-        float enemyYaw = enemy_.GetFacingYaw();
-        float frontX = std::sinf(enemyYaw);
-        float frontZ = std::cosf(enemyYaw);
-        float rightX = std::cosf(enemyYaw);
-        float rightZ = -std::sinf(enemyYaw);
-        float introSide =
-            (enemy_.GetIntroPhase() == IntroPhase::SpinSlash) ? 0.42f : 0.16f;
-        float introDistance = 10.2f - 0.35f * enemyIntroRatio;
-
-        cameraPos = {
-            enemyPos.x + frontX * introDistance + rightX * introSide,
-            enemyPos.y + 2.12f + 0.10f * enemyIntroRatio,
-            enemyPos.z + frontZ * introDistance + rightZ * introSide};
-
-        lookAt = {enemyPos.x, enemyPos.y + enemyIntroLookAtHeight_ + 0.18f,
-                  enemyPos.z};
-        cameraYaw_ = std::atan2f(enemyPos.x - cameraPos.x, enemyPos.z - cameraPos.z);
-    }
-
-    camera_.SetPosition(cameraPos);
-    camera_.LookAt(lookAt);
+    battleCamera_.Refresh(ctx_->deltaTime, player_, enemy_);
 }
 
 ////////////////////////////
@@ -2426,11 +1917,12 @@ void GameScene::SpawnElectricRing(const XMFLOAT3 &worldPos, bool isWarpEnd) {
 }
 
 void GameScene::UpdateElectricRing() {
+    const Camera *currentCamera = battleCamera_.GetCurrentCamera();
     if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
-        currentCamera_ == nullptr) {
+        currentCamera == nullptr) {
         return;
     }
     ctx_->renderer.postEffectRenderer->UpdateScreenEffects(
-        ctx_->deltaTime, *currentCamera_, ctx_->frame.width, ctx_->frame.height);
+        ctx_->deltaTime, *currentCamera, ctx_->frame.width, ctx_->frame.height);
 }
 
