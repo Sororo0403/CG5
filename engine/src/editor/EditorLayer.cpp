@@ -4,7 +4,10 @@
 #include "imgui.h"
 #include <algorithm>
 #include <cctype>
+#include <fstream>
 #include <filesystem>
+#include <nlohmann/json.hpp>
+#include <ctime>
 #include <string>
 #include <utility>
 #include <vector>
@@ -16,6 +19,11 @@ constexpr float kHierarchyWidth = 260.0f;
 constexpr float kInspectorWidth = 320.0f;
 constexpr float kConsoleHeight = 170.0f;
 constexpr const char *kLevelDirectory = "resources/levels";
+constexpr const char *kEditorDirectory = "resources/editor";
+constexpr const char *kAutosaveDirectory = "resources/editor/autosaves";
+constexpr const char *kRecentScenesPath = "resources/editor/recent_scenes.json";
+constexpr int kMaxRecentScenes = 8;
+constexpr auto kAutosaveInterval = std::chrono::seconds(60);
 
 bool HasSceneFilenameInput(const char *input) {
     if (!input) {
@@ -39,6 +47,41 @@ std::filesystem::path MakeScenePathFromInput(const char *input) {
     return std::filesystem::path(kLevelDirectory) / filename;
 }
 
+std::string MakeSafeFilenameStem(const std::string &name) {
+    std::string safe;
+    safe.reserve(name.size());
+    for (const char ch : name) {
+        const unsigned char uch = static_cast<unsigned char>(ch);
+        if (std::isalnum(uch) || ch == '_' || ch == '-' || ch == '.') {
+            safe.push_back(ch);
+        } else {
+            safe.push_back('_');
+        }
+    }
+    if (safe.empty() || safe == "." || safe == "..") {
+        return "untitled";
+    }
+    return safe;
+}
+
+std::string FormatClockTime(std::chrono::system_clock::time_point time) {
+    const std::time_t rawTime = std::chrono::system_clock::to_time_t(time);
+    std::tm localTime{};
+#if defined(_WIN32)
+    localtime_s(&localTime, &rawTime);
+#else
+    localtime_r(&rawTime, &localTime);
+#endif
+    char buffer[16]{};
+    std::strftime(buffer, sizeof(buffer), "%H:%M:%S", &localTime);
+    return buffer;
+}
+
+bool IsAutosaveSceneFile(const std::filesystem::path &path) {
+    const std::string filename = path.filename().string();
+    return filename.find(".autosave.") != std::string::npos;
+}
+
 std::vector<std::filesystem::path> EnumerateSceneFiles() {
     std::vector<std::filesystem::path> files;
     std::error_code error;
@@ -55,7 +98,7 @@ std::vector<std::filesystem::path> EnumerateSceneFiles() {
             continue;
         }
         const std::filesystem::path path = entry.path();
-        if (path.extension() == ".json") {
+        if (path.extension() == ".json" && !IsAutosaveSceneFile(path)) {
             files.push_back(path);
         }
     }
@@ -78,6 +121,8 @@ void EditorLayer::Draw(IEditableScene *scene, RenderTexture *renderTexture,
     context.gameplayMode = EngineRuntime::GetInstance().IsGameplayMode();
     context.readOnly = context.gameplayMode;
     HandleUndoRedoShortcuts();
+    EnsureRecentScenesLoaded();
+    UpdateAutosave(context);
 
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImVec2 origin = viewport->WorkPos;
@@ -238,6 +283,7 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
                 console_.AddLog(saved ? message
                                       : "Failed to save scene: " + message);
                 if (saved) {
+                    AddRecentScene(context.scene->GetCurrentScenePath());
                     commandManager_.Clear();
                 }
             } else {
@@ -260,6 +306,12 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
         }
 
         ImGui::SameLine();
+        if (ImGui::Button("Recent")) {
+            ImGui::OpenPopup("Recent Scenes");
+        }
+        DrawRecentScenesPopup(context);
+
+        ImGui::SameLine();
         ImGui::Text("Scene: %s [%s]", sceneName.empty() ? "None" : sceneName.c_str(),
                     dirty ? "Unsaved" : "Saved");
 
@@ -269,7 +321,10 @@ void EditorLayer::DrawToolbar(EditorContext &context) {
         }
 
         ImGui::SameLine();
-        ImGui::TextDisabled("Recent/Autosave: TODO");
+        ImGui::TextDisabled("%s",
+                            autosaveStatusMessage_.empty()
+                                ? "Autosave: waiting"
+                                : autosaveStatusMessage_.c_str());
     }
 
     ImGui::SameLine();
@@ -305,15 +360,7 @@ void EditorLayer::DrawSceneBrowserModal(EditorContext &context) {
                 const bool selected = genericPath == currentPath;
                 if (ImGui::Selectable(path.filename().string().c_str(),
                                       selected)) {
-                    if (context.scene && context.scene->IsSceneDirty()) {
-                        RequestLoadScene(genericPath);
-                    } else {
-                        pendingScenePath_ = genericPath;
-                        pendingAction_ = PendingAction::LoadScene;
-                        ExecutePendingAction(context);
-                        pendingAction_ = PendingAction::None;
-                        pendingScenePath_.clear();
-                    }
+                    LoadSceneWithDirtyCheck(context, genericPath);
                     ImGui::CloseCurrentPopup();
                 }
                 if (ImGui::IsItemHovered()) {
@@ -398,6 +445,222 @@ void EditorLayer::DrawOverwriteSceneModal(EditorContext &context) {
 #endif // _DEBUG
 }
 
+void EditorLayer::UpdateAutosave(EditorContext &context) {
+#ifdef _DEBUG
+    const auto now = std::chrono::steady_clock::now();
+    if (!autosaveClockInitialized_) {
+        lastAutosaveTime_ = now;
+        autosaveClockInitialized_ = true;
+    }
+
+    if (context.gameplayMode || !context.scene ||
+        !context.scene->IsSceneDirty()) {
+        lastAutosaveTime_ = now;
+        return;
+    }
+
+    if (now - lastAutosaveTime_ < kAutosaveInterval) {
+        return;
+    }
+
+    lastAutosaveTime_ = now;
+    TryAutosave(context);
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+bool EditorLayer::TryAutosave(EditorContext &context) {
+#ifdef _DEBUG
+    if (!context.scene) {
+        return false;
+    }
+
+    std::string message;
+    const std::string path = MakeAutosavePath(*context.scene);
+    const bool saved = context.scene->SaveSceneSnapshot(path, &message);
+    if (!saved) {
+        console_.AddLog("Autosave failed: " + message);
+        return false;
+    }
+
+    autosaveStatusMessage_ =
+        "Autosaved " + FormatClockTime(std::chrono::system_clock::now());
+    return true;
+#else
+    (void)context;
+    return false;
+#endif // _DEBUG
+}
+
+std::string EditorLayer::MakeAutosavePath(const IEditableScene &scene) const {
+#ifdef _DEBUG
+    const std::string stem = MakeSafeFilenameStem(scene.GetCurrentSceneName());
+    return (std::filesystem::path(kAutosaveDirectory) /
+            (stem + ".autosave.json"))
+        .generic_string();
+#else
+    (void)scene;
+    return {};
+#endif // _DEBUG
+}
+
+void EditorLayer::EnsureRecentScenesLoaded() {
+#ifdef _DEBUG
+    if (recentScenesLoaded_) {
+        return;
+    }
+    LoadRecentScenes();
+    recentScenesLoaded_ = true;
+#endif // _DEBUG
+}
+
+void EditorLayer::LoadRecentScenes() {
+#ifdef _DEBUG
+    recentScenes_.clear();
+
+    std::ifstream file(kRecentScenesPath);
+    if (!file) {
+        return;
+    }
+
+    try {
+        nlohmann::json root;
+        file >> root;
+        const nlohmann::json *array = nullptr;
+        if (root.is_object() && root.contains("recentScenes") &&
+            root["recentScenes"].is_array()) {
+            array = &root["recentScenes"];
+        } else if (root.is_array()) {
+            array = &root;
+        }
+        if (!array) {
+            return;
+        }
+
+        for (const nlohmann::json &entry : *array) {
+            if (!entry.is_string()) {
+                continue;
+            }
+            const std::string normalized =
+                std::filesystem::path(entry.get<std::string>())
+                    .generic_string();
+            if (normalized.empty() || IsAutosaveSceneFile(normalized)) {
+                continue;
+            }
+            if (std::find(recentScenes_.begin(), recentScenes_.end(),
+                          normalized) != recentScenes_.end()) {
+                continue;
+            }
+            recentScenes_.push_back(normalized);
+            if (recentScenes_.size() >= kMaxRecentScenes) {
+                break;
+            }
+        }
+    } catch (const nlohmann::json::exception &) {
+        recentScenes_.clear();
+    }
+#endif // _DEBUG
+}
+
+void EditorLayer::SaveRecentScenes() const {
+#ifdef _DEBUG
+    std::error_code error;
+    std::filesystem::create_directories(kEditorDirectory, error);
+    if (error) {
+        return;
+    }
+
+    nlohmann::json root;
+    root["recentScenes"] = recentScenes_;
+    std::ofstream file(kRecentScenesPath);
+    if (file) {
+        file << root.dump(2);
+    }
+#endif // _DEBUG
+}
+
+void EditorLayer::AddRecentScene(const std::string &path) {
+#ifdef _DEBUG
+    if (path.empty()) {
+        return;
+    }
+
+    const std::string normalized = std::filesystem::path(path).generic_string();
+    if (IsAutosaveSceneFile(normalized)) {
+        return;
+    }
+
+    recentScenes_.erase(
+        std::remove(recentScenes_.begin(), recentScenes_.end(), normalized),
+        recentScenes_.end());
+    recentScenes_.insert(recentScenes_.begin(), normalized);
+    if (recentScenes_.size() > kMaxRecentScenes) {
+        recentScenes_.resize(kMaxRecentScenes);
+    }
+    if (recentScenesLoaded_) {
+        SaveRecentScenes();
+    }
+#else
+    (void)path;
+#endif // _DEBUG
+}
+
+void EditorLayer::DrawRecentScenesPopup(EditorContext &context) {
+#ifdef _DEBUG
+    if (!ImGui::BeginPopup("Recent Scenes")) {
+        return;
+    }
+
+    if (recentScenes_.empty()) {
+        ImGui::TextDisabled("No recent scenes");
+    } else {
+        for (const std::string &path : recentScenes_) {
+            const bool exists = std::filesystem::exists(path);
+            const std::string label =
+                std::filesystem::path(path).filename().string() +
+                (exists ? "" : " (missing)");
+            if (!exists) {
+                ImGui::BeginDisabled();
+            }
+            if (ImGui::Selectable(label.c_str(), false) && exists) {
+                LoadSceneWithDirtyCheck(context, path);
+                ImGui::CloseCurrentPopup();
+            }
+            if (!exists) {
+                ImGui::EndDisabled();
+            }
+            if (ImGui::IsItemHovered()) {
+                ImGui::SetTooltip("%s", path.c_str());
+            }
+        }
+    }
+
+    ImGui::EndPopup();
+#else
+    (void)context;
+#endif // _DEBUG
+}
+
+void EditorLayer::LoadSceneWithDirtyCheck(EditorContext &context,
+                                          const std::string &path) {
+#ifdef _DEBUG
+    if (context.scene && context.scene->IsSceneDirty()) {
+        RequestLoadScene(path);
+        return;
+    }
+
+    pendingScenePath_ = path;
+    pendingAction_ = PendingAction::LoadScene;
+    ExecutePendingAction(context);
+    pendingAction_ = PendingAction::None;
+    pendingScenePath_.clear();
+#else
+    (void)context;
+    (void)path;
+#endif // _DEBUG
+}
+
 void EditorLayer::RequestNewScene(EditorContext &context) {
 #ifdef _DEBUG
     if (context.scene && context.scene->IsSceneDirty()) {
@@ -455,6 +718,7 @@ void EditorLayer::ExecuteSaveSceneAs(EditorContext &context,
     statusMessage_ = saved ? "Saved successfully" : "Failed to save";
     console_.AddLog(saved ? message : "Failed to save scene: " + message);
     if (saved) {
+        AddRecentScene(path);
         saveAsNameInitialized_ = false;
         commandManager_.Clear();
     }
@@ -533,6 +797,9 @@ void EditorLayer::ExecutePendingAction(EditorContext &context) {
                                 : "Failed to create scene: " + message);
         saveAsNameInitialized_ = false;
         if (created) {
+            if (context.scene && context.scene->HasScenePath()) {
+                AddRecentScene(context.scene->GetCurrentScenePath());
+            }
             commandManager_.Clear();
         }
         return;
@@ -547,6 +814,7 @@ void EditorLayer::ExecutePendingAction(EditorContext &context) {
         console_.AddLog(loaded ? message : "Failed to load scene: " + message);
         saveAsNameInitialized_ = false;
         if (loaded) {
+            AddRecentScene(pendingScenePath_);
             commandManager_.Clear();
         }
         return;

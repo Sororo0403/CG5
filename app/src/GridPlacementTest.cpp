@@ -921,6 +921,18 @@ bool GridPlacementTest::SaveSceneAs(const std::string &path,
     return false;
 }
 
+bool GridPlacementTest::SaveSceneSnapshot(const std::string &path,
+                                          std::string *message) const {
+    if (path.empty()) {
+        if (message) {
+            *message = "Scene path is empty";
+        }
+        return false;
+    }
+    EditableSceneDocument document = BuildSceneDocument();
+    return SceneSerializer::Save(path, document, message);
+}
+
 bool GridPlacementTest::LoadSceneFromPath(const std::string &path,
                                           std::string *message) {
     if (path.empty()) {

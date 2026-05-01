@@ -75,6 +75,8 @@ class GridPlacementTest : public IEditableScene {
     bool LoadScene(std::string *message) override;
     bool NewScene(std::string *message) override;
     bool SaveSceneAs(const std::string &path, std::string *message) override;
+    bool SaveSceneSnapshot(const std::string &path,
+                           std::string *message) const override;
     bool LoadSceneFromPath(const std::string &path,
                            std::string *message) override;
     std::string GetCurrentScenePath() const override;

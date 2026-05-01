@@ -365,6 +365,10 @@ FodyWeavers.xsd
 /app/imgui.ini
 /imgui.ini
 
+# editor local state
+/resources/editor/recent_scenes.json
+/resources/editor/autosaves/
+
 # track resources
 !app/resources/
 !app/resources/**

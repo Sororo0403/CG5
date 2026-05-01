@@ -44,6 +44,14 @@ class IEditableScene {
         (void)path;
         return SaveScene(message);
     }
+    virtual bool SaveSceneSnapshot(const std::string &path,
+                                   std::string *message) const {
+        (void)path;
+        if (message) {
+            *message = "Scene snapshot save is not supported";
+        }
+        return false;
+    }
     virtual bool LoadSceneFromPath(const std::string &path,
                                    std::string *message) {
         (void)path;
