@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="src\enemy\EnemyMelee.cpp" />
+    <ClCompile Include="src\enemy\EnemyRanged.cpp" />
+    <ClCompile Include="src\enemy\EnemyWarp.cpp" />
+    <ClCompile Include="src\enemy\EnemyCombat.cpp" />
+    <ClCompile Include="src\enemy\EnemyCore.cpp" />
+    <ClCompile Include="src\enemy\EnemyDecision.cpp" />
+    <ClCompile Include="src\enemy\EnemyMovement.cpp" />
+    <ClCompile Include="src\enemy\EnemyPresentation.cpp" />
+    <ClCompile Include="src\enemy\EnemyTuning.cpp" />
+    <ClCompile Include="src\enemy\EnemyTuningPresetIO.cpp" />
+    <ClCompile Include="src\enemy\Bullet.cpp" />
+    <ClCompile Include="src\player\Player.cpp" />
+    <ClCompile Include="src\player\PlayerTuningPresetIO.cpp" />
+    <ClCompile Include="src\player\Sword.cpp" />
+    <ClCompile Include="src\player\SwordJoyConController.cpp" />
+    <ClCompile Include="src\player\SwordMouseController.cpp" />
+    <ClCompile Include="src\scene\EnemyMotionDebugScene.cpp" />
+    <ClCompile Include="src\scene\GameScene.cpp" />
+    <ClCompile Include="src\scene\GameScene.Magnetismic.cpp" />
+    <ClCompile Include="src\debug\DebugDraw.cpp" />
+    <ClCompile Include="src\main.cpp" />
+  </ItemGroup>
+</Project>

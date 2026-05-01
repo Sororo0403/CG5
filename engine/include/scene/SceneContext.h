@@ -16,6 +16,14 @@ class DeferredRenderer;
 class GBuffer;
 class SkyboxRenderer;
 class LightManager;
+class DebugDraw;
+class SlashEffectRenderer;
+class GpuSlashParticleSystem;
+class SwordTrailRenderer;
+class MagnetismicRenderer;
+
+struct WarpPostEffectParamGPU;
+struct ElectricRingParamGPU;
 
 #ifdef _DEBUG
 class ImguiManager;
@@ -60,6 +68,23 @@ struct SceneContext {
     AssetServices assets;
     RendererServices renderer;
     FrameState frame;
+
+    Input *input = nullptr;
+    WinApp *winApp = nullptr;
+    SoundManager *sound = nullptr;
+    ModelManager *model = nullptr;
+    SpriteManager *sprite = nullptr;
+    TextureManager *texture = nullptr;
+    DirectXCommon *dxCommon = nullptr;
+    SrvManager *srv = nullptr;
+    WarpPostEffectParamGPU *warpPostEffectParam = nullptr;
+    ElectricRingParamGPU *electricRingParam = nullptr;
+    SlashEffectRenderer *slashEffectRenderer = nullptr;
+    GpuSlashParticleSystem *gpuSlashParticleSystem = nullptr;
+    SwordTrailRenderer *swordTrailRenderer = nullptr;
+    MagnetismicRenderer *magnetismicRenderer = nullptr;
+    DebugDraw *debugDraw = nullptr;
+    float deltaTime = 0.0f;
 
 #ifdef _DEBUG
     ImguiManager *imgui = nullptr;

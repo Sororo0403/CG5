@@ -69,7 +69,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>true</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -83,7 +83,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
-      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)engine\include\editor;$(SolutionDir)engine\include\scene;$(SolutionDir)engine\include\light;$(SolutionDir)engine\include\particle;$(SolutionDir)engine\include\collision;$(SolutionDir)engine\include\input;$(SolutionDir)engine\include\camera;$(SolutionDir)engine\include\core;$(SolutionDir)engine\include\graphics;$(SolutionDir)engine\include\imgui;$(SolutionDir)engine\include\model;$(SolutionDir)engine\include\animation;$(SolutionDir)engine\include\sound;$(SolutionDir)engine\include\sprite;$(SolutionDir)engine\include\texture;$(SolutionDir)engine\include\runtime;$(SolutionDir)engine\externals;$(SolutionDir)engine\externals\assimp\include;$(SolutionDir)engine\externals\assimp\include\assimp;$(SolutionDir)engine\externals\DirectX-Headers;$(SolutionDir)engine\externals\DirectXTex;$(SolutionDir)engine\externals\JoyShockLibrary\include;$(SolutionDir)engine\externals\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
@@ -138,6 +138,8 @@
     <ClCompile Include="$(SolutionDir)engine\src\light\LightManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\scene\SceneManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\input\Input.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\input\JoyCon.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\input\MahonyFilter.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\sound\SoundManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\imgui\ImguiManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\ModelManager.cpp" />
@@ -215,6 +217,8 @@
     <ClInclude Include="$(SolutionDir)engine\include\sound\SoundManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\sound\SoundVoiceCallback.h" />
     <ClInclude Include="$(SolutionDir)engine\include\input\Input.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\input\JoyCon.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\input\MahonyFilter.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\SceneManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\Material.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\MaterialManager.h" />

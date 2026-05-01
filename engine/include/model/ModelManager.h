@@ -139,6 +139,22 @@ class ModelManager {
     /// <returns>ModelRendererへのポインタ</returns>
     const ModelRenderer *GetRenderer() const { return &modelRenderer_; }
 
+    void PreDraw() { modelRenderer_.PreDraw(); }
+    void PostDraw() { modelRenderer_.PostDraw(); }
+    void Draw(uint32_t modelId, const Transform &transform,
+              const Camera &camera) {
+        if (IsValidModelId(modelId, "ModelManager::Draw")) {
+            modelRenderer_.Draw(models_[modelId], transform, camera);
+        }
+    }
+    void SetDrawEffect(const ModelDrawEffect &effect) {
+        modelRenderer_.SetDrawEffect(effect);
+    }
+    void ClearDrawEffect() { modelRenderer_.ClearDrawEffect(); }
+    void SetSceneLighting(const SceneLighting &lighting) {
+        modelRenderer_.SetSceneLighting(lighting);
+    }
+
   private:
     bool IsValidModelId(uint32_t modelId, const char *caller) const;
 
