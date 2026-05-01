@@ -1,6 +1,5 @@
 #include "DebugDraw.h"
 #include "DirectXCommon.h"
-#include "ElectricRingEffectRenderer.h"
 #include "GameScene.h"
 #include "GpuSlashParticleSystem.h"
 #include "Input.h"
@@ -74,7 +73,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     textureManager.ReleaseUploadBuffers();
 
     WarpPostEffectParamGPU warpPostParam{};
-    ElectricRingParamGPU electricRingParam{};
     SlashEffectRenderer slashEffectRenderer;
     GpuSlashParticleSystem gpuSlashParticleSystem;
     TrailRenderer trailRenderer;
@@ -109,7 +107,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.dxCommon = &dxCommon;
     sceneCtx.srv = &srvManager;
     sceneCtx.warpPostEffectParam = &warpPostParam;
-    sceneCtx.electricRingParam = &electricRingParam;
     sceneCtx.slashEffectRenderer = &slashEffectRenderer;
     sceneCtx.gpuSlashParticleSystem = &gpuSlashParticleSystem;
     sceneCtx.trailRenderer = &trailRenderer;

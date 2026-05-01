@@ -5,7 +5,9 @@
 #include "DxUtils.h"
 #include "ShaderCompiler.h"
 #include "SrvManager.h"
-#include "VignetteRenderer.h"
+#ifndef IMGUI_DISABLED
+#include "imgui.h"
+#endif
 #include <algorithm>
 #include <cmath>
 
@@ -270,26 +272,53 @@ void PostEffectRenderer::UpdateScreenEffects(float deltaTime,
 
 void PostEffectRenderer::DrawScreenOverlays() const {
 #ifndef IMGUI_DISABLED
-    VignetteRenderer vignette;
+    auto drawVignette = [](const DirectX::XMFLOAT3 &color, float intensity,
+                           float innerRadius, float power) {
+        if (intensity <= 0.001f) {
+            return;
+        }
+        ImGuiViewport *viewport = ImGui::GetMainViewport();
+        ImDrawList *drawList = ImGui::GetForegroundDrawList();
+        if (viewport == nullptr || drawList == nullptr) {
+            return;
+        }
+
+        const ImVec2 center(viewport->Pos.x + viewport->Size.x * 0.5f,
+                            viewport->Pos.y + viewport->Size.y * 0.5f);
+        const float maxRadius =
+            std::sqrt(viewport->Size.x * viewport->Size.x +
+                      viewport->Size.y * viewport->Size.y) *
+            0.5f;
+        constexpr int kLayers = 18;
+
+        for (int i = kLayers; i >= 1; --i) {
+            const float t = static_cast<float>(i) / static_cast<float>(kLayers);
+            const float ring = std::clamp(
+                (t - innerRadius) / (std::max)(0.001f, 1.0f - innerRadius),
+                0.0f, 1.0f);
+            const float alpha = std::pow(ring, power) * intensity * 0.16f;
+            if (alpha <= 0.001f) {
+                continue;
+            }
+            drawList->AddCircleFilled(
+                center, maxRadius * t,
+                IM_COL32(static_cast<int>(std::clamp(color.x, 0.0f, 1.0f) * 255.0f),
+                         static_cast<int>(std::clamp(color.y, 0.0f, 1.0f) * 255.0f),
+                         static_cast<int>(std::clamp(color.z, 0.0f, 1.0f) * 255.0f),
+                         static_cast<int>(std::clamp(alpha, 0.0f, 1.0f) * 255.0f)),
+                96);
+        }
+    };
+
     if (demoPlayIndicatorVisible_) {
         const float pulse = 0.5f + 0.5f * std::sinf(demoPlayEffectTime_ * 2.6f);
-        VignetteParams params{};
-        params.color = {0.02f, 0.05f, 0.10f};
-        params.intensity = 0.28f + pulse * 0.24f;
-        params.innerRadius = 0.28f;
-        params.power = 1.7f;
-        params.roundness = 1.15f;
-        vignette.Draw(params);
+        drawVignette({0.02f, 0.05f, 0.10f}, 0.28f + pulse * 0.24f, 0.28f,
+                     1.7f);
     }
 
     if (counterVignetteAlpha_ > 0.001f) {
-        VignetteParams params{};
-        params.color = {0.06f, 0.0f, 0.0f};
-        params.intensity = counterVignetteAlpha_ * 0.78f;
-        params.innerRadius = 0.34f;
-        params.power = 1.9f;
-        params.roundness = 1.25f;
-        vignette.Draw(params);
+        drawVignette({0.06f, 0.0f, 0.0f}, counterVignetteAlpha_ * 0.78f,
+                     0.34f, 1.9f);
     }
 
     if (electricRingParam_.enabled > 0.5f) {

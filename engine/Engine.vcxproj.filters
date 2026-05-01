@@ -260,9 +260,6 @@
     <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h">
       <Filter>include\collision</Filter>
     </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\ElectricRingEffectRenderer.h">
-      <Filter>include\graphics</Filter>
-    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
@@ -270,9 +267,6 @@
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\TrailRenderer.h">
-      <Filter>include\graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\VignetteRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h">

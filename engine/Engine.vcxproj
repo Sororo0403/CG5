@@ -137,11 +137,9 @@
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableObject.h" />
     <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\ElectricRingEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\TrailRenderer.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\VignetteRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableScene.h" />

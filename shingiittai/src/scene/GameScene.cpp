@@ -12,7 +12,6 @@
 #include "TextureManager.h"
 #include "WinApp.h"
 #include "WarpPostEffectRenderer.h"
-#include "ElectricRingEffectRenderer.h"
 #include "GpuSlashParticleSystem.h"
 #include "SlashEffectRenderer.h"
 #include "TrailRenderer.h"
