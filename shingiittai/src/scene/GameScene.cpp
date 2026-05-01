@@ -8,13 +8,9 @@
 #include "ModelManager.h"
 #include "PostEffectRenderer.h"
 #include "SceneManager.h"
-#include "SpriteManager.h"
 #include "TextureManager.h"
 #include "WinApp.h"
 #include <string>
-#ifdef _DEBUG
-#include "DebugDraw.h"
-#endif // _DEBUG
 #ifndef IMGUI_DISABLED
 #include "imgui.h"
 #include "imgui_internal.h"
@@ -178,10 +174,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
     uint32_t enemyModel = 0;
     uint32_t bulletModel =
         ctx_->model->Load(upload, L"resources/model/bullet/bullet.obj");
-    warpSmokeSpriteId_ =
-        ctx_->sprite->Create(upload, L"resources/texture/effect/warp_smoke.png");
-    warpSmokeDarkSpriteId_ =
-        ctx_->sprite->Create(upload, L"resources/texture/effect/warp_smoke_dark.png");
     try {
         enemyModel = model->Load(upload, L"resources/model/boss/boss.gltf");
     } catch (const std::exception &) {
@@ -227,7 +219,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
                                  playerModelData->currentAnimation, true);
         }
     }
-    bullet_.Initialize(bulletModel);
 
     SyncEnemyAnimation();
     UpdateSceneLighting();
@@ -235,7 +226,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
     hasGameStarted_ = false;
     demoIntroSkipped_ = false;
     enemyAnimationFrozen_ = false;
-    demoPlayEffectTime_ = 0.0f;
     if (ctx_ != nullptr && ctx_->renderer.postEffectRenderer != nullptr) {
         ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
         ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
@@ -582,16 +572,9 @@ void GameScene::Update() {
     const bool freezeEnemyMotion = false;
 #endif
 
-    if (input != nullptr && input->IsKeyTrigger(DIK_F1)) {
-        dbgTriggerCounterRequested_ = true;
-    }
-    if (input != nullptr && input->IsKeyTrigger(DIK_F2)) {
-        dbgTriggerWarpBackstabRequested_ = true;
-    }
     UpdateCamera(input);
 
     if (!hasGameStarted_) {
-        demoPlayEffectTime_ += baseDeltaTime;
         if (!demoIntroSkipped_) {
             enemy_.SkipIntro();
             demoIntroSkipped_ = true;
@@ -712,12 +695,6 @@ void GameScene::Update() {
         break;
     }
 
-    if (dbgTriggerWarpBackstabRequested_ && !freezeEnemyMotion) {
-        dbgTriggerWarpBackstabRequested_ = false;
-        enemy_.DebugTriggerWarpBackstab(playerObs);
-        SyncEnemyAnimation();
-    }
-
     if (!freezeEnemyMotion) {
         enemy_.Update(playerObs, enemyDeltaTime);
     }
@@ -772,12 +749,6 @@ void GameScene::Update() {
         startCounterCinematicThisFrame = true;
     };
 
-    if (dbgTriggerCounterRequested_) {
-        dbgTriggerCounterRequested_ = false;
-        triggerSuccessfulCounter(
-            (std::max)(enemy_.GetCurrentAttackDamage(), 1.0f), 0.2f);
-    }
-
     if (enemyHitCooldown_ > 0.0f) {
         enemyHitCooldown_ -= gameplayDeltaTime;
         if (enemyHitCooldown_ < 0.0f) {
@@ -792,12 +763,6 @@ void GameScene::Update() {
         }
     }
 
-    dbgHitLeftHand_ = false;
-    dbgHitRightHand_ = false;
-    dbgHitBody_ = false;
-    dbgWaveHitPlayer_ = false;
-    dbgPlayerGuardedHit_ = false;
-
     const auto swords = player_.GetSwords();
     const auto swordSlashStates = player_.GetSwordSlashStates();
 
@@ -809,16 +774,7 @@ void GameScene::Update() {
 
         auto swordHitBox = sword->GetOBB();
         auto bodyBox = enemy_.GetBodyOBB();
-        auto leftHandBox = enemy_.GetLeftHandOBB();
-        auto rightHandBox = enemy_.GetRightHandOBB();
-
-        bool hitLeftHand = CollisionUtil::CheckOBB(swordHitBox, leftHandBox);
-        bool hitRightHand = CollisionUtil::CheckOBB(swordHitBox, rightHandBox);
         bool hitBody = CollisionUtil::CheckOBB(swordHitBox, bodyBox);
-
-        dbgHitLeftHand_ = dbgHitLeftHand_ || hitLeftHand;
-        dbgHitRightHand_ = dbgHitRightHand_ || hitRightHand;
-        dbgHitBody_ = dbgHitBody_ || hitBody;
 
         if (enemyHitCooldown_ <= 0.0f) {
             if (hitBody) {
@@ -885,9 +841,7 @@ void GameScene::Update() {
 
             if (canCounterThisHit) {
                 triggerSuccessfulCounter(enemyAttackDamage, 0.2f);
-                bossHitPlayer = false;
             } else if (isPlayerGuarding) {
-                dbgPlayerGuardedHit_ = true;
                 enemy_.NotifyAttackGuarded();
                 player_.TakeDamage(enemyAttackDamage * kGuardDamageMultiplier);
                 RequestEffect(EffectParticlePreset::HitSpark,
@@ -906,9 +860,6 @@ void GameScene::Update() {
             }
         }
     }
-
-    dbgBossHitPlayer_ = bossHitPlayer;
-    dbgBulletHitPlayer_ = false;
 
     if (freezeEnemyMotion) {
         if (startCounterCinematicThisFrame) {
@@ -938,7 +889,6 @@ void GameScene::Update() {
         if (!bullet.isReflected && isPlayerCountering &&
             CollisionUtil::CheckOBB(bulletBox, counterBox)) {
             enemy_.ReflectBullet(i, enemy_.GetTransform().position);
-            dbgBulletHitPlayer_ = false;
             continue;
         }
 
@@ -956,8 +906,6 @@ void GameScene::Update() {
         }
 
         if (CollisionUtil::CheckOBB(bulletBox, playerBox)) {
-            dbgBulletHitPlayer_ = true;
-
             if (playerHitCooldown_ <= 0.0f) {
                 float vx = bullet.velocity.x;
                 float vz = bullet.velocity.z;
@@ -973,7 +921,6 @@ void GameScene::Update() {
                     triggerSuccessfulCounter(enemy_.GetBulletDamage() * 2.0f,
                                              0.12f);
                 } else if (isPlayerGuarding) {
-                    dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetBulletDamage() *
                                        kGuardDamageMultiplier);
                     RequestEffect(EffectParticlePreset::HitSpark,
@@ -1000,8 +947,6 @@ void GameScene::Update() {
         }
     }
 
-    dbgWaveHitPlayer_ = false;
-
     const auto &waves = enemy_.GetWaves();
     for (size_t i = 0; i < waves.size(); ++i) {
         const auto &wave = waves[i];
@@ -1017,7 +962,6 @@ void GameScene::Update() {
         if (!wave.isReflected && isPlayerCountering &&
             CollisionUtil::CheckOBB(waveBox, counterBox)) {
             enemy_.ReflectWave(i, enemy_.GetTransform().position);
-            dbgWaveHitPlayer_ = false;
             continue;
         }
 
@@ -1035,8 +979,6 @@ void GameScene::Update() {
         }
 
         if (CollisionUtil::CheckOBB(waveBox, playerBox)) {
-            dbgWaveHitPlayer_ = true;
-
             if (playerHitCooldown_ <= 0.0f) {
                 float vx = wave.direction.x;
                 float vz = wave.direction.z;
@@ -1052,7 +994,6 @@ void GameScene::Update() {
                     triggerSuccessfulCounter(enemy_.GetWaveDamage() * 2.0f,
                                              0.12f);
                 } else if (isPlayerGuarding) {
-                    dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetWaveDamage() *
                                        kGuardDamageMultiplier);
                     RequestEffect(EffectParticlePreset::HitSpark,
@@ -1216,10 +1157,6 @@ void GameScene::SyncEnemyAnimation() {
     enemyAnimationName_ = nextAnimation;
     enemyAnimationLoop_ = shouldLoop;
 }
-// #ifdef _DEBUG
-//     DebugDraw *debugDraw = ctx_->debugDraw;
-// #endif
-
 void GameScene::Draw() {
     ctx_->model->PreDraw();
     const Camera *currentCamera = &camera_;
@@ -1238,109 +1175,6 @@ void GameScene::Draw() {
     if (enemyVisible) {
         enemy_.Draw(ctx_->model, *currentCamera);
     }
-    int aliveBulletCount = 0;
-    for (const auto &bullet : enemy_.GetBullets()) {
-        if (bullet.isAlive) {
-            aliveBulletCount++;
-        }
-    }
-
-    int aliveWaveCount = 0;
-    for (const auto &wave : enemy_.GetWaves()) {
-        if (wave.isAlive) {
-            aliveWaveCount++;
-        }
-    }
-#ifdef _DEBUG
-    if (EngineRuntime::GetInstance().Settings().showDebugUI &&
-        !EngineRuntime::GetInstance().IsEditorMode()) {
-    // 蠖薙◁E��雁�E螳壽緒逕ｻ
-    ModelDrawEffect hitBoxEffect{};
-    hitBoxEffect.enabled = true;
-    hitBoxEffect.intensity = 0.45f;
-    hitBoxEffect.fresnelPower = 2.8f;
-    hitBoxEffect.noiseAmount = 0.06f;
-    hitBoxEffect.time = sceneLightTime_ * 5.0f;
-
-    // 繝励Ξ繧�E�繝､繝ｼ譛ｬ菴・
-    hitBoxEffect.color = {0.20f, 0.95f, 0.28f, 0.45f};
-    ctx_->model->SetDrawEffect(hitBoxEffect);
-    ctx_->debugDraw->DrawOBB(ctx_->model, player_.GetOBB(), *currentCamera);
-
-    // 繝励Ξ繧�E�繝､繝ｼ蜑｣
-    hitBoxEffect.color = {0.20f, 0.85f, 1.00f, 0.42f};
-    ctx_->model->SetDrawEffect(hitBoxEffect);
-    for (const Sword *sword : player_.GetSwords()) {
-        if (sword == nullptr) {
-            continue;
-        }
-        ctx_->debugDraw->DrawOBB(ctx_->model, sword->GetOBB(), *currentCamera);
-    }
-
-    // 繝懊せ驛ｨ菴・
-    if (enemy_.IsAlive()) {
-        hitBoxEffect.color = {1.00f, 0.28f, 0.20f, 0.40f};
-        ctx_->model->SetDrawEffect(hitBoxEffect);
-        ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetBodyOBB(),
-                                 *currentCamera);
-        hitBoxEffect.color = {1.00f, 0.45f, 0.25f, 0.35f};
-        ctx_->model->SetDrawEffect(hitBoxEffect);
-        ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetLeftHandOBB(),
-                                 *currentCamera);
-        ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetRightHandOBB(),
-                                 *currentCamera);
-
-        const bool isEnemySmashActive =
-            (enemy_.GetActionKind() == ActionKind::Smash &&
-             (enemy_.GetActionStep() == ActionStep::Active ||
-              enemy_.GetActionStep() == ActionStep::Recovery));
-        const bool isEnemySweepActive =
-            (enemy_.GetActionKind() == ActionKind::Sweep &&
-             (enemy_.GetActionStep() == ActionStep::Active ||
-              enemy_.GetActionStep() == ActionStep::Recovery));
-
-        if (isEnemySmashActive || isEnemySweepActive) {
-            hitBoxEffect.color = {1.00f, 1.00f, 0.15f, 0.52f};
-            hitBoxEffect.intensity = 0.62f;
-            ctx_->model->SetDrawEffect(hitBoxEffect);
-            ctx_->debugDraw->DrawOBB(ctx_->model, enemy_.GetAttackOBB(),
-                                     *currentCamera);
-            hitBoxEffect.intensity = 0.45f;
-        }
-
-        // 蠑ｾ繝�Eャ繝亥愛螳・
-        hitBoxEffect.color = {0.95f, 0.20f, 1.00f, 0.34f};
-        ctx_->model->SetDrawEffect(hitBoxEffect);
-        for (const auto &bullet : enemy_.GetBullets()) {
-            if (!bullet.isAlive) {
-                continue;
-            }
-
-            OBB bulletBox{};
-            bulletBox.center = bullet.position;
-            bulletBox.size = enemy_.GetBulletHitBoxSize();
-            bulletBox.rotation = player_.GetTransform().rotation;
-            ctx_->debugDraw->DrawOBB(ctx_->model, bulletBox, *currentCamera);
-        }
-
-        // 豕｢蜍輔ヲ繝�Eヨ蛻�E�螳・
-        hitBoxEffect.color = {0.25f, 0.65f, 1.00f, 0.34f};
-        ctx_->model->SetDrawEffect(hitBoxEffect);
-        for (const auto &wave : enemy_.GetWaves()) {
-            if (!wave.isAlive) {
-                continue;
-            }
-
-            OBB waveBox{};
-            waveBox.center = wave.position;
-            waveBox.size = enemy_.GetWaveHitBoxSize();
-            waveBox.rotation = player_.GetTransform().rotation;
-            ctx_->debugDraw->DrawOBB(ctx_->model, waveBox, *currentCamera);
-        }
-    }
-    ctx_->model->ClearDrawEffect();
-    }
-#endif // _DEBUG
     ctx_->model->PostDraw();
     if (EngineRuntime::GetInstance().IsEditorMode()) {
         return;
@@ -1444,100 +1278,6 @@ bool GameScene::ProjectWorldToScreen(const XMFLOAT3 &worldPos,
     float height = static_cast<float>(ctx_->winApp->GetHeight());
     outScreen.x = (ndcX * 0.5f + 0.5f) * width;
     outScreen.y = (-ndcY * 0.5f + 0.5f) * height;
-    return true;
-}
-
-bool GameScene::ComputeEnemySlashScreenEffect(XMFLOAT2 &outStart,
-                                              XMFLOAT2 &outEnd,
-                                              float &outPhaseAlpha,
-                                              float &outActionTime,
-                                              ActionKind &outActionKind) const {
-    outStart = {};
-    outEnd = {};
-    outPhaseAlpha = 0.0f;
-    outActionTime = 0.0f;
-    outActionKind = ActionKind::None;
-
-    const ActionKind actionKind = enemy_.GetActionKind();
-    const ActionStep actionStep = enemy_.GetActionStep();
-    const bool isEnemySlashAction =
-        (actionKind == ActionKind::Smash || actionKind == ActionKind::Sweep) &&
-        (actionStep == ActionStep::Charge || actionStep == ActionStep::Hold ||
-         actionStep == ActionStep::Active || actionStep == ActionStep::Recovery);
-    if (!isEnemySlashAction) {
-        return false;
-    }
-
-    XMFLOAT3 slashStartWorld = enemy_.GetRightHandTransform().position;
-    XMFLOAT3 slashEndWorld = enemy_.GetAttackOBB().center;
-
-    const float yaw =
-        (actionStep == ActionStep::Charge || actionStep == ActionStep::Hold)
-            ? enemy_.GetFacingYaw()
-            : enemy_.GetLockedAttackYaw();
-    const float forwardX = std::sinf(yaw);
-    const float forwardZ = std::cosf(yaw);
-    const float rightX = std::cosf(yaw);
-    const float rightZ = -std::sinf(yaw);
-
-    if (actionKind == ActionKind::Smash) {
-        slashStartWorld.x += -forwardX * 0.35f;
-        slashStartWorld.y += 0.95f;
-        slashStartWorld.z += -forwardZ * 0.35f;
-
-        slashEndWorld.x += forwardX * 0.55f;
-        slashEndWorld.y -= 0.55f;
-        slashEndWorld.z += forwardZ * 0.55f;
-    } else {
-        const XMFLOAT3 attackCenter = enemy_.GetAttackOBB().center;
-        const float sweepHalfWidth = enemy_.GetSweepAttackBoxSize().x * 0.55f;
-        slashStartWorld = {attackCenter.x - rightX * sweepHalfWidth,
-                           attackCenter.y + 0.28f,
-                           attackCenter.z - rightZ * sweepHalfWidth};
-        slashEndWorld = {attackCenter.x + rightX * sweepHalfWidth,
-                         attackCenter.y - 0.18f,
-                         attackCenter.z + rightZ * sweepHalfWidth};
-    }
-
-    if (!ProjectWorldToScreen(slashStartWorld, outStart) ||
-        !ProjectWorldToScreen(slashEndWorld, outEnd)) {
-        return false;
-    }
-
-    const AttackTimingParam *timing = enemy_.GetCurrentAttackTimingPublic();
-    const float actionTime = enemy_.GetCurrentActionTimePublic();
-    float phaseAlpha = 0.0f;
-    if (actionStep == ActionStep::Charge || actionStep == ActionStep::Hold) {
-        const float previewT =
-            (timing != nullptr && timing->activeStartTime > 0.0001f)
-                ? actionTime / timing->activeStartTime
-                : 1.0f;
-        phaseAlpha =
-            enemySlashChargePreviewAlpha_ * (0.35f + 0.65f * EaseOutCubic(previewT));
-    } else if (actionStep == ActionStep::Active) {
-        float activeT = 0.0f;
-        if (timing != nullptr && timing->activeEndTime > timing->activeStartTime) {
-            activeT = (actionTime - timing->activeStartTime) /
-                      (timing->activeEndTime - timing->activeStartTime);
-        }
-        phaseAlpha = enemySlashActiveAlpha_ * (1.0f - 0.22f * Clamp01(activeT));
-    } else {
-        float recoveryT = 0.0f;
-        if (timing != nullptr && timing->totalTime > timing->recoveryStartTime) {
-            recoveryT = (actionTime - timing->recoveryStartTime) /
-                        (timing->totalTime - timing->recoveryStartTime);
-        }
-        phaseAlpha =
-            enemySlashRecoveryAlpha_ * (1.0f - EaseOutCubic(recoveryT));
-    }
-
-    if (phaseAlpha <= 0.01f) {
-        return false;
-    }
-
-    outPhaseAlpha = phaseAlpha;
-    outActionTime = actionTime;
-    outActionKind = actionKind;
     return true;
 }
 
@@ -1690,8 +1430,6 @@ void GameScene::UpdateEnemySlashEffects() {
     }
 
     enemySlashActiveLatched_ = isSlashActive;
-    prevEnemyActionKind_ = actionKind;
-    prevEnemyActionStep_ = actionStep;
 }
 
 void GameScene::RequestEffect(EffectParticlePreset preset,

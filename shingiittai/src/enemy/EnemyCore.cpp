@@ -83,19 +83,6 @@ bool Enemy::DebugStartAction(ActionKind kind) {
     return started;
 }
 
-bool Enemy::DebugTriggerWarpBackstab(const PlayerCombatObservation &playerObs) {
-    if (deathFinished_ || isDying_ || introActive_ || phaseTransitionActive_) {
-        return false;
-    }
-
-    runtime_.playerObs = playerObs;
-    runtime_.playerPos = playerObs.position;
-    runtime_.playerGuarding = playerObs.isGuarding;
-
-    EndAttack();
-    return TryBeginWarpBehindMeleeSkill(true);
-}
-
 void Enemy::DebugSetBossPhase(BossPhase phase) {
     phase_ = phase;
     phaseTransitionActive_ = false;

@@ -369,7 +369,6 @@ class Enemy {
     void RestartIntro();
     void DebugResetState();
     bool DebugStartAction(ActionKind kind);
-    bool DebugTriggerWarpBackstab(const PlayerCombatObservation &playerObs);
     void DebugSetBossPhase(BossPhase phase);
 
     const Transform &GetTransform() const { return tf_; }
