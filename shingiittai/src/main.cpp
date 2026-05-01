@@ -125,6 +125,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     RenderTexture editorViewportTexture;
     editorViewportTexture.Initialize(&dxCommon, &srvManager, width, height);
     EditorLayer editorLayer;
+    EngineRuntime::GetInstance().SetMode(EngineRuntimeMode::Editor);
 #endif
 
     SceneManager sceneManager;
@@ -177,21 +178,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
 #ifdef _DEBUG
         imguiManager.Begin(dxCommon.GetCommandList());
-        if (EngineRuntime::GetInstance().IsEditorMode()) {
-            editorViewportTexture.Resize(width, height);
-            editorViewportTexture.BeginRender({0.04f, 0.05f, 0.07f, 1.0f});
-            sceneManager.Draw();
-            editorViewportTexture.EndRender();
+        editorViewportTexture.Resize(width, height);
+        editorViewportTexture.BeginRender({0.04f, 0.05f, 0.07f, 1.0f});
+        sceneManager.Draw();
+        editorViewportTexture.EndRender();
 
-            dxCommon.SetBackBufferRenderTarget(true);
-            editorLayer.Draw(gameScenePtr, &editorViewportTexture,
-                             gameScenePtr != nullptr
-                                 ? gameScenePtr->GetCurrentCamera()
-                                 : nullptr);
-        } else {
-            dxCommon.SetBackBufferRenderTarget(true);
-            sceneManager.Draw();
-        }
+        dxCommon.SetBackBufferRenderTarget(true);
+        editorLayer.Draw(gameScenePtr, &editorViewportTexture,
+                         gameScenePtr != nullptr
+                             ? gameScenePtr->GetCurrentCamera()
+                             : nullptr);
 #else
         dxCommon.SetBackBufferRenderTarget(true);
         sceneManager.Draw();
