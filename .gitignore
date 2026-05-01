@@ -362,7 +362,7 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # imgui
-/app/imgui.ini
+/shingiittai/imgui.ini
 /imgui.ini
 
 # editor local state
