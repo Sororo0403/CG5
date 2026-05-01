@@ -7,6 +7,7 @@
 #include "LightManager.h"
 #include "MagnetismicRenderer.h"
 #include "ModelManager.h"
+#include "PostEffectRenderer.h"
 #include "SceneContext.h"
 #include "SceneManager.h"
 #include "ShaderCompiler.h"
@@ -14,7 +15,7 @@
 #include "SoundManager.h"
 #include "SpriteManager.h"
 #include "SrvManager.h"
-#include "SwordTrailRenderer.h"
+#include "TrailRenderer.h"
 #include "TextureManager.h"
 #include "WarpPostEffectRenderer.h"
 #include "WinApp.h"
@@ -76,8 +77,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ElectricRingParamGPU electricRingParam{};
     SlashEffectRenderer slashEffectRenderer;
     GpuSlashParticleSystem gpuSlashParticleSystem;
-    SwordTrailRenderer swordTrailRenderer;
+    TrailRenderer trailRenderer;
     MagnetismicRenderer magnetismicRenderer;
+    PostEffectRenderer postEffectRenderer;
+    postEffectRenderer.Initialize(&dxCommon, &srvManager, width, height);
     DebugDraw debugDraw;
     debugDraw.Initialize(boxModelId);
 
@@ -95,6 +98,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.renderer.model = modelManager.GetRenderer();
     sceneCtx.renderer.sprite = spriteManager.GetRenderer();
     sceneCtx.renderer.light = &lightManager;
+    sceneCtx.renderer.postEffectRenderer = &postEffectRenderer;
 
     sceneCtx.input = &input;
     sceneCtx.winApp = &winApp;
@@ -108,7 +112,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     sceneCtx.electricRingParam = &electricRingParam;
     sceneCtx.slashEffectRenderer = &slashEffectRenderer;
     sceneCtx.gpuSlashParticleSystem = &gpuSlashParticleSystem;
-    sceneCtx.swordTrailRenderer = &swordTrailRenderer;
+    sceneCtx.trailRenderer = &trailRenderer;
     sceneCtx.magnetismicRenderer = &magnetismicRenderer;
     sceneCtx.debugDraw = &debugDraw;
     sceneCtx.frame.width = width;
@@ -140,6 +144,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             if (width > 0 && height > 0) {
                 dxCommon.Resize(width, height);
                 spriteManager.Resize(width, height);
+                postEffectRenderer.Resize(width, height);
                 sceneCtx.frame.width = width;
                 sceneCtx.frame.height = height;
                 sceneManager.Resize(width, height);

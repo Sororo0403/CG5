@@ -7,7 +7,6 @@
 #include "IEditableScene.h"
 #include "Player.h"
 #include "Transform.h"
-#include "VignetteRenderer.h"
 #include <DirectXMath.h>
 #include <cstdint>
 #include <string>
@@ -101,7 +100,7 @@ class GameScene : public BaseScene, public IEditableScene {
                                       float &outActionTime,
                                       ActionKind &outActionKind) const;
     void UpdateEnemySlashEffects();
-    void RequestEffect(GpuSlashParticleSystem::EffectType type,
+    void RequestEffect(GpuSlashParticleSystem::EffectPreset preset,
                        const DirectX::XMFLOAT3 &position);
     void DrawEnemySlashPass();
     void DrawWarpSmokePass();
@@ -255,13 +254,10 @@ class GameScene : public BaseScene, public IEditableScene {
     bool demoIntroSkipped_ = false;
     bool enemyAnimationFrozen_ = false;
     float counterTimeScale_ = 0.05f;
-    float counterVignetteAlpha_ = 0.0f;
-    float counterVignetteFadeSpeed_ = 8.0f;
     float demoPlayEffectTime_ = 0.0f;
     float counterCameraShakeX_ = 0.035f;
     float counterCameraShakeY_ = 0.020f;
     float counterCameraShakeFrequency_ = 18.0f;
-    VignetteRenderer counterVignetteRenderer_;
 
     float reflectDamage_ = 0.0f;
     float damageMultiplier_ = 2.0f;
@@ -283,28 +279,6 @@ class GameScene : public BaseScene, public IEditableScene {
     float warpArrivalFlashLengthPx_ = 172.0f;
     float warpArrivalFlashThicknessPx_ = 6.0f;
     float warpArrivalFlashGlowThicknessPx_ = 18.0f;
-
-    struct ActiveElectricRing {
-        bool active = false;
-        DirectX::XMFLOAT3 worldPos = {0.0f, 0.0f, 0.0f};
-        float time = 0.0f;
-        float lifeTime = 0.0f;
-
-        float startRadius = 0.02f;
-        float endRadius = 0.28f;
-
-        float ringWidth = 0.015f;
-        float distortionWidth = 0.045f;
-        float distortionStrength = 0.018f;
-        float swirlStrength = 0.006f;
-
-        float cloudScale = 3.5f;
-        float cloudIntensity = 1.4f;
-        float brightness = 2.4f;
-        float haloIntensity = 1.0f;
-    };
-
-    ActiveElectricRing activeElectricRing_{};
 
     // slash effect
     ActionKind prevEnemyActionKind_ = ActionKind::None;

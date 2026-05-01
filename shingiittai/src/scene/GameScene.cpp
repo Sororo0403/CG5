@@ -5,6 +5,7 @@
 #include "EngineRuntime.h"
 #include "Input.h"
 #include "ModelManager.h"
+#include "PostEffectRenderer.h"
 #include "SceneManager.h"
 #include "PlayerTuningPresetIO.h"
 #include "SpriteManager.h"
@@ -14,7 +15,7 @@
 #include "ElectricRingEffectRenderer.h"
 #include "GpuSlashParticleSystem.h"
 #include "SlashEffectRenderer.h"
-#include "SwordTrailRenderer.h"
+#include "TrailRenderer.h"
 #include <string>
 #ifdef _DEBUG
 #include "DebugDraw.h"
@@ -282,13 +283,10 @@ void GameScene::Initialize(const SceneContext &ctx) {
     hasGameStarted_ = false;
     demoIntroSkipped_ = false;
     enemyAnimationFrozen_ = false;
-    counterVignetteAlpha_ = 0.0f;
     demoPlayEffectTime_ = 0.0f;
-    counterVignetteRenderer_.Initialize(ctx_->dxCommon);
-
-    activeElectricRing_ = {};
-    if (ctx_ != nullptr && ctx_->electricRingParam != nullptr) {
-        ctx_->electricRingParam->enabled = 0.0f;
+    if (ctx_ != nullptr && ctx_->renderer.postEffectRenderer != nullptr) {
+        ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
+        ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
     }
 
     editableObjects_.clear();
@@ -828,7 +826,7 @@ void GameScene::Update() {
             forceSyncEnemyAnimationThisFrame = true;
         }
         enemy_.TakeDamage(enemyDamage);
-        RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+        RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                       enemy_.GetTransform().position);
         playerHitCooldown_ = hitCooldown;
         startCounterCinematicThisFrame = true;
@@ -885,7 +883,7 @@ void GameScene::Update() {
         if (enemyHitCooldown_ <= 0.0f) {
             if (hitBody) {
                 enemy_.TakeDamage(10.0f);
-                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                               bodyBox.center);
                 enemyHitCooldown_ = 0.2f;
                 if (counterCinematicActive_) {
@@ -952,7 +950,7 @@ void GameScene::Update() {
                 dbgPlayerGuardedHit_ = true;
                 enemy_.NotifyAttackGuarded();
                 player_.TakeDamage(enemyAttackDamage * kGuardDamageMultiplier);
-                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                               player_.GetTransform().position);
                 player_.AddKnockback({dx * (enemyAttackKnockback * 0.5f), 0.0f,
                                       dz * (enemyAttackKnockback * 0.5f)});
@@ -960,7 +958,7 @@ void GameScene::Update() {
             } else {
                 enemy_.NotifyAttackConnected();
                 player_.TakeDamage(enemyAttackDamage);
-                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                               player_.GetTransform().position);
                 player_.AddKnockback({dx * enemyAttackKnockback, 0.0f,
                                       dz * enemyAttackKnockback});
@@ -1009,7 +1007,7 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetBulletDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                               bullet.position);
                 enemy_.DestroyBullet(i);
                 enemyHitCooldown_ = 0.2f;
@@ -1038,7 +1036,7 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetBulletDamage() *
                                        kGuardDamageMultiplier);
-                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                                   bullet.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetBulletKnockback() * 0.5f), 0.0f,
@@ -1047,7 +1045,7 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetBulletDamage());
-                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                                   bullet.position);
                     player_.AddKnockback({vx * enemy_.GetBulletKnockback(),
                                           0.0f,
@@ -1088,7 +1086,7 @@ void GameScene::Update() {
                 enemyHitCooldown_ <= 0.0f) {
                 reflectDamage_ = enemy_.GetWaveDamage() * damageMultiplier_;
                 enemy_.TakeDamage(reflectDamage_);
-                RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                               wave.position);
                 enemy_.DestroyWave(i);
                 enemyHitCooldown_ = 0.2f;
@@ -1117,7 +1115,7 @@ void GameScene::Update() {
                     dbgPlayerGuardedHit_ = true;
                     player_.TakeDamage(enemy_.GetWaveDamage() *
                                        kGuardDamageMultiplier);
-                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                                   wave.position);
                     player_.AddKnockback(
                         {vx * (enemy_.GetWaveKnockback() * 0.5f), 0.0f,
@@ -1126,7 +1124,7 @@ void GameScene::Update() {
                     playerHitCooldown_ = 0.15f;
                 } else {
                     player_.TakeDamage(enemy_.GetWaveDamage());
-                    RequestEffect(GpuSlashParticleSystem::EffectType::Hit,
+                    RequestEffect(GpuSlashParticleSystem::EffectPreset::HitSpark,
                                   wave.position);
                     player_.AddKnockback({vx * enemy_.GetWaveKnockback(), 0.0f,
                                           vz * enemy_.GetWaveKnockback()});
@@ -1292,45 +1290,30 @@ void GameScene::SetEnemyAnimationFrozen(bool frozen) {
 }
 
 void GameScene::UpdateCounterVignette(float deltaTime) {
-    const float targetAlpha = counterCinematicActive_ ? 1.0f : 0.0f;
-    float step = counterVignetteFadeSpeed_ * deltaTime;
-    if (step > 1.0f) {
-        step = 1.0f;
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
+        currentCamera_ == nullptr) {
+        return;
     }
-    counterVignetteAlpha_ += (targetAlpha - counterVignetteAlpha_) * step;
-    counterVignetteAlpha_ =
-        std::clamp(counterVignetteAlpha_, 0.0f, 1.0f);
+    ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(
+        counterCinematicActive_);
+    ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
+        !hasGameStarted_);
+    (void)deltaTime;
 }
 
 void GameScene::DrawCounterVignette() {
-    if (counterVignetteAlpha_ <= 0.001f || ctx_ == nullptr ||
-        ctx_->dxCommon == nullptr) {
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr) {
         return;
     }
-
-    VignetteParams params{};
-    params.color = {0.06f, 0.0f, 0.0f};
-    params.intensity = counterVignetteAlpha_ * 0.78f;
-    params.innerRadius = 0.34f;
-    params.power = 1.9f;
-    params.roundness = 1.25f;
-    counterVignetteRenderer_.Draw(params);
+    ctx_->renderer.postEffectRenderer->DrawScreenOverlays();
 }
 
 void GameScene::DrawDemoPlayIndicator() {
-    if (hasGameStarted_ || ctx_ == nullptr || ctx_->dxCommon == nullptr) {
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr) {
         return;
     }
-
-    const float pulse = 0.5f + 0.5f * std::sinf(demoPlayEffectTime_ * 2.6f);
-
-    VignetteParams params{};
-    params.color = {0.02f, 0.05f, 0.10f};
-    params.intensity = 0.28f + pulse * 0.24f;
-    params.innerRadius = 0.28f;
-    params.power = 1.7f;
-    params.roundness = 1.15f;
-    counterVignetteRenderer_.Draw(params);
+    ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
+        !hasGameStarted_);
 }
 
 void GameScene::SyncEnemyAnimation() {
@@ -1508,8 +1491,8 @@ void GameScene::Draw() {
         return;
     }
     DrawMagnetismic();
-    if (ctx_->swordTrailRenderer != nullptr) {
-        ctx_->swordTrailRenderer->Draw(*currentCamera_);
+    if (ctx_->trailRenderer != nullptr) {
+        ctx_->trailRenderer->Draw(*currentCamera_);
     }
 
     {
@@ -1533,29 +1516,6 @@ void GameScene::Draw() {
     ctx_->gpuSlashParticleSystem->Render(*currentCamera_, ctx_->deltaTime);
     DrawWarpSmokePass();
     DrawWarpDistortionPass();
-#ifndef IMGUI_DISABLED
-    if (ctx_->electricRingParam != nullptr &&
-        ctx_->electricRingParam->enabled > 0.5f) {
-        ImGuiViewport *viewport = ImGui::GetMainViewport();
-        ImDrawList *drawList = ImGui::GetForegroundDrawList();
-        if (viewport != nullptr && drawList != nullptr) {
-            const ElectricRingParamGPU &ring = *ctx_->electricRingParam;
-            const ImVec2 center(
-                viewport->Pos.x + ring.center.x * viewport->Size.x,
-                viewport->Pos.y + ring.center.y * viewport->Size.y);
-            const float radius =
-                ring.radius * (std::min)(viewport->Size.x, viewport->Size.y);
-            const int alpha =
-                static_cast<int>(std::clamp(ring.brightness * 72.0f, 0.0f, 180.0f));
-            drawList->AddCircle(center, radius, IM_COL32(70, 190, 255, alpha),
-                                96, (std::max)(2.0f, ring.ringWidth * 420.0f));
-            drawList->AddCircle(center, radius * 1.12f,
-                                IM_COL32(255, 80, 180, alpha / 2), 96, 2.0f);
-            drawList->AddCircleFilled(center, radius * 0.12f,
-                                      IM_COL32(190, 240, 255, alpha / 3), 48);
-        }
-    }
-#endif
     DrawDemoPlayIndicator();
     DrawCounterVignette();
 
@@ -2064,7 +2024,7 @@ void GameScene::UpdateEnemySlashEffects() {
                 (slashStartWorld.x + slashEndWorld.x) * 0.5f,
                 (slashStartWorld.y + slashEndWorld.y) * 0.5f,
                 (slashStartWorld.z + slashEndWorld.z) * 0.5f};
-            RequestEffect(GpuSlashParticleSystem::EffectType::Charge,
+            RequestEffect(GpuSlashParticleSystem::EffectPreset::ChargeSpark,
                           effectPosition);
         }
     }
@@ -2074,22 +2034,22 @@ void GameScene::UpdateEnemySlashEffects() {
     prevEnemyActionStep_ = actionStep;
 }
 
-void GameScene::RequestEffect(GpuSlashParticleSystem::EffectType type,
+void GameScene::RequestEffect(GpuSlashParticleSystem::EffectPreset preset,
                               const DirectX::XMFLOAT3 &position) {
     if (ctx_ == nullptr || ctx_->gpuSlashParticleSystem == nullptr) {
         return;
     }
 
-    ctx_->gpuSlashParticleSystem->RequestEffect(type, position);
+    ctx_->gpuSlashParticleSystem->PlayParticle(preset, position);
 }
 
 void GameScene::UpdateEnemySwordTrail() {
-    if (ctx_ == nullptr || ctx_->swordTrailRenderer == nullptr) {
+    if (ctx_ == nullptr || ctx_->trailRenderer == nullptr) {
         return;
     }
 
-    ctx_->swordTrailRenderer->SetEnabled(enemySwordTrailEnabled_);
-    ctx_->swordTrailRenderer->BeginFrame(ctx_->deltaTime);
+    ctx_->trailRenderer->SetEnabled(enemySwordTrailEnabled_);
+    ctx_->trailRenderer->BeginFrame(ctx_->deltaTime);
 
     const ActionKind actionKind = enemy_.GetActionKind();
     const ActionStep actionStep = enemy_.GetActionStep();
@@ -2137,10 +2097,11 @@ void GameScene::UpdateEnemySwordTrail() {
                                 ? enemySwordTrailWidth_ * 1.10f
                                 : enemySwordTrailWidth_ * 0.82f;
 
-        ctx_->swordTrailRenderer->AddPoint(baseWorld, tipWorld, width);
+        ctx_->trailRenderer->EmitTrail(TrailRenderer::TrailPreset::SwordSlash,
+                                       baseWorld, tipWorld, width);
     }
 
-    ctx_->swordTrailRenderer->EndFrame();
+    ctx_->trailRenderer->EndFrame();
 }
 
 void GameScene::DrawWarpSmokePass() {
@@ -2877,111 +2838,21 @@ void GameScene::UpdateBattleCamera() {
 //lightring
 ///////////////////////////
 void GameScene::SpawnElectricRing(const XMFLOAT3 &worldPos, bool isWarpEnd) {
-    activeElectricRing_ = {};
-    activeElectricRing_.active = true;
-    activeElectricRing_.worldPos = worldPos;
-    activeElectricRing_.worldPos.y += 1.1f;
-    activeElectricRing_.time = 0.0f;
-
-    if (!isWarpEnd) {
-        // ワープ開姁E
-        activeElectricRing_.lifeTime = 0.45f;
-        activeElectricRing_.startRadius = 0.01f;
-        activeElectricRing_.endRadius = 0.18f;
-        activeElectricRing_.ringWidth = 0.012f;
-        activeElectricRing_.distortionWidth = 0.040f;
-        activeElectricRing_.distortionStrength = 0.022f;
-        activeElectricRing_.swirlStrength = 0.008f;
-        activeElectricRing_.cloudScale = 3.8f;
-        activeElectricRing_.cloudIntensity = 1.10f;
-        activeElectricRing_.brightness = 1.80f;
-        activeElectricRing_.haloIntensity = 0.80f;
-    } else {
-        // ワープ終亁E
-        activeElectricRing_.lifeTime = 0.65f;
-        activeElectricRing_.startRadius = 0.02f;
-        activeElectricRing_.endRadius = 0.28f;
-        activeElectricRing_.ringWidth = 0.015f;
-        activeElectricRing_.distortionWidth = 0.045f;
-        activeElectricRing_.distortionStrength = 0.018f;
-        activeElectricRing_.swirlStrength = 0.006f;
-        activeElectricRing_.cloudScale = 3.5f;
-        activeElectricRing_.cloudIntensity = 1.40f;
-        activeElectricRing_.brightness = 2.40f;
-        activeElectricRing_.haloIntensity = 1.00f;
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr) {
+        return;
     }
+    ctx_->renderer.postEffectRenderer->Request(
+        isWarpEnd ? PostEffectRenderer::PostEffectType::WarpRingEnd
+                  : PostEffectRenderer::PostEffectType::WarpRingStart,
+        worldPos);
 }
 
 void GameScene::UpdateElectricRing() {
-    if (ctx_ == nullptr || ctx_->electricRingParam == nullptr ||
-        ctx_->winApp == nullptr || currentCamera_ == nullptr) {
+    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr ||
+        currentCamera_ == nullptr) {
         return;
     }
-
-    ElectricRingParamGPU &gpu = *ctx_->electricRingParam;
-
-    if (!activeElectricRing_.active) {
-        gpu.enabled = 0.0f;
-        return;
-    }
-
-    activeElectricRing_.time += ctx_->deltaTime;
-    if (activeElectricRing_.time >= activeElectricRing_.lifeTime) {
-        activeElectricRing_.active = false;
-        gpu.enabled = 0.0f;
-        return;
-    }
-
-    XMMATRIX viewProj = currentCamera_->GetView() * currentCamera_->GetProj();
-    XMVECTOR pos = XMVectorSet(activeElectricRing_.worldPos.x,
-                               activeElectricRing_.worldPos.y,
-                               activeElectricRing_.worldPos.z, 1.0f);
-    XMVECTOR clip = XMVector4Transform(pos, viewProj);
-
-    float w = XMVectorGetW(clip);
-    if (w <= 0.0001f) {
-        gpu.enabled = 0.0f;
-        return;
-    }
-
-    float invW = 1.0f / w;
-    float ndcX = XMVectorGetX(clip) * invW;
-    float ndcY = XMVectorGetY(clip) * invW;
-    float ndcZ = XMVectorGetZ(clip) * invW;
-
-    if (ndcZ < 0.0f || ndcZ > 1.0f) {
-        gpu.enabled = 0.0f;
-        return;
-    }
-
-    float t = activeElectricRing_.time / activeElectricRing_.lifeTime;
-    t = std::clamp(t, 0.0f, 1.0f);
-    float ease = 1.0f - std::pow(1.0f - t, 3.0f);
-
-    float aspect = static_cast<float>(ctx_->winApp->GetWidth()) /
-                   static_cast<float>(ctx_->winApp->GetHeight());
-
-    gpu.center = {ndcX * 0.5f + 0.5f, -ndcY * 0.5f + 0.5f};
-    gpu.radius =
-        activeElectricRing_.startRadius +
-        (activeElectricRing_.endRadius - activeElectricRing_.startRadius) *
-            ease;
-    gpu.time = activeElectricRing_.time;
-
-    gpu.ringWidth = activeElectricRing_.ringWidth;
-    gpu.distortionWidth = activeElectricRing_.distortionWidth;
-    gpu.distortionStrength =
-        activeElectricRing_.distortionStrength * (1.0f - t * 0.75f);
-    gpu.swirlStrength = activeElectricRing_.swirlStrength;
-
-    gpu.cloudScale = activeElectricRing_.cloudScale;
-    gpu.cloudIntensity = activeElectricRing_.cloudIntensity;
-    gpu.brightness = activeElectricRing_.brightness * (1.0f - t * 0.35f);
-    gpu.haloIntensity = activeElectricRing_.haloIntensity;
-
-    gpu.aspectInvAspect = {aspect, 1.0f / aspect};
-    gpu.innerFade = 0.85f;
-    gpu.outerFade = 1.0f;
-    gpu.enabled = 1.0f;
+    ctx_->renderer.postEffectRenderer->UpdateScreenEffects(
+        ctx_->deltaTime, *currentCamera_, ctx_->frame.width, ctx_->frame.height);
 }
 

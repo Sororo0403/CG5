@@ -269,7 +269,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\graphics\SwordTrailRenderer.h">
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\TrailRenderer.h">
       <Filter>include\graphics</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\graphics\VignetteRenderer.h">

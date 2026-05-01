@@ -1,8 +1,11 @@
 #pragma once
+#include "ElectricRingEffectRenderer.h"
+#include <DirectXMath.h>
 #include <d3d12.h>
 #include <cstdint>
 #include <wrl.h>
 
+class Camera;
 class DirectXCommon;
 class SrvManager;
 
@@ -35,6 +38,13 @@ class PostEffectRenderer {
         None = 0,
         GrayscaleNoise = 1,
         OverlayNoise = 2,
+    };
+
+    enum class PostEffectType {
+        CounterVignette,
+        DemoPlayVignette,
+        WarpRingStart,
+        WarpRingEnd,
     };
 
     /// <summary>
@@ -186,7 +196,33 @@ class PostEffectRenderer {
     /// </summary>
     void SetRandomTime(float time);
 
+    void Request(PostEffectType type);
+    void Request(PostEffectType type, const DirectX::XMFLOAT3 &worldPosition);
+    void SetCounterVignetteActive(bool active);
+    void SetDemoPlayIndicatorVisible(bool visible);
+    void UpdateScreenEffects(float deltaTime, const Camera &camera, int width,
+                             int height);
+    void DrawScreenOverlays() const;
+    const ElectricRingParamGPU &GetElectricRingParam() const;
+
   private:
+    struct ActiveElectricRing {
+        bool active = false;
+        DirectX::XMFLOAT3 worldPos = {0.0f, 0.0f, 0.0f};
+        float time = 0.0f;
+        float lifeTime = 0.0f;
+        float startRadius = 0.02f;
+        float endRadius = 0.28f;
+        float ringWidth = 0.015f;
+        float distortionWidth = 0.045f;
+        float distortionStrength = 0.018f;
+        float swirlStrength = 0.006f;
+        float cloudScale = 3.5f;
+        float cloudIntensity = 1.4f;
+        float brightness = 2.4f;
+        float haloIntensity = 1.0f;
+    };
+
     struct EffectConstBuffer {
         int32_t colorMode = 0;
         int32_t enableVignetting = 0;
@@ -241,4 +277,12 @@ class PostEffectRenderer {
     float randomTime_ = 0.0f;
     int width_ = 1;
     int height_ = 1;
+
+    bool counterVignetteRequested_ = false;
+    bool demoPlayIndicatorVisible_ = false;
+    float counterVignetteAlpha_ = 0.0f;
+    float counterVignetteFadeSpeed_ = 8.0f;
+    float demoPlayEffectTime_ = 0.0f;
+    ActiveElectricRing activeElectricRing_{};
+    ElectricRingParamGPU electricRingParam_{};
 };

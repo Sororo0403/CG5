@@ -23,12 +23,19 @@ class GpuSlashParticleSystem {
         Charge,
     };
 
+    enum class EffectPreset {
+        HitSpark,
+        Explosion,
+        ChargeSpark,
+    };
+
     void Initialize(DirectXCommon *, SrvManager *, TextureManager *,
                     uint32_t maxBursts) {
         maxBursts_ = (std::max)(maxBursts, 1u);
         bursts_.clear();
         pointBursts_.clear();
     }
+    void PlayParticle(EffectPreset preset, const DirectX::XMFLOAT3 &position);
     void RequestEffect(EffectType type, const DirectX::XMFLOAT3 &position);
     void EmitSlashBurst(const DirectX::XMFLOAT3 &start,
                         const DirectX::XMFLOAT3 &end, uint32_t count,
@@ -82,6 +89,21 @@ inline void GpuSlashParticleSystem::RequestEffect(
     pointBursts_.push_back(burst);
     while (pointBursts_.size() > maxBursts_ * 4u) {
         pointBursts_.erase(pointBursts_.begin());
+    }
+}
+
+inline void GpuSlashParticleSystem::PlayParticle(
+    EffectPreset preset, const DirectX::XMFLOAT3 &position) {
+    switch (preset) {
+    case EffectPreset::HitSpark:
+        RequestEffect(EffectType::Hit, position);
+        break;
+    case EffectPreset::Explosion:
+        RequestEffect(EffectType::Explosion, position);
+        break;
+    case EffectPreset::ChargeSpark:
+        RequestEffect(EffectType::Charge, position);
+        break;
     }
 }
 

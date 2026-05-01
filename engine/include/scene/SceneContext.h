@@ -19,7 +19,7 @@ class LightManager;
 class DebugDraw;
 class SlashEffectRenderer;
 class GpuSlashParticleSystem;
-class SwordTrailRenderer;
+class TrailRenderer;
 class MagnetismicRenderer;
 
 struct WarpPostEffectParamGPU;
@@ -81,7 +81,7 @@ struct SceneContext {
     ElectricRingParamGPU *electricRingParam = nullptr;
     SlashEffectRenderer *slashEffectRenderer = nullptr;
     GpuSlashParticleSystem *gpuSlashParticleSystem = nullptr;
-    SwordTrailRenderer *swordTrailRenderer = nullptr;
+    TrailRenderer *trailRenderer = nullptr;
     MagnetismicRenderer *magnetismicRenderer = nullptr;
     DebugDraw *debugDraw = nullptr;
     float deltaTime = 0.0f;
