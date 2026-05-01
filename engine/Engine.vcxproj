@@ -91,6 +91,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\collision\DebugDraw.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\imgui\DebugUIRegistry.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\imgui\Inspector.cpp" />
@@ -135,6 +136,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableObject.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\ElectricRingEffectRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\SwordTrailRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\VignetteRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableScene.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\DebugCamera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\runtime\EngineRuntime.h" />

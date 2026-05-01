@@ -126,6 +126,9 @@
     <ClCompile Include="$(SolutionDir)engine\src\core\WinApp.cpp">
       <Filter>src\core</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\collision\DebugDraw.cpp">
+      <Filter>src\collision</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\runtime\EngineRuntime.cpp">
       <Filter>src\runtime</Filter>
     </ClCompile>
@@ -253,6 +256,30 @@
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableObject.h">
       <Filter>include\scene</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h">
+      <Filter>include\collision</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\ElectricRingEffectRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\SlashEffectRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\SwordTrailRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\VignetteRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\graphics\WarpPostEffectRenderer.h">
+      <Filter>include\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h">
+      <Filter>include\particle</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\scene\IEditableScene.h">
       <Filter>include\scene</Filter>
