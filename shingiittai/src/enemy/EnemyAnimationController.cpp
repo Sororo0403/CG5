@@ -22,18 +22,7 @@ void EnemyAnimationController::Initialize(uint32_t modelId) {
     currentLoop_ = true;
     playbackSpeed_ = 1.0f;
     currentActionSequence_ = 0;
-    introAnimationStarted_ = false;
-    introPhase_ = IntroPhase::SecondSlash;
     frozen_ = false;
-}
-
-void EnemyAnimationController::ResetIntro() {
-    currentAnimation_.clear();
-    currentLoop_ = true;
-    playbackSpeed_ = 1.0f;
-    currentActionSequence_ = 0;
-    introAnimationStarted_ = false;
-    introPhase_ = IntroPhase::SecondSlash;
 }
 
 void EnemyAnimationController::Sync(ModelManager *modelManager,
@@ -52,38 +41,6 @@ void EnemyAnimationController::Sync(ModelManager *modelManager,
         PickAnimation(enemyModel, enemy, shouldLoop);
     if (nextAnimation.empty()) {
         return;
-    }
-
-    if (enemy.IsIntroActive()) {
-        bool introLoop = false;
-        std::string introAnimation =
-            PickIntroAnimation(enemyModel, enemy, introLoop);
-        if (!introAnimation.empty()) {
-            IntroPhase introPhase = enemy.GetIntroPhase();
-            const bool forceRestart =
-                (introPhase_ != introPhase &&
-                 (introPhase == IntroPhase::SecondSlash ||
-                  introPhase == IntroPhase::SpinSlash ||
-                  introPhase == IntroPhase::Settle));
-            if (!introAnimationStarted_ || forceRestart ||
-                currentAnimation_ != introAnimation ||
-                currentLoop_ != introLoop) {
-                modelManager->PlayAnimation(modelId_, introAnimation,
-                                            introLoop);
-                modelManager->UpdateAnimation(modelId_, 0.0f);
-                currentAnimation_ = introAnimation;
-                currentLoop_ = introLoop;
-                introAnimationStarted_ = true;
-                currentActionSequence_ = enemy.GetActionSequence();
-            }
-            playbackSpeed_ = CalculatePlaybackSpeed(
-                enemyModel, enemy, introAnimation, introLoop);
-            introPhase_ = introPhase;
-            return;
-        }
-    } else {
-        introAnimationStarted_ = false;
-        introPhase_ = IntroPhase::SecondSlash;
     }
 
     const uint32_t actionSequence = enemy.GetActionSequence();
@@ -149,47 +106,6 @@ bool EnemyAnimationController::HasAnimation(
     }
 
     return model->animations.find(animationName) != model->animations.end();
-}
-
-std::string EnemyAnimationController::PickIntroAnimation(
-    const Model *model, const Enemy &enemy, bool &outLoop) const {
-    outLoop = false;
-
-    if (model == nullptr || model->animations.empty()) {
-        return {};
-    }
-
-    switch (enemy.GetIntroPhase()) {
-    case IntroPhase::SecondSlash:
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        break;
-
-    case IntroPhase::SpinSlash:
-        if (HasAnimation(model, kBossAnimSweep)) {
-            return kBossAnimSweep;
-        }
-        if (HasAnimation(model, kBossAnimSmash)) {
-            return kBossAnimSmash;
-        }
-        break;
-
-    case IntroPhase::Settle:
-        return {};
-    }
-
-    if (!model->currentAnimation.empty()) {
-        outLoop = false;
-        return model->currentAnimation;
-    }
-
-    outLoop = false;
-    return model->currentAnimation.empty() ? model->animations.begin()->first
-                                           : model->currentAnimation;
 }
 
 float EnemyAnimationController::CalculatePlaybackSpeed(

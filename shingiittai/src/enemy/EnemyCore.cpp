@@ -3,25 +3,11 @@
 #include <cstdlib>
 #include <cmath>
 
-namespace {
-float Saturate(float value) {
-    if (value < 0.0f) {
-        return 0.0f;
-    }
-    if (value > 1.0f) {
-        return 1.0f;
-    }
-    return value;
-}
-} // namespace
-
 void Enemy::Initialize(uint32_t modelId, uint32_t projectileModelId) {
     modelId_ = modelId;
     projectileModelId_ = projectileModelId;
     runtime_.hp = config_.core.maxHp;
     runtime_.phase = BossPhase::Phase1;
-    runtime_.introActive = true;
-    runtime_.introTimer = 0.0f;
     runtime_.phaseTransitionActive = false;
     runtime_.phaseTransitionTimer = 0.0f;
 
@@ -35,21 +21,6 @@ void Enemy::Initialize(uint32_t modelId, uint32_t projectileModelId) {
     ValidateAllTimings();
 }
 
-void Enemy::SkipIntro() {
-    runtime_.introActive = false;
-    runtime_.introTimer = 0.0f;
-    runtime_.stateTimer = -0.10f;
-}
-
-void Enemy::RestartIntro() {
-    runtime_.introActive = true;
-    runtime_.introTimer = 0.0f;
-    runtime_.stateTimer = 0.0f;
-    runtime_.action.kind = ActionKind::None;
-    runtime_.action.id = ActionId::None;
-    runtime_.action.step = ActionStep::None;
-}
-
 void Enemy::DebugResetState() {
     isDying_ = false;
     deathFinished_ = false;
@@ -57,8 +28,6 @@ void Enemy::DebugResetState() {
     deathStartY_ = tf_.position.y;
     hp_ = config_.core.maxHp;
 
-    introActive_ = false;
-    introTimer_ = 0.0f;
     phaseTransitionActive_ = false;
     phaseTransitionTimer_ = 0.0f;
 
@@ -118,26 +87,6 @@ void Enemy::Update(const PlayerCombatObservation &playerObs, float deltaTime) {
         if (counterRecoilTimer_ < 0.0f) {
             counterRecoilTimer_ = 0.0f;
         }
-    }
-
-    if (introActive_) {
-        const float introTotalDuration =
-            introSecondSlashDuration_ + introSpinSlashDuration_ +
-            introSettleDuration_;
-        introTimer_ += deltaTime;
-        introTimer_ = Saturate(introTimer_ / introTotalDuration) * introTotalDuration;
-        isAttackActive_ = false;
-
-        UpdateFacingToPlayerWithSpeed(deltaTime, idleTurnSpeed_ * 0.55f);
-        UpdateParts();
-
-        if (introTimer_ >= introTotalDuration) {
-            introActive_ = false;
-            introTimer_ = 0.0f;
-            stateTimer_ = -0.10f;
-            UpdateParts();
-        }
-        return;
     }
 
     if (isDying_) {

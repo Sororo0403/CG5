@@ -19,11 +19,6 @@ void OverlayPass::Resize(int width, int height) {
 void OverlayPass::Request(OverlayEffectType type) {
     if (type == OverlayEffectType::CounterVignette) {
         SetCounterVignetteActive(true);
-        return;
-    }
-
-    if (type == OverlayEffectType::DemoPlayIndicator) {
-        SetDemoPlayIndicatorVisible(true);
     }
 }
 
@@ -72,10 +67,6 @@ void OverlayPass::SetCounterVignetteActive(bool active) {
     counterVignetteRequested_ = active;
 }
 
-void OverlayPass::SetDemoPlayIndicatorVisible(bool visible) {
-    demoPlayIndicatorVisible_ = visible;
-}
-
 void OverlayPass::Update(float deltaTime, const Camera &camera, int width,
                          int height) {
     width_ = width > 0 ? width : width_;
@@ -88,7 +79,6 @@ void OverlayPass::Update(float deltaTime, const Camera &camera, int width,
     }
     counterVignetteAlpha_ += (targetAlpha - counterVignetteAlpha_) * step;
     counterVignetteAlpha_ = std::clamp(counterVignetteAlpha_, 0.0f, 1.0f);
-    demoPlayEffectTime_ += deltaTime;
 
     if (!activeElectricRing_.active) {
         electricRingParam_.enabled = 0.0f;
@@ -189,12 +179,6 @@ void OverlayPass::Render(SpriteRenderer *spriteRenderer) const {
                 96);
         }
     };
-
-    if (demoPlayIndicatorVisible_) {
-        const float pulse = 0.5f + 0.5f * std::sinf(demoPlayEffectTime_ * 2.6f);
-        drawVignette({0.02f, 0.05f, 0.10f}, 0.28f + pulse * 0.24f, 0.28f,
-                     1.7f, width_, height_, spriteRenderer);
-    }
 
     if (counterVignetteAlpha_ > 0.001f) {
         drawVignette({0.06f, 0.0f, 0.0f}, counterVignetteAlpha_ * 0.78f,

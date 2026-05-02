@@ -28,7 +28,6 @@ class PostEffectRenderer {
 
     enum class PostEffectType {
         CounterVignette,
-        DemoPlayVignette,
         WarpRingStart,
         WarpRingEnd,
         Distortion,
@@ -191,7 +190,6 @@ class PostEffectRenderer {
     void Request(PostEffectType type, const DirectX::XMFLOAT3 &worldPosition);
     void Request(PostEffectType type, const DistortionEffectParams &params);
     void SetCounterVignetteActive(bool active);
-    void SetDemoPlayIndicatorVisible(bool visible);
     void UpdateScreenEffects(float deltaTime, const Camera &camera, int width,
                              int height);
     void DrawScreenOverlays() const;

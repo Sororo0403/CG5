@@ -6,8 +6,6 @@
 #include "CombatSystem.h"
 #include "Enemy.h"
 #include "EnemyAnimationController.h"
-#include "GameFlowController.h"
-#include "IntroCameraController.h"
 #include "LightingController.h"
 #include "Player.h"
 #include <DirectXMath.h>
@@ -26,14 +24,11 @@ class GameScene : public BaseScene {
     void UpdateSceneCamera();
     void UpdateCounterVignette(float deltaTime);
     void DrawCounterVignette();
-    void DrawDemoPlayIndicator();
 
   private:
     Camera camera_;
     BattleCameraController battleCamera_;
-    IntroCameraController introCamera_;
     BattleEffectDirector battleEffects_;
-    GameFlowController gameFlow_;
     LightingController lighting_;
 
     Player player_;

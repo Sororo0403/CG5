@@ -26,7 +26,6 @@ struct ElectricRingParamGPU {
 
 enum class OverlayEffectType {
     CounterVignette,
-    DemoPlayIndicator,
     WarpRingStart,
     WarpRingEnd,
     ElectricRing,
@@ -40,7 +39,6 @@ class OverlayPass {
     void Request(OverlayEffectType type);
     void Request(OverlayEffectType type, const DirectX::XMFLOAT3 &worldPosition);
     void SetCounterVignetteActive(bool active);
-    void SetDemoPlayIndicatorVisible(bool visible);
     void Update(float deltaTime, const Camera &camera, int width, int height);
     void Render(SpriteRenderer *spriteRenderer) const;
     const ElectricRingParamGPU &GetElectricRingParam() const {
@@ -68,10 +66,8 @@ class OverlayPass {
     int width_ = 1;
     int height_ = 1;
     bool counterVignetteRequested_ = false;
-    bool demoPlayIndicatorVisible_ = false;
     float counterVignetteAlpha_ = 0.0f;
     float counterVignetteFadeSpeed_ = 8.0f;
-    float demoPlayEffectTime_ = 0.0f;
     ActiveElectricRing activeElectricRing_{};
     ElectricRingParamGPU electricRingParam_{};
 };

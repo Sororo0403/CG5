@@ -114,7 +114,6 @@ enum class TacticState {
 };
 
 enum class BossPhase { Phase1, Phase2 };
-enum class IntroPhase { SecondSlash, SpinSlash, Settle };
 
 // GameScene 側から渡す観測情報
 struct PlayerCombatObservation {
@@ -306,8 +305,6 @@ struct EnemyRuntimeState {
     PostActionOption postActionOption = PostActionOption::None;
     TacticState tactic = TacticState::DistanceAdjust;
     BossPhase phase = BossPhase::Phase1;
-    bool introActive = true;
-    float introTimer = 0.0f;
     bool phaseTransitionActive = false;
     float phaseTransitionTimer = 0.0f;
 
@@ -367,8 +364,6 @@ class Enemy {
     void NotifyAttackConnected();
     void NotifyAttackGuarded();
     bool NotifyCountered();
-    void SkipIntro();
-    void RestartIntro();
     void DebugResetState();
     bool DebugStartAction(ActionKind kind);
     void DebugSetBossPhase(BossPhase phase);
@@ -391,32 +386,6 @@ class Enemy {
     ActionStep GetActionStep() const { return runtime_.action.step; }
     TacticState GetTacticState() const { return runtime_.tactic; }
     BossPhase GetBossPhase() const { return runtime_.phase; }
-    bool IsIntroActive() const { return runtime_.introActive; }
-    IntroPhase GetIntroPhase() const {
-        if (runtime_.introTimer < introSecondSlashDuration_) {
-            return IntroPhase::SecondSlash;
-        }
-        if (runtime_.introTimer <
-            introSecondSlashDuration_ + introSpinSlashDuration_) {
-            return IntroPhase::SpinSlash;
-        }
-        return IntroPhase::Settle;
-    }
-    float GetIntroRatio() const {
-        float totalDuration = introSecondSlashDuration_ +
-                              introSpinSlashDuration_ + introSettleDuration_;
-        if (totalDuration <= 0.0001f) {
-            return 1.0f;
-        }
-        float t = runtime_.introTimer / totalDuration;
-        if (t < 0.0f) {
-            t = 0.0f;
-        }
-        if (t > 1.0f) {
-            t = 1.0f;
-        }
-        return t;
-    }
     bool IsPhaseTransitionActive() const { return runtime_.phaseTransitionActive; }
     bool IsDoubleSweepSecondStage() const {
         return runtime_.isDoubleSweepSecondStage;
@@ -646,20 +615,6 @@ class Enemy {
     TacticState &tactic_ = runtime_.tactic;
     BossPhase &phase_ = runtime_.phase;
     EnemyConfig config_{};
-    bool &introActive_ = runtime_.introActive;
-    float &introTimer_ = runtime_.introTimer;
-    float introSecondSlashDuration_ = 1.60f;
-    float introSpinSlashDuration_ = 1.05f;
-    float introSettleDuration_ = 2.0f;
-    float introSpinTurns_ = 1.0f;
-    float introSlashLunge_ = 0.34f;
-    float introSpinLunge_ = 0.42f;
-    float introSpinLift_ = 0.18f;
-    float introPoseLean_ = 0.26f;
-    float introImpactSquash_ = 0.14f;
-    float introHandLift_ = 0.95f;
-    float introBodyScaleBoost_ = 0.18f;
-    float introVisualScaleBoost_ = 0.12f;
     bool &phaseTransitionActive_ = runtime_.phaseTransitionActive;
     float &phaseTransitionTimer_ = runtime_.phaseTransitionTimer;
     float phaseTransitionDuration_ = 0.90f;

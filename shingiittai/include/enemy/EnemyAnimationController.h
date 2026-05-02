@@ -10,8 +10,6 @@ class EnemyAnimationController {
   public:
     void Initialize(uint32_t modelId);
 
-    void ResetIntro();
-
     void Sync(ModelManager *modelManager, const Enemy &enemy);
     void SetFrozen(ModelManager *modelManager, bool frozen);
     void Update(ModelManager *modelManager, float deltaTime);
@@ -19,8 +17,6 @@ class EnemyAnimationController {
   private:
     bool HasAnimation(const Model *model,
                       const std::string &animationName) const;
-    std::string PickIntroAnimation(const Model *model, const Enemy &enemy,
-                                   bool &outLoop) const;
     std::string PickAnimation(const Model *model, const Enemy &enemy,
                               bool &outLoop) const;
     float CalculatePlaybackSpeed(const Model *model, const Enemy &enemy,
@@ -33,9 +29,6 @@ class EnemyAnimationController {
     bool currentLoop_ = true;
     float playbackSpeed_ = 1.0f;
     uint32_t currentActionSequence_ = 0;
-
-    bool introAnimationStarted_ = false;
-    IntroPhase introPhase_ = IntroPhase::SecondSlash;
 
     bool frozen_ = false;
 };

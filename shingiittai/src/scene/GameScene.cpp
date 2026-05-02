@@ -11,23 +11,6 @@
 
 using namespace DirectX;
 
-namespace {
-PlayerCombatObservation MakePassivePlayerObservation(const Player &player) {
-    PlayerCombatObservation playerObs{};
-    playerObs.position = player.GetTransform().position;
-    playerObs.velocity = player.GetVelocity();
-    playerObs.isGuarding = false;
-    playerObs.isCounterStance = false;
-    playerObs.justCountered = false;
-    playerObs.justCounterFailed = false;
-    playerObs.justCounterEarly = false;
-    playerObs.justCounterLate = false;
-    playerObs.isAttacking = false;
-    playerObs.counterAxis = CounterAxis::None;
-    return playerObs;
-}
-} // namespace
-
 void GameScene::Initialize(const SceneContext &ctx) {
     BaseScene::Initialize(ctx);
 
@@ -68,7 +51,6 @@ void GameScene::Initialize(const SceneContext &ctx) {
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
     battleCamera_.ResetForBattle(playerPos, enemyPos);
-    introCamera_.Reset();
     if (Model *playerModelData = model->GetModel(playerModelId_)) {
         if (!playerModelData->animations.empty()) {
             model->PlayAnimation(playerModelId_,
@@ -81,11 +63,9 @@ void GameScene::Initialize(const SceneContext &ctx) {
     lighting_.Update(*ctx_, player_, enemy_, 0.0f);
     combatSystem_.Reset();
     battleEffects_.Reset();
-    gameFlow_.Reset();
     counterCinematicActive_ = false;
     if (ctx_ != nullptr && ctx_->renderer.postEffectRenderer != nullptr) {
         ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(false);
-        ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(false);
     }
 }
 
@@ -105,36 +85,6 @@ void GameScene::Update() {
 #endif
 
     UpdateCamera(input);
-
-    const GameFlowController::UpdateResult flowResult =
-        gameFlow_.Update(input, enemy_, enemyAnimation_, ctx_->model);
-    if (flowResult.startedThisFrame) {
-        counterCinematicActive_ = false;
-        UpdateCounterVignette(baseDeltaTime);
-        return;
-    }
-
-    if (flowResult.nonBattleFrame) {
-        lighting_.Update(*ctx_, player_, enemy_, baseDeltaTime);
-
-        ctx_->model->UpdateAnimation(playerModelId_, baseDeltaTime);
-
-        PlayerCombatObservation playerObs =
-            MakePassivePlayerObservation(player_);
-
-        if (!freezeEnemyMotion) {
-            enemy_.Update(playerObs, gameplayDeltaTime);
-        }
-
-        enemyAnimation_.Sync(ctx_->model, enemy_);
-        enemyAnimation_.SetFrozen(ctx_->model, false);
-        enemyAnimation_.Update(ctx_->model, gameplayDeltaTime);
-
-        UpdateSceneCamera();
-        counterCinematicActive_ = false;
-        UpdateCounterVignette(baseDeltaTime);
-        return;
-    }
 
     ctx_->model->UpdateAnimation(playerModelId_, playerDeltaTime);
 
@@ -226,8 +176,6 @@ void GameScene::UpdateCounterVignette(float deltaTime) {
     }
     ctx_->renderer.postEffectRenderer->SetCounterVignetteActive(
         counterCinematicActive_);
-    ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
-        gameFlow_.ShouldShowDemoIndicator());
     (void)deltaTime;
 }
 
@@ -236,14 +184,6 @@ void GameScene::DrawCounterVignette() {
         return;
     }
     ctx_->renderer.postEffectRenderer->DrawScreenOverlays();
-}
-
-void GameScene::DrawDemoPlayIndicator() {
-    if (ctx_ == nullptr || ctx_->renderer.postEffectRenderer == nullptr) {
-        return;
-    }
-    ctx_->renderer.postEffectRenderer->SetDemoPlayIndicatorVisible(
-        gameFlow_.ShouldShowDemoIndicator());
 }
 
 void GameScene::Draw() {
@@ -258,7 +198,6 @@ void GameScene::Draw() {
     enemy_.Draw(ctx_->model, *currentCamera);
     ctx_->model->PostDraw();
     battleEffects_.Draw(*ctx_, enemy_, *currentCamera);
-    DrawDemoPlayIndicator();
     DrawCounterVignette();
 }
 
@@ -266,8 +205,5 @@ void GameScene::UpdateCamera(Input *input) { battleCamera_.UpdateInput(input); }
 
 void GameScene::UpdateSceneCamera() {
     battleCamera_.Apply(camera_, ctx_->deltaTime, player_, enemy_);
-    if (gameFlow_.IsIntro(enemy_)) {
-        introCamera_.Apply(camera_, ctx_->deltaTime, enemy_);
-    }
 }
 

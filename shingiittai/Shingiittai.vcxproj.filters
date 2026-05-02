@@ -4,8 +4,6 @@
     <ClCompile Include="src\scene\BattleCameraController.cpp" />
     <ClCompile Include="src\scene\BattleEffectDirector.cpp" />
     <ClCompile Include="src\scene\CombatSystem.cpp" />
-    <ClCompile Include="src\scene\GameFlowController.cpp" />
-    <ClCompile Include="src\scene\IntroCameraController.cpp" />
     <ClCompile Include="src\scene\LightingController.cpp" />
     <ClCompile Include="src\enemy\EnemyMelee.cpp" />
     <ClCompile Include="src\enemy\EnemyRanged.cpp" />
@@ -31,8 +29,6 @@
     <ClInclude Include="include\scene\BattleCameraController.h" />
     <ClInclude Include="include\scene\BattleEffectDirector.h" />
     <ClInclude Include="include\scene\CombatSystem.h" />
-    <ClInclude Include="include\scene\GameFlowController.h" />
-    <ClInclude Include="include\scene\IntroCameraController.h" />
     <ClInclude Include="include\scene\LightingController.h" />
     <ClInclude Include="include\enemy\Bullet.h" />
     <ClInclude Include="include\enemy\Enemy.h" />

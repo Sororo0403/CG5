@@ -70,17 +70,6 @@ void FitMeleeTimingToClip(EnemyMeleeAttackProfile &profile,
 float Enemy::GetCurrentActionTime() const { return stateTimer_; }
 
 float Enemy::GetCurrentAnimationRemainingTime() const {
-    if (introActive_) {
-        float phaseEnd = introSecondSlashDuration_;
-        if (GetIntroPhase() == IntroPhase::SpinSlash) {
-            phaseEnd = introSecondSlashDuration_ + introSpinSlashDuration_;
-        } else if (GetIntroPhase() == IntroPhase::Settle) {
-            phaseEnd = introSecondSlashDuration_ + introSpinSlashDuration_ +
-                       introSettleDuration_;
-        }
-        return Remaining(phaseEnd, introTimer_);
-    }
-
     if (phaseTransitionActive_) {
         return Remaining(phaseTransitionDuration_, phaseTransitionTimer_);
     }

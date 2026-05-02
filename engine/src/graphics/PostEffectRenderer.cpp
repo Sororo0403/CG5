@@ -135,10 +135,6 @@ void PostEffectRenderer::SetRandomTime(float time) { noisePass_.SetTime(time); }
 void PostEffectRenderer::Request(PostEffectType type) {
     if (type == PostEffectType::CounterVignette) {
         overlayPass_.Request(OverlayEffectType::CounterVignette);
-        return;
-    }
-    if (type == PostEffectType::DemoPlayVignette) {
-        overlayPass_.Request(OverlayEffectType::DemoPlayIndicator);
     }
 }
 
@@ -168,10 +164,6 @@ void PostEffectRenderer::Request(PostEffectType type,
 
 void PostEffectRenderer::SetCounterVignetteActive(bool active) {
     overlayPass_.SetCounterVignetteActive(active);
-}
-
-void PostEffectRenderer::SetDemoPlayIndicatorVisible(bool visible) {
-    overlayPass_.SetDemoPlayIndicatorVisible(visible);
 }
 
 void PostEffectRenderer::UpdateScreenEffects(float deltaTime,
