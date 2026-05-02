@@ -113,6 +113,7 @@
     <ClCompile Include="$(SolutionDir)engine\src\graphics\RenderTexture.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\SkyboxRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\ModelAssets.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\model\ModelServices.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\MaterialManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\camera\DebugCamera.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\animation\Animator.cpp" />
@@ -134,16 +135,17 @@
     <ClCompile Include="$(SolutionDir)engine\src\input\JoyCon.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\input\MahonyFilter.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\sound\SoundManager.cpp" />
-    <ClCompile Include="$(SolutionDir)engine\src\model\ModelManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\MeshManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\camera\Camera.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\ModelRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\SkeletonDebugRenderer.cpp" />
-    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteManager.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteAssets.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteRenderer.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteServices.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DirectXCommon.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\core\WinApp.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\SrvManager.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\texture\TextureGpuStore.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\texture\TextureManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\animation\SkeletonPoseBuilder.cpp" />
   </ItemGroup>
@@ -215,14 +217,16 @@
     <ClInclude Include="$(SolutionDir)engine\include\graphics\ShaderCompiler.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SrvManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\texture\Texture.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\texture\TextureGpuStore.h" />
     <ClInclude Include="$(SolutionDir)engine\include\texture\TextureManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteRenderer.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteManager.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteAssets.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteServices.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\ModelRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\SkeletonDebugRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\MeshManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\ModelAssets.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\model\ModelManager.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\model\ModelServices.h" />
     <ClInclude Include="$(SolutionDir)engine\include\sound\SoundManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\sound\SoundVoiceCallback.h" />
     <ClInclude Include="$(SolutionDir)engine\include\input\Input.h" />

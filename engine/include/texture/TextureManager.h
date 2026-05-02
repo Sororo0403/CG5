@@ -1,31 +1,26 @@
 #pragma once
 #include "DirectXCommon.h"
-#include "Texture.h"
-#include <DirectXTex.h>
 #include <cstdint>
 #include <d3d12.h>
+#include <memory>
 #include <string>
 #include <unordered_map>
-#include <vector>
-#include <wrl.h>
 
 class SrvManager;
+class TextureGpuStore;
 
 /// <summary>
 /// テクスチャ読み込みとSRV管理を担当する
 /// </summary>
 class TextureManager {
-  private:
-    /// <summary>
-    /// テクスチャ本体と対応するSRV情報
-    /// </summary>
-    struct Entry {
-        Texture texture;
-        uint32_t srvIndex = 0;
-    };
-
   public:
+    TextureManager();
     ~TextureManager();
+
+    TextureManager(const TextureManager &) = delete;
+    TextureManager &operator=(const TextureManager &) = delete;
+    TextureManager(TextureManager &&) noexcept;
+    TextureManager &operator=(TextureManager &&) noexcept;
 
     /// <summary>
     /// 初期化処理
@@ -105,23 +100,7 @@ class TextureManager {
     uint32_t GetDefaultCubeTextureId() const { return defaultCubeTextureId_; }
 
   private:
-    /// <summary>
-    /// Image配列からGPUテクスチャを生成する
-    /// </summary>
-    /// <param name="images">画像配列</param>
-    /// <param name="imageCount">画像枚数</param>
-    /// <param name="metadata">テクスチャメタデータ</param>
-    /// <returns>生成されたテクスチャID</returns>
-    uint32_t CreateTexture(const DirectXCommon::UploadContext &uploadContext,
-                           const DirectX::Image *images, size_t imageCount,
-                           const DirectX::TexMetadata &metadata);
-
-  private:
-    DirectXCommon *dxCommon_ = nullptr;
-    SrvManager *srvManager_ = nullptr;
-
-    std::vector<Entry> textures_;
-    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> uploadBuffers_;
+    std::unique_ptr<TextureGpuStore> gpuStore_;
     std::unordered_map<std::wstring, uint32_t> filePathToTextureId_;
     uint32_t defaultCubeTextureId_ = 0;
 };

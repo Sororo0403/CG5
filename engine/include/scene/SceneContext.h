@@ -3,8 +3,10 @@
 class Input;
 class WinApp;
 class SoundManager;
+class ModelServices;
 class ModelAssets;
-class SpriteManager;
+class SpriteServices;
+class SpriteAssets;
 class ModelRenderer;
 class SpriteRenderer;
 class TextureManager;
@@ -29,14 +31,16 @@ struct CoreServices {
 };
 
 struct AssetServices {
-    ModelAssets *model = nullptr;
-    SpriteManager *sprite = nullptr;
-    TextureManager *texture = nullptr;
+    ModelServices *modelServices = nullptr;
+    ModelAssets *modelAssets = nullptr;
+    SpriteServices *spriteServices = nullptr;
+    SpriteAssets *spriteAssets = nullptr;
+    TextureManager *textureManager = nullptr;
 };
 
 struct RendererServices {
-    ModelRenderer *model = nullptr;
-    SpriteRenderer *sprite = nullptr;
+    ModelRenderer *modelRenderer = nullptr;
+    SpriteRenderer *spriteRenderer = nullptr;
     RenderTexture *renderTexture = nullptr;
     GBuffer *gBuffer = nullptr;
     DeferredRenderer *deferredRenderer = nullptr;

@@ -213,10 +213,16 @@
     <ClCompile Include="$(SolutionDir)engine\src\texture\TextureManager.cpp">
       <Filter>src\texture</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\texture\TextureGpuStore.cpp">
+      <Filter>src\texture</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteRenderer.cpp">
       <Filter>src\sprite</Filter>
     </ClCompile>
-    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteManager.cpp">
+    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteAssets.cpp">
+      <Filter>src\sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\sprite\SpriteServices.cpp">
       <Filter>src\sprite</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\model\ModelRenderer.cpp">
@@ -229,9 +235,6 @@
       <Filter>src\camera</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\model\MeshManager.cpp">
-      <Filter>src\model</Filter>
-    </ClCompile>
-    <ClCompile Include="$(SolutionDir)engine\src\model\ModelManager.cpp">
       <Filter>src\model</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\sound\SoundManager.cpp">
@@ -283,6 +286,9 @@
       <Filter>src\model</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\model\ModelAssets.cpp">
+      <Filter>src\model</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\model\ModelServices.cpp">
       <Filter>src\model</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\camera\DebugCamera.cpp">
@@ -440,10 +446,16 @@
     <ClInclude Include="$(SolutionDir)engine\include\texture\TextureManager.h">
       <Filter>include\texture</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\texture\TextureGpuStore.h">
+      <Filter>include\texture</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteRenderer.h">
       <Filter>include\sprite</Filter>
     </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteManager.h">
+    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteAssets.h">
+      <Filter>include\sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\sprite\SpriteServices.h">
       <Filter>include\sprite</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\model\ModelRenderer.h">
@@ -458,6 +470,9 @@
     <ClInclude Include="$(SolutionDir)engine\include\model\ModelAssets.h">
       <Filter>include\model</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\model\ModelServices.h">
+      <Filter>include\model</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\camera\Camera.h">
       <Filter>include\camera</Filter>
     </ClInclude>
@@ -465,9 +480,6 @@
       <Filter>include\model</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\model\Vertex.h">
-      <Filter>include\model</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\model\ModelManager.h">
       <Filter>include\model</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\sound\SoundManager.h">
