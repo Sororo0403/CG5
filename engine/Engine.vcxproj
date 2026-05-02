@@ -91,11 +91,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)engine\src\ecs\World.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\systems\CollisionSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\systems\InputSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\systems\MovementSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\systems\PhysicsSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\systems\RenderSystem.cpp" />
+    <ClCompile Include="$(SolutionDir)engine\src\systems\TransformSystem.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\DxUtils.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\graphics\BillboardRenderer.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\collision\DebugDraw.cpp" />
@@ -153,17 +155,23 @@
     <ClInclude Include="$(SolutionDir)engine\include\ecs\ComponentStorage.h" />
     <ClInclude Include="$(SolutionDir)engine\include\ecs\Entity.h" />
     <ClInclude Include="$(SolutionDir)engine\include\ecs\World.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\ecs\WorldCommandBuffer.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\components\AnimationComponents.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\Collider.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\InputComponent.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\components\InputSource.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\MeshRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\PhysicsBody.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\Tags.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\components\TransformHierarchy.h" />
     <ClInclude Include="$(SolutionDir)engine\include\components\Velocity.h" />
     <ClInclude Include="$(SolutionDir)engine\include\systems\CollisionSystem.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\systems\AnimationSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\systems\InputSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\systems\MovementSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\systems\PhysicsSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\systems\RenderSystem.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\systems\TransformSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\BillboardRenderer.h" />
     <ClInclude Include="$(SolutionDir)engine\include\collision\DebugDraw.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\MagnetismicRenderer.h" />
@@ -188,6 +196,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\particle\CylinderParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\model\Transform.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\BaseScene.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\scene\EcsScene.h" />
     <ClInclude Include="$(SolutionDir)engine\include\light\LightManager.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\Camera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\DxHelpers.h" />
@@ -213,6 +222,7 @@
     <ClInclude Include="$(SolutionDir)engine\include\model\Vertex.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\LevelLoader.h" />
     <ClInclude Include="$(SolutionDir)engine\include\scene\SceneContext.h" />
+    <ClInclude Include="$(SolutionDir)engine\include\scene\SystemPipeline.h" />
     <ClInclude Include="$(SolutionDir)engine\include\sprite\Sprite.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\ShaderCompiler.h" />
     <ClInclude Include="$(SolutionDir)engine\include\graphics\SrvManager.h" />

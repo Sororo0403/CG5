@@ -1,10 +1,14 @@
 #pragma once
+#include "AnimationComponents.h"
 #include "Camera.h"
+#include "Entity.h"
 #include "LightManager.h"
 #include "MaterialManager.h"
 #include "Model.h"
 #include "Transform.h"
 #include <d3d12.h>
+#include <unordered_map>
+#include <vector>
 #include <wrl.h>
 
 class DirectXCommon;
@@ -56,12 +60,18 @@ class ModelRenderer {
     void Draw(const Model &model, const Transform &transform,
               const Camera &camera,
               uint32_t environmentTextureId = UINT32_MAX);
+    void Draw(const Model &model, const Transform &transform,
+              const Camera &camera, const SkeletonPoseComponent &pose,
+              Entity entity, uint32_t environmentTextureId = UINT32_MAX);
 
     /// <summary>
     /// GBufferのgeometry passへモデルを書き込む
     /// </summary>
     void DrawGBuffer(const Model &model, const Transform &transform,
                      const Camera &camera);
+    void DrawGBuffer(const Model &model, const Transform &transform,
+                     const Camera &camera, const SkeletonPoseComponent &pose,
+                     Entity entity);
 
     /// <summary>
     /// 現在フレームの描画エフェクトを設定する
@@ -108,6 +118,9 @@ class ModelRenderer {
     /// </summary>
     /// <param name="model">対象モデル</param>
     void ReleaseSkinClusters(Model &model);
+    void ReleaseInstanceSkinPalette(Entity entity);
+    void ReleaseDeadInstanceSkinPalettes(
+        const std::vector<Entity> &aliveEntities);
     /// <summary>
     /// スキンクラスターのパレット内容を更新する
     /// </summary>
@@ -148,9 +161,35 @@ class ModelRenderer {
     /// <summary>
     /// ComputeShaderでスキニング済み頂点を書き込む
     /// </summary>
-    void DispatchSkinning(const ModelSubMesh &subMesh);
+    void DispatchSkinning(
+        const ModelSubMesh &subMesh,
+        D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle);
+    void DrawInternal(const Model &model, const Transform &transform,
+                      const Camera &camera,
+                      const SkeletonPoseComponent *pose, Entity entity,
+                      uint32_t environmentTextureId);
+    void DrawGBufferInternal(const Model &model, const Transform &transform,
+                             const Camera &camera,
+                             const SkeletonPoseComponent *pose,
+                             Entity entity);
+    D3D12_GPU_DESCRIPTOR_HANDLE ResolvePaletteHandle(
+        const Model &model, const ModelSubMesh &subMesh, size_t subMeshIndex,
+        const SkeletonPoseComponent *pose, Entity entity);
+    void EnsureInstanceSkinPalette(Entity entity, const Model &model);
+    void UpdateInstanceSkinPalette(
+        Entity entity, size_t subMeshIndex, const ModelSubMesh &subMesh,
+        const SkeletonPoseComponent &pose);
 
   private:
+    struct InstanceSkinPalette {
+        Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
+        WellForGPU *mappedPalette = nullptr;
+        uint32_t paletteCount = 0;
+        D3D12_CPU_DESCRIPTOR_HANDLE paletteSrvCpuHandle{};
+        D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle{};
+        uint32_t paletteSrvIndex = UINT_MAX;
+    };
+
     static constexpr uint32_t kMaxDraws = 4096;
 
     DirectXCommon *dxCommon_ = nullptr;
@@ -182,4 +221,6 @@ class ModelRenderer {
     uint32_t environmentTextureId_ = 0;
     uint32_t dissolveNoiseTextureId_ = 0;
     bool hasEnvironmentTexture_ = false;
+    std::unordered_map<Entity, std::vector<InstanceSkinPalette>>
+        instanceSkinPalettes_;
 };

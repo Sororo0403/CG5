@@ -18,7 +18,21 @@ void SkeletonDebugRenderer::Initialize(DirectXCommon *dxCommon) {
 
 void SkeletonDebugRenderer::Draw(const Model &model, const Transform &transform,
                                  const Camera &camera) {
-    if (!dxCommon_ || model.bones.empty() || model.skeletonSpaceMatrices.empty()) {
+    DrawInternal(model, transform, camera, model.skeletonSpaceMatrices, nullptr);
+}
+
+void SkeletonDebugRenderer::Draw(const Model &model,
+                                 const Transform &transform,
+                                 const Camera &camera,
+                                 const SkeletonPoseComponent &pose) {
+    DrawInternal(model, transform, camera, pose.skeletonSpaceMatrices, &pose);
+}
+
+void SkeletonDebugRenderer::DrawInternal(
+    const Model &model, const Transform &transform, const Camera &camera,
+    const std::vector<XMFLOAT4X4> &skeletonMatrices,
+    const SkeletonPoseComponent *pose) {
+    if (!dxCommon_ || model.bones.empty() || skeletonMatrices.empty()) {
         return;
     }
 
@@ -35,7 +49,9 @@ void SkeletonDebugRenderer::Draw(const Model &model, const Transform &transform,
         return;
     }
 
-    const XMMATRIX world = MakeWorldMatrix(model, transform);
+    const XMMATRIX world =
+        pose ? MakeWorldMatrix(transform, *pose)
+             : MakeWorldMatrix(model, transform);
     const XMFLOAT4 parentColor{1.0f, 0.58f, 0.05f, 1.0f};
     const XMFLOAT4 childColor{0.25f, 0.80f, 1.0f, 1.0f};
 
@@ -43,15 +59,15 @@ void SkeletonDebugRenderer::Draw(const Model &model, const Transform &transform,
     for (size_t jointIndex = 0; jointIndex < model.bones.size(); ++jointIndex) {
         const int parentIndex = model.bones[jointIndex].parentIndex;
         if (parentIndex < 0 ||
-            static_cast<size_t>(parentIndex) >= model.skeletonSpaceMatrices.size() ||
-            jointIndex >= model.skeletonSpaceMatrices.size()) {
+            static_cast<size_t>(parentIndex) >= skeletonMatrices.size() ||
+            jointIndex >= skeletonMatrices.size()) {
             continue;
         }
 
         const XMMATRIX parentMatrix =
-            XMLoadFloat4x4(&model.skeletonSpaceMatrices[parentIndex]) * world;
+            XMLoadFloat4x4(&skeletonMatrices[parentIndex]) * world;
         const XMMATRIX childMatrix =
-            XMLoadFloat4x4(&model.skeletonSpaceMatrices[jointIndex]) * world;
+            XMLoadFloat4x4(&skeletonMatrices[jointIndex]) * world;
 
         XMFLOAT3 parentPosition{};
         XMFLOAT3 childPosition{};
@@ -202,6 +218,21 @@ XMMATRIX SkeletonDebugRenderer::MakeWorldMatrix(
 
     if (model.hasRootAnimation) {
         world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
+    }
+    return world;
+}
+
+XMMATRIX SkeletonDebugRenderer::MakeWorldMatrix(
+    const Transform &transform, const SkeletonPoseComponent &pose) const {
+    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+    XMMATRIX world =
+        XMMatrixScaling(transform.scale.x, transform.scale.y, transform.scale.z) *
+        XMMatrixRotationQuaternion(q) *
+        XMMatrixTranslation(transform.position.x, transform.position.y,
+                            transform.position.z);
+
+    if (pose.hasRootAnimation) {
+        world = XMLoadFloat4x4(&pose.rootAnimationMatrix) * world;
     }
     return world;
 }

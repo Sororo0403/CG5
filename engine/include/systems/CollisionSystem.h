@@ -3,9 +3,19 @@
 #include "Entity.h"
 #include "Transform.h"
 
+#include <unordered_set>
 #include <vector>
 
 class World;
+
+/// <summary>
+/// 衝突イベントの種類。
+/// </summary>
+enum class CollisionEventType {
+    Enter,
+    Stay,
+    Exit,
+};
 
 /// <summary>
 /// 衝突したEntityペアを表すイベント。
@@ -13,6 +23,7 @@ class World;
 struct CollisionEvent {
     Entity a = kInvalidEntity;
     Entity b = kInvalidEntity;
+    CollisionEventType type = CollisionEventType::Enter;
 };
 
 /// <summary>
@@ -32,6 +43,24 @@ struct CollisionSystem {
     const std::vector<CollisionEvent> &Events() const;
 
   private:
+    struct CollisionPair {
+        Entity a = kInvalidEntity;
+        Entity b = kInvalidEntity;
+
+        bool operator==(const CollisionPair &other) const {
+            return a == other.a && b == other.b;
+        }
+    };
+
+    struct CollisionPairHash {
+        size_t operator()(const CollisionPair &pair) const {
+            return std::hash<Entity>{}(pair.a) ^
+                   (std::hash<Entity>{}(pair.b) << 1);
+        }
+    };
+
+    CollisionPair MakePair(Entity a, Entity b) const;
+
     /// <summary>
     /// レイヤー設定上、2つのColliderが衝突判定対象かを判定する。
     /// </summary>
@@ -62,6 +91,12 @@ struct CollisionSystem {
     bool IntersectsAabb(const Transform &aTransform, const Collider &a,
                         const Transform &bTransform,
                         const Collider &b) const;
+
+    /// <summary>
+    /// OBBを含むCollider同士の交差をSATで判定する。
+    /// </summary>
+    bool IntersectsObb(const Transform &aTransform, const Collider &a,
+                       const Transform &bTransform, const Collider &b) const;
 
     /// <summary>
     /// Sphereを含むCollider同士の交差を球近似で判定する。
@@ -105,4 +140,5 @@ struct CollisionSystem {
 
   private:
     std::vector<CollisionEvent> events_;
+    std::unordered_set<CollisionPair, CollisionPairHash> previousPairs_;
 };

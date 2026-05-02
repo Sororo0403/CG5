@@ -49,7 +49,7 @@ void SkeletonPoseBuilder::BuildBindPoseLocals(
 }
 
 void SkeletonPoseBuilder::BuildAnimatedLocals(
-    Model &model, const AnimationClip &clip, float time,
+    const Model &model, const AnimationClip &clip, float time,
     std::vector<XMMATRIX> &localMatrices) {
     const size_t boneCount = model.bones.size();
     localMatrices.resize(boneCount);
@@ -81,3 +81,33 @@ void SkeletonPoseBuilder::UpdateSkeleton(
     }
 }
 
+void SkeletonPoseBuilder::UpdateSkeleton(
+    const Model &model, SkeletonPoseComponent &pose,
+    const std::vector<XMMATRIX> &localMatrices) {
+    const size_t boneCount = model.bones.size();
+    std::vector<XMMATRIX> globalMatrices(boneCount);
+
+    if (pose.skeletonSpaceMatrices.size() != boneCount) {
+        pose.skeletonSpaceMatrices.resize(boneCount);
+    }
+    if (pose.finalBoneMatrices.size() != boneCount) {
+        pose.finalBoneMatrices.resize(boneCount);
+    }
+
+    for (size_t i = 0; i < boneCount; i++) {
+        int parent = model.bones[i].parentIndex;
+        if (parent < 0) {
+            globalMatrices[i] = localMatrices[i];
+        } else {
+            globalMatrices[i] = localMatrices[i] * globalMatrices[parent];
+        }
+
+        XMStoreFloat4x4(&pose.skeletonSpaceMatrices[i], globalMatrices[i]);
+    }
+
+    for (size_t i = 0; i < boneCount; i++) {
+        XMMATRIX offset = XMLoadFloat4x4(&model.bones[i].offsetMatrix);
+        XMMATRIX final = offset * globalMatrices[i];
+        XMStoreFloat4x4(&pose.finalBoneMatrices[i], final);
+    }
+}

@@ -3,14 +3,16 @@
 #include <algorithm>
 
 Entity World::CreateEntity() {
-    Entity entity = kInvalidEntity;
-    if (!freeEntities_.empty()) {
-        entity = freeEntities_.back();
-        freeEntities_.pop_back();
+    uint32_t index = 0;
+    if (!freeIndices_.empty()) {
+        index = freeIndices_.back();
+        freeIndices_.pop_back();
     } else {
-        entity = nextEntity_++;
+        index = static_cast<uint32_t>(generations_.size());
+        generations_.push_back(1);
     }
 
+    Entity entity{index, generations_[index]};
     aliveEntities_.push_back(entity);
     aliveSet_.insert(entity);
     return entity;
@@ -29,11 +31,18 @@ void World::DestroyEntity(Entity entity) {
     aliveEntities_.erase(
         std::remove(aliveEntities_.begin(), aliveEntities_.end(), entity),
         aliveEntities_.end());
-    freeEntities_.push_back(entity);
+
+    ++generations_[entity.index];
+    if (generations_[entity.index] == 0) {
+        generations_[entity.index] = 1;
+    }
+    freeIndices_.push_back(entity.index);
 }
 
 bool World::IsAlive(Entity entity) const {
-    return aliveSet_.find(entity) != aliveSet_.end();
+    return entity.IsValid() && entity.index < generations_.size() &&
+           generations_[entity.index] == entity.generation &&
+           aliveSet_.find(entity) != aliveSet_.end();
 }
 
 const std::vector<Entity> &World::AliveEntities() const {

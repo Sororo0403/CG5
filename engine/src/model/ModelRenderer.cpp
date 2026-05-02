@@ -37,6 +37,26 @@ static void NormalizeInfluence(VertexInfluence &influence) {
     }
 }
 
+static XMMATRIX MakeWorldMatrix(const Model &model, const Transform &transform,
+                                const SkeletonPoseComponent *pose) {
+    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+
+    XMMATRIX world =
+        XMMatrixScaling(transform.scale.x, transform.scale.y,
+                        transform.scale.z) *
+        XMMatrixRotationQuaternion(q) *
+        XMMatrixTranslation(transform.position.x, transform.position.y,
+                            transform.position.z);
+
+    if (pose && pose->hasRootAnimation) {
+        world = XMLoadFloat4x4(&pose->rootAnimationMatrix) * world;
+    } else if (model.hasRootAnimation) {
+        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
+    }
+
+    return world;
+}
+
 struct PerObjectConstBufferData {
     XMFLOAT4X4 matWVP;
     XMFLOAT4X4 matWorld;
@@ -81,6 +101,24 @@ void ModelRenderer::PreDraw() {
 void ModelRenderer::Draw(const Model &model, const Transform &transform,
                          const Camera &camera,
                          uint32_t environmentTextureId) {
+    DrawInternal(model, transform, camera, nullptr, kInvalidEntity,
+                 environmentTextureId);
+}
+
+void ModelRenderer::Draw(const Model &model, const Transform &transform,
+                         const Camera &camera,
+                         const SkeletonPoseComponent &pose, Entity entity,
+                         uint32_t environmentTextureId) {
+    DrawInternal(model, transform, camera, &pose, entity,
+                 environmentTextureId);
+}
+
+void ModelRenderer::DrawInternal(const Model &model,
+                                 const Transform &transform,
+                                 const Camera &camera,
+                                 const SkeletonPoseComponent *pose,
+                                 Entity entity,
+                                 uint32_t environmentTextureId) {
     if (drawIndex_ >= kMaxDraws) {
 #ifdef _DEBUG
         if (!drawLimitWarningIssued_) {
@@ -93,22 +131,11 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
-
-    XMMATRIX world =
-        XMMatrixScaling(transform.scale.x, transform.scale.y,
-                        transform.scale.z) *
-        XMMatrixRotationQuaternion(q) *
-        XMMatrixTranslation(transform.position.x, transform.position.y,
-                            transform.position.z);
-
-    if (model.hasRootAnimation) {
-        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
-    }
-
+    XMMATRIX world = MakeWorldMatrix(model, transform, pose);
     XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
 
-    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh,
+                           size_t subMeshIndex) {
         if (drawIndex_ >= kMaxDraws) {
 #ifdef _DEBUG
             if (!drawLimitWarningIssued_) {
@@ -144,7 +171,9 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
             sceneConstBuffer_->GetGPUVirtualAddress() +
             sceneCbStride_ * drawIndex_;
 
-        DispatchSkinning(subMesh);
+        const D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle =
+            ResolvePaletteHandle(model, subMesh, subMeshIndex, pose, entity);
+        DispatchSkinning(subMesh, paletteSrvGpuHandle);
 
         const Material &material =
             materialManager_->GetMaterial(subMesh.materialId);
@@ -173,8 +202,7 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
             2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
         cmd->SetGraphicsRootDescriptorTable(
             3, textureManager_->GetGpuHandle(subMesh.textureId));
-        cmd->SetGraphicsRootDescriptorTable(4,
-                                            subMesh.skinCluster.paletteSrvGpuHandle);
+        cmd->SetGraphicsRootDescriptorTable(4, paletteSrvGpuHandle);
         const bool hasPerDrawEnvironmentTexture =
             (environmentTextureId != UINT32_MAX);
         const bool useEnvironmentTexture =
@@ -197,8 +225,8 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
     };
 
     if (!model.subMeshes.empty()) {
-        for (const auto &subMesh : model.subMeshes) {
-            drawSubMesh(subMesh);
+        for (size_t i = 0; i < model.subMeshes.size(); ++i) {
+            drawSubMesh(model.subMeshes[i], i);
             if (drawIndex_ >= kMaxDraws) {
                 break;
             }
@@ -208,6 +236,22 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
 
 void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
                                 const Camera &camera) {
+    DrawGBufferInternal(model, transform, camera, nullptr, kInvalidEntity);
+}
+
+void ModelRenderer::DrawGBuffer(const Model &model,
+                                const Transform &transform,
+                                const Camera &camera,
+                                const SkeletonPoseComponent &pose,
+                                Entity entity) {
+    DrawGBufferInternal(model, transform, camera, &pose, entity);
+}
+
+void ModelRenderer::DrawGBufferInternal(const Model &model,
+                                        const Transform &transform,
+                                        const Camera &camera,
+                                        const SkeletonPoseComponent *pose,
+                                        Entity entity) {
     if (drawIndex_ >= kMaxDraws) {
 #ifdef _DEBUG
         if (!drawLimitWarningIssued_) {
@@ -220,22 +264,11 @@ void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
-
-    XMMATRIX world =
-        XMMatrixScaling(transform.scale.x, transform.scale.y,
-                        transform.scale.z) *
-        XMMatrixRotationQuaternion(q) *
-        XMMatrixTranslation(transform.position.x, transform.position.y,
-                            transform.position.z);
-
-    if (model.hasRootAnimation) {
-        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
-    }
-
+    XMMATRIX world = MakeWorldMatrix(model, transform, pose);
     XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
 
-    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh,
+                           size_t subMeshIndex) {
         if (drawIndex_ >= kMaxDraws) {
 #ifdef _DEBUG
             if (!drawLimitWarningIssued_) {
@@ -271,7 +304,9 @@ void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
             sceneConstBuffer_->GetGPUVirtualAddress() +
             sceneCbStride_ * drawIndex_;
 
-        DispatchSkinning(subMesh);
+        const D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle =
+            ResolvePaletteHandle(model, subMesh, subMeshIndex, pose, entity);
+        DispatchSkinning(subMesh, paletteSrvGpuHandle);
 
         const Material &material =
             materialManager_->GetMaterial(subMesh.materialId);
@@ -292,8 +327,7 @@ void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
             2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
         cmd->SetGraphicsRootDescriptorTable(
             3, textureManager_->GetGpuHandle(subMesh.textureId));
-        cmd->SetGraphicsRootDescriptorTable(4,
-                                            subMesh.skinCluster.paletteSrvGpuHandle);
+        cmd->SetGraphicsRootDescriptorTable(4, paletteSrvGpuHandle);
         cmd->SetGraphicsRootDescriptorTable(
             5, textureManager_->GetGpuHandle(textureManager_->GetDefaultCubeTextureId()));
         cmd->SetGraphicsRootDescriptorTable(
@@ -307,8 +341,8 @@ void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
     };
 
     if (!model.subMeshes.empty()) {
-        for (const auto &subMesh : model.subMeshes) {
-            drawSubMesh(subMesh);
+        for (size_t i = 0; i < model.subMeshes.size(); ++i) {
+            drawSubMesh(model.subMeshes[i], i);
             if (drawIndex_ >= kMaxDraws) {
                 break;
             }
@@ -549,6 +583,39 @@ void ModelRenderer::ReleaseSkinClusters(Model &model) {
     }
 }
 
+void ModelRenderer::ReleaseInstanceSkinPalette(Entity entity) {
+    auto it = instanceSkinPalettes_.find(entity);
+    if (it == instanceSkinPalettes_.end() || !srvManager_) {
+        return;
+    }
+
+    for (auto &palette : it->second) {
+        if (palette.paletteSrvIndex != UINT_MAX) {
+            srvManager_->Free(palette.paletteSrvIndex);
+            palette.paletteSrvIndex = UINT_MAX;
+        }
+    }
+
+    instanceSkinPalettes_.erase(it);
+}
+
+void ModelRenderer::ReleaseDeadInstanceSkinPalettes(
+    const std::vector<Entity> &aliveEntities) {
+    std::vector<Entity> deadEntities;
+    deadEntities.reserve(instanceSkinPalettes_.size());
+
+    for (const auto &[entity, _] : instanceSkinPalettes_) {
+        if (std::find(aliveEntities.begin(), aliveEntities.end(), entity) ==
+            aliveEntities.end()) {
+            deadEntities.push_back(entity);
+        }
+    }
+
+    for (Entity entity : deadEntities) {
+        ReleaseInstanceSkinPalette(entity);
+    }
+}
+
 void ModelRenderer::UpdateSkinClusters(Model &model) {
     for (auto &subMesh : model.subMeshes) {
         SkinCluster &skinCluster = subMesh.skinCluster;
@@ -585,6 +652,128 @@ void ModelRenderer::UpdateSkinClusters(Model &model) {
                      .skeletonSpaceInverseTransposeMatrix,
                 XMMatrixTranspose(skinningInverseTranspose));
         }
+    }
+}
+
+D3D12_GPU_DESCRIPTOR_HANDLE ModelRenderer::ResolvePaletteHandle(
+    const Model &model, const ModelSubMesh &subMesh, size_t subMeshIndex,
+    const SkeletonPoseComponent *pose, Entity entity) {
+    if (!pose || !entity.IsValid() || model.bones.empty()) {
+        return subMesh.skinCluster.paletteSrvGpuHandle;
+    }
+
+    EnsureInstanceSkinPalette(entity, model);
+    UpdateInstanceSkinPalette(entity, subMeshIndex, subMesh, *pose);
+    return instanceSkinPalettes_[entity][subMeshIndex].paletteSrvGpuHandle;
+}
+
+void ModelRenderer::EnsureInstanceSkinPalette(Entity entity,
+                                              const Model &model) {
+    auto &palettes = instanceSkinPalettes_[entity];
+    if (palettes.size() == model.subMeshes.size()) {
+        return;
+    }
+
+    if (!srvManager_ || !dxCommon_) {
+        return;
+    }
+
+    const size_t oldSize = palettes.size();
+    palettes.resize(model.subMeshes.size());
+
+    auto *device = dxCommon_->GetDevice();
+    const uint32_t jointCount =
+        std::max<uint32_t>(1, static_cast<uint32_t>(model.bones.size()));
+    const UINT paletteBufferSize =
+        static_cast<UINT>(sizeof(WellForGPU) * jointCount);
+
+    for (size_t i = oldSize; i < palettes.size(); ++i) {
+        InstanceSkinPalette &palette = palettes[i];
+        CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
+        auto paletteDesc = CD3DX12_RESOURCE_DESC::Buffer(paletteBufferSize);
+
+        ThrowIfFailed(device->CreateCommittedResource(
+                          &uploadHeap, D3D12_HEAP_FLAG_NONE, &paletteDesc,
+                          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
+                          IID_PPV_ARGS(&palette.paletteResource)),
+                      "CreateCommittedResource(InstancePaletteBuffer) failed");
+
+        ThrowIfFailed(palette.paletteResource->Map(
+                          0, nullptr,
+                          reinterpret_cast<void **>(&palette.mappedPalette)),
+                      "InstancePaletteBuffer Map failed");
+
+        palette.paletteCount = jointCount;
+        for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
+            palette.mappedPalette[jointIndex].skeletonSpaceMatrix =
+                StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+            palette.mappedPalette[jointIndex]
+                .skeletonSpaceInverseTransposeMatrix =
+                StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+        }
+
+        const UINT srvIndex = srvManager_->Allocate();
+        palette.paletteSrvIndex = srvIndex;
+        palette.paletteSrvCpuHandle = srvManager_->GetCpuHandle(srvIndex);
+        palette.paletteSrvGpuHandle = srvManager_->GetGpuHandle(srvIndex);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.Shader4ComponentMapping =
+            D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        srvDesc.Buffer.NumElements = jointCount;
+        srvDesc.Buffer.StructureByteStride = sizeof(WellForGPU);
+
+        device->CreateShaderResourceView(palette.paletteResource.Get(),
+                                         &srvDesc,
+                                         palette.paletteSrvCpuHandle);
+    }
+}
+
+void ModelRenderer::UpdateInstanceSkinPalette(
+    Entity entity, size_t subMeshIndex, const ModelSubMesh &subMesh,
+    const SkeletonPoseComponent &pose) {
+    auto it = instanceSkinPalettes_.find(entity);
+    if (it == instanceSkinPalettes_.end() || subMeshIndex >= it->second.size()) {
+        return;
+    }
+
+    InstanceSkinPalette &palette = it->second[subMeshIndex];
+    if (!palette.mappedPalette || palette.paletteCount == 0) {
+        return;
+    }
+
+    if (pose.skeletonSpaceMatrices.empty()) {
+        palette.mappedPalette[0].skeletonSpaceMatrix =
+            StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+        palette.mappedPalette[0].skeletonSpaceInverseTransposeMatrix =
+            StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+        return;
+    }
+
+    const uint32_t jointCount = std::min<uint32_t>(
+        palette.paletteCount,
+        static_cast<uint32_t>(pose.skeletonSpaceMatrices.size()));
+
+    for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
+        XMMATRIX inverseBindPose =
+            XMLoadFloat4x4(&subMesh.skinCluster
+                                .inverseBindPoseMatrices[jointIndex]);
+        XMMATRIX skeletonSpace =
+            XMLoadFloat4x4(&pose.skeletonSpaceMatrices[jointIndex]);
+        XMMATRIX skinningMatrix = inverseBindPose * skeletonSpace;
+        XMMATRIX skinningInverseTranspose =
+            XMMatrixTranspose(XMMatrixInverse(nullptr, skinningMatrix));
+
+        XMStoreFloat4x4(&palette.mappedPalette[jointIndex].skeletonSpaceMatrix,
+                        XMMatrixTranspose(skinningMatrix));
+        XMStoreFloat4x4(
+            &palette.mappedPalette[jointIndex]
+                 .skeletonSpaceInverseTransposeMatrix,
+            XMMatrixTranspose(skinningInverseTranspose));
     }
 }
 
@@ -841,7 +1030,9 @@ void ModelRenderer::CreateSkinningPipelineState() {
                   "CreateComputePipelineState(Skinning) failed");
 }
 
-void ModelRenderer::DispatchSkinning(const ModelSubMesh &subMesh) {
+void ModelRenderer::DispatchSkinning(
+    const ModelSubMesh &subMesh,
+    D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle) {
     const SkinCluster &skinCluster = subMesh.skinCluster;
     if (!skinCluster.skinnedVertexResource || subMesh.vertexCount == 0) {
         return;
@@ -860,7 +1051,7 @@ void ModelRenderer::DispatchSkinning(const ModelSubMesh &subMesh) {
     cmd->SetComputeRoot32BitConstant(0, subMesh.vertexCount, 0);
     cmd->SetComputeRootDescriptorTable(1, skinCluster.inputVertexSrvGpuHandle);
     cmd->SetComputeRootDescriptorTable(2, skinCluster.influenceSrvGpuHandle);
-    cmd->SetComputeRootDescriptorTable(3, skinCluster.paletteSrvGpuHandle);
+    cmd->SetComputeRootDescriptorTable(3, paletteSrvGpuHandle);
     cmd->SetComputeRootDescriptorTable(4, skinCluster.skinnedVertexUavGpuHandle);
 
     const UINT threadGroupCount = (subMesh.vertexCount + 1023u) / 1024u;

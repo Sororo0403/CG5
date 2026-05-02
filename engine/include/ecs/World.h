@@ -130,8 +130,9 @@ class World {
             return;
         }
 
-        for (Entity entity : firstStorage->Entities()) {
-            if ((Has<Components>(entity) && ...)) {
+        const std::vector<Entity> entities = firstStorage->Entities();
+        for (Entity entity : entities) {
+            if (IsAlive(entity) && (Has<Components>(entity) && ...)) {
                 std::forward<Fn>(fn)(entity, Get<Components>(entity)...);
             }
         }
@@ -187,9 +188,9 @@ class World {
     }
 
   private:
-    Entity nextEntity_ = 1;
+    std::vector<uint32_t> generations_{0};
     std::vector<Entity> aliveEntities_;
-    std::vector<Entity> freeEntities_;
+    std::vector<uint32_t> freeIndices_;
     std::unordered_set<Entity> aliveSet_;
     std::unordered_map<std::type_index, StorageEntry> storages_;
 };

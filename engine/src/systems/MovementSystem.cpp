@@ -1,14 +1,21 @@
 #include "MovementSystem.h"
 
+#include "TransformHierarchy.h"
 #include "Transform.h"
 #include "Velocity.h"
 #include "World.h"
 
 void MovementSystem::Update(World &world, float deltaTime) {
     world.View<Transform, Velocity>(
-        [deltaTime](Entity, Transform &transform, Velocity &velocity) {
-            transform.position.x += velocity.linear.x * deltaTime;
-            transform.position.y += velocity.linear.y * deltaTime;
-            transform.position.z += velocity.linear.z * deltaTime;
+        [&world, deltaTime](Entity entity, Transform &transform,
+                            Velocity &velocity) {
+            Transform *target = &transform;
+            if (LocalTransform *local = world.TryGet<LocalTransform>(entity)) {
+                target = &local->transform;
+            }
+
+            target->position.x += velocity.linear.x * deltaTime;
+            target->position.y += velocity.linear.y * deltaTime;
+            target->position.z += velocity.linear.z * deltaTime;
         });
 }

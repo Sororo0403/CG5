@@ -16,6 +16,6 @@ struct RenderSystem {
     /// <param name="modelAssets">モデルデータを取得するModelAssets。</param>
     /// <param name="modelRenderer">モデル描画を行うModelRenderer。</param>
     /// <param name="camera">描画に使用するCamera。</param>
-    void Draw(World &world, const ModelAssets &modelAssets,
+    void Draw(World &world, ModelAssets &modelAssets,
               ModelRenderer &modelRenderer, const Camera &camera);
 };

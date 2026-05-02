@@ -1,4 +1,5 @@
 #pragma once
+#include "AnimationComponents.h"
 #include "Camera.h"
 #include "Model.h"
 #include "Transform.h"
@@ -18,6 +19,8 @@ class SkeletonDebugRenderer {
     void Initialize(DirectXCommon *dxCommon);
     void Draw(const Model &model, const Transform &transform,
               const Camera &camera);
+    void Draw(const Model &model, const Transform &transform,
+              const Camera &camera, const SkeletonPoseComponent &pose);
 
   private:
     struct LineVertex {
@@ -35,6 +38,12 @@ class SkeletonDebugRenderer {
     void EnsureVertexCapacity(uint32_t vertexCount);
     DirectX::XMMATRIX MakeWorldMatrix(const Model &model,
                                       const Transform &transform) const;
+    DirectX::XMMATRIX MakeWorldMatrix(const Transform &transform,
+                                      const SkeletonPoseComponent &pose) const;
+    void DrawInternal(const Model &model, const Transform &transform,
+                      const Camera &camera,
+                      const std::vector<DirectX::XMFLOAT4X4> &skeletonMatrices,
+                      const SkeletonPoseComponent *pose);
 
   private:
     static constexpr uint32_t kInitialMaxVertices = 4096;

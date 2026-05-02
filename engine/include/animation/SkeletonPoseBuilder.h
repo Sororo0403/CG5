@@ -1,4 +1,5 @@
 #pragma once
+#include "AnimationComponents.h"
 #include "Model.h"
 #include <vector>
 
@@ -16,7 +17,7 @@ class SkeletonPoseBuilder {
     /// <summary>
     /// アニメーションを適用したローカル行列配列を構築する
     /// </summary>
-    static void BuildAnimatedLocals(Model &model, const AnimationClip &clip,
+    static void BuildAnimatedLocals(const Model &model, const AnimationClip &clip,
                                     float time,
                                     std::vector<DirectX::XMMATRIX> &localMatrices);
 
@@ -25,5 +26,11 @@ class SkeletonPoseBuilder {
     /// </summary>
     static void UpdateSkeleton(
         Model &model, const std::vector<DirectX::XMMATRIX> &localMatrices);
-};
 
+    /// <summary>
+    /// ローカル行列配列からEntityごとの姿勢Componentを更新する
+    /// </summary>
+    static void UpdateSkeleton(
+        const Model &model, SkeletonPoseComponent &pose,
+        const std::vector<DirectX::XMMATRIX> &localMatrices);
+};

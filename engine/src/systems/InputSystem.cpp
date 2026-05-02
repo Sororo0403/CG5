@@ -2,13 +2,19 @@
 
 #include "Input.h"
 #include "InputComponent.h"
+#include "InputSource.h"
 #include "World.h"
 
 #include <cmath>
 
 void InputSystem::Update(World &world, const Input &input) {
-    world.View<InputComponent>(
-        [&input](Entity, InputComponent &component) {
+    world.View<InputComponent, InputSource>(
+        [&input](Entity, InputComponent &component, InputSource &source) {
+            if (source.kind != InputSourceKind::KeyboardMouse ||
+                source.playerIndex != 0) {
+                return;
+            }
+
             component.move = {0.0f, 0.0f};
             component.attack = false;
             component.guard = false;
