@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="src\entities\EnemyEntity.cpp" />
+    <ClCompile Include="src\entities\PlayerEntity.cpp" />
+    <ClCompile Include="src\systems\EnemyAISystem.cpp" />
+    <ClCompile Include="src\systems\GameRuleSystem.cpp" />
+    <ClCompile Include="src\systems\PlayerControlSystem.cpp" />
     <ClCompile Include="src\gameobject\ColliderComponent.cpp" />
     <ClCompile Include="src\gameobject\EnemyAIComponent.cpp" />
     <ClCompile Include="src\gameobject\GameObject.cpp" />
@@ -31,6 +36,11 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\entities\EnemyEntity.h" />
+    <ClInclude Include="include\entities\PlayerEntity.h" />
+    <ClInclude Include="include\systems\EnemyAISystem.h" />
+    <ClInclude Include="include\systems\GameRuleSystem.h" />
+    <ClInclude Include="include\systems\PlayerControlSystem.h" />
     <ClInclude Include="include\gameobject\ColliderComponent.h" />
     <ClInclude Include="include\gameobject\Component.h" />
     <ClInclude Include="include\gameobject\EnemyAIComponent.h" />

@@ -1,8 +1,10 @@
 #include "GameScene.h"
 #include "DirectXCommon.h"
 #include "EnemyTuningPresetIO.h"
+#include "EnemyEntity.h"
 #include "Input.h"
 #include "ModelManager.h"
+#include "PlayerEntity.h"
 #include "PlayerTuningPresetIO.h"
 #include "PostEffectRenderer.h"
 #include "SceneManager.h"
@@ -53,6 +55,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     enemy_.ApplyAnimationTimingsFromModel(model->GetModel(enemyModelId_));
     enemyAnimation_.Initialize(enemyModelId_);
     CreateGameObjects();
+    CreateEcsEntities();
 
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
@@ -121,6 +124,29 @@ void GameScene::CreateGameObjects() {
     gameObjects_.push_back(std::move(enemyObject));
 }
 
+void GameScene::CreateEcsEntities() {
+    ecsWorld_ = World{};
+    ecsPlayerEntity_ = AppEntities::CreatePlayer(ecsWorld_, playerModelId_);
+    ecsEnemyEntity_ = AppEntities::CreateEnemy(ecsWorld_, enemyModelId_);
+    ecsGameRuleSystem_.ClearFrameState();
+}
+
+void GameScene::UpdateEcs(float deltaTime) {
+    if (ctx_ == nullptr || ctx_->input == nullptr) {
+        return;
+    }
+
+    ecsGameRuleSystem_.ClearFrameState();
+    ecsInputSystem_.Update(ecsWorld_, *ctx_->input);
+    ecsPlayerControlSystem_.Update(ecsWorld_, deltaTime);
+    ecsEnemyAISystem_.Update(ecsWorld_, deltaTime);
+    ecsPhysicsSystem_.Update(ecsWorld_, deltaTime);
+    ecsMovementSystem_.Update(ecsWorld_, deltaTime);
+    ecsCollisionSystem_.Update(ecsWorld_);
+    ecsGameRuleSystem_.Update(ecsWorld_, ecsCollisionSystem_.Events(),
+                              deltaTime);
+}
+
 void GameScene::UpdateGameplayObjects(float playerDeltaTime,
                                       float enemyDeltaTime,
                                       bool freezeEnemyMotion) {
@@ -163,6 +189,7 @@ void GameScene::Update() {
 #endif
 
     UpdateCamera(input);
+    UpdateEcs(gameplayDeltaTime);
 
     ctx_->model->UpdateAnimation(playerModelId_, playerDeltaTime);
 
