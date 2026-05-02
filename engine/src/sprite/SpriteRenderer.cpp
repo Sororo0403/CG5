@@ -8,15 +8,10 @@
 #include "TextureManager.h"
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 
 using namespace DirectX;
 using namespace DxUtils;
-
-struct SpriteVertex {
-    XMFLOAT3 pos;
-    XMFLOAT2 uv;
-    XMFLOAT4 color;
-};
 
 struct SpriteConstBuffer {
     XMFLOAT4X4 mat;
@@ -55,17 +50,11 @@ void SpriteRenderer::Draw(const Sprite &sprite) {
         {{r, b, 0.0f}, {1.0f, 1.0f}, sprite.color},
     };
 
-    // VB 更新
-    SpriteVertex *mapped = nullptr;
-    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
-    memcpy(mapped, vertices, sizeof(vertices));
-    vertexBuffer_->Unmap(0, nullptr);
-
     // テクスチャ
     cmd->SetGraphicsRootDescriptorTable(
         1, textureManager_->GetGpuHandle(sprite.textureId));
 
-    cmd->DrawInstanced(6, 1, 0, 0);
+    DrawVertices(vertices, 6);
 }
 
 void SpriteRenderer::DrawFilledCircle(const XMFLOAT2 &center, float radius,
@@ -167,7 +156,7 @@ void SpriteRenderer::PreDraw() {
         0, constBuffer_->GetGPUVirtualAddress());
 
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    cmd->IASetVertexBuffers(0, 1, &vbView_);
+    vertexCursor_ = 0;
 }
 
 void SpriteRenderer::PostDraw() {}
@@ -186,13 +175,8 @@ void SpriteRenderer::DrawPrimitiveTriangle(const XMFLOAT2 &a, const XMFLOAT2 &b,
         {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
     };
 
-    SpriteVertex *mapped = nullptr;
-    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
-    memcpy(mapped, vertices, sizeof(vertices));
-    vertexBuffer_->Unmap(0, nullptr);
-
     cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
-    cmd->DrawInstanced(3, 1, 0, 0);
+    DrawVertices(vertices, 3);
 }
 
 void SpriteRenderer::DrawPrimitiveQuad(const XMFLOAT2 &a, const XMFLOAT2 &b,
@@ -209,17 +193,35 @@ void SpriteRenderer::DrawPrimitiveQuad(const XMFLOAT2 &a, const XMFLOAT2 &b,
         {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, color},
     };
 
-    SpriteVertex *mapped = nullptr;
-    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
-    memcpy(mapped, vertices, sizeof(vertices));
-    vertexBuffer_->Unmap(0, nullptr);
-
     cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
-    cmd->DrawInstanced(6, 1, 0, 0);
+    DrawVertices(vertices, 6);
+}
+
+void SpriteRenderer::DrawVertices(const SpriteVertex *vertices,
+                                  UINT vertexCount) {
+    if (!vertices || vertexCount == 0) {
+        return;
+    }
+    if (vertexCursor_ + vertexCount > kMaxDynamicVertices) {
+        throw std::runtime_error("Sprite dynamic vertex buffer exhausted");
+    }
+
+    const UINT startVertex = vertexCursor_;
+    memcpy(vertexMapped_ + startVertex, vertices,
+           sizeof(SpriteVertex) * vertexCount);
+    vertexCursor_ += vertexCount;
+
+    D3D12_VERTEX_BUFFER_VIEW view = vbView_;
+    view.BufferLocation += sizeof(SpriteVertex) * startVertex;
+    view.SizeInBytes = sizeof(SpriteVertex) * vertexCount;
+
+    auto cmd = dxCommon_->GetCommandList();
+    cmd->IASetVertexBuffers(0, 1, &view);
+    cmd->DrawInstanced(vertexCount, 1, 0, 0);
 }
 
 void SpriteRenderer::CreateVertexBuffer() {
-    UINT size = sizeof(SpriteVertex) * 6;
+    UINT size = sizeof(SpriteVertex) * kMaxDynamicVertices;
 
     CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
     auto desc = CD3DX12_RESOURCE_DESC::Buffer(size);
@@ -233,6 +235,8 @@ void SpriteRenderer::CreateVertexBuffer() {
     vbView_.BufferLocation = vertexBuffer_->GetGPUVirtualAddress();
     vbView_.SizeInBytes = size;
     vbView_.StrideInBytes = sizeof(SpriteVertex);
+
+    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&vertexMapped_));
 }
 
 void SpriteRenderer::CreateConstantBuffer() {

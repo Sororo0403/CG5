@@ -63,6 +63,12 @@ class SpriteRenderer {
     void UpdateProjection(int width, int height);
 
   private:
+    struct SpriteVertex {
+        DirectX::XMFLOAT3 pos;
+        DirectX::XMFLOAT2 uv;
+        DirectX::XMFLOAT4 color;
+    };
+
     /// <summary>
     /// ルートシグネチャを生成する
     /// </summary>
@@ -88,6 +94,9 @@ class SpriteRenderer {
                            const DirectX::XMFLOAT2 &c,
                            const DirectX::XMFLOAT2 &d,
                            const DirectX::XMFLOAT4 &color);
+    void DrawVertices(const SpriteVertex *vertices, UINT vertexCount);
+
+    static constexpr UINT kMaxDynamicVertices = 65536;
 
     DirectXCommon *dxCommon_ = nullptr;
     TextureManager *textureManager_ = nullptr;
@@ -98,6 +107,8 @@ class SpriteRenderer {
 
     Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer_;
     D3D12_VERTEX_BUFFER_VIEW vbView_{};
+    SpriteVertex *vertexMapped_ = nullptr;
+    UINT vertexCursor_ = 0;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> constBuffer_;
 
