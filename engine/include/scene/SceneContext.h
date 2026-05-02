@@ -20,10 +20,6 @@ class DebugDraw;
 class EffectSystem;
 class BillboardRenderer;
 
-#ifdef _DEBUG
-class ImguiManager;
-#endif // _DEBUG
-
 struct CoreServices {
     Input *input = nullptr;
     WinApp *winApp = nullptr;
@@ -48,6 +44,8 @@ struct RendererServices {
     SkyboxRenderer *skyboxRenderer = nullptr;
     LightManager *light = nullptr;
     BillboardRenderer *billboard = nullptr;
+    EffectSystem *effects = nullptr;
+    DebugDraw *debugDraw = nullptr;
 };
 
 struct FrameState {
@@ -64,20 +62,4 @@ struct SceneContext {
     AssetServices assets;
     RendererServices renderer;
     FrameState frame;
-
-    Input *input = nullptr;
-    WinApp *winApp = nullptr;
-    SoundManager *sound = nullptr;
-    ModelManager *model = nullptr;
-    SpriteManager *sprite = nullptr;
-    TextureManager *texture = nullptr;
-    DirectXCommon *dxCommon = nullptr;
-    SrvManager *srv = nullptr;
-    EffectSystem *effects = nullptr;
-    DebugDraw *debugDraw = nullptr;
-    float deltaTime = 0.0f;
-
-#ifdef _DEBUG
-    ImguiManager *imgui = nullptr;
-#endif // _DEBUG
 };

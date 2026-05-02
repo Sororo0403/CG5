@@ -1,13 +1,7 @@
 #include "DirectXCommon.h"
-#include "EngineRuntime.h"
 #include "Input.h"
 #include "SrvManager.h"
 #include "WinApp.h"
-
-#ifdef _DEBUG
-#include "ImguiManager.h"
-#include "imgui.h"
-#endif
 
 #include <Windows.h>
 #include <chrono>
@@ -34,8 +28,6 @@ void ShowErrorMessage(const char *message) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     try {
-        EngineRuntime::GetInstance().SetMode(EngineRuntimeMode::Editor);
-
         WinApp winApp;
         winApp.Initialize(hInstance, nCmdShow, kClientWidth, kClientHeight,
                           L"Engine Test App");
@@ -49,11 +41,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
 
         Input input;
         input.Initialize(hInstance, winApp.GetHwnd());
-
-#ifdef _DEBUG
-        ImguiManager imgui;
-        imgui.Initialize(&winApp, &dxCommon, &srvManager);
-#endif
 
         int currentWidth = winApp.GetWidth();
         int currentHeight = winApp.GetHeight();
@@ -77,18 +64,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
             }
 
             dxCommon.BeginFrame();
-
-#ifdef _DEBUG
-            imgui.Begin(dxCommon.GetCommandList());
-            ImGui::Begin("Engine Test");
-            ImGui::Text("Engine runtime is active.");
-            ImGui::Text("Mode: Editor");
-            ImGui::Text("Frame: %.3f ms", deltaTime * 1000.0f);
-            ImGui::Text("Client: %d x %d", currentWidth, currentHeight);
-            ImGui::End();
-            imgui.End(dxCommon.GetCommandList());
-#endif
-
             dxCommon.EndFrame();
         }
 
