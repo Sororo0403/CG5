@@ -9,6 +9,7 @@ enum class ColliderShape {
     AABB,
     OBB,
     Sphere,
+    Capsule,
 };
 
 /// <summary>
@@ -22,4 +23,5 @@ struct Collider {
     uint32_t layer = 1;
     uint32_t mask = 0xffffffff;
     bool isTrigger = false;
+    float capsuleHalfHeight = 0.5f;
 };

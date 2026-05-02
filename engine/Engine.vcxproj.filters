@@ -147,10 +147,19 @@
     <ClCompile Include="$(SolutionDir)engine\src\systems\ActionInputSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\AISystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationEventSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationStateMachineSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\CameraFollowSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\CharacterControllerSystem.cpp">
@@ -162,19 +171,37 @@
     <ClCompile Include="$(SolutionDir)engine\src\systems\CollisionResolutionSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\ContinuousCollisionSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\DamageSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\GroundingSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\HitboxLifetimeSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\InputSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\LockOnSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\MovementSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\PreviousTransformSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\PhysicsSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\RenderSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\RootMotionSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\TransformSystem.cpp">
@@ -350,10 +377,19 @@
     <ClInclude Include="$(SolutionDir)engine\include\components\ActionInput.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\AIController.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\AnimationComponents.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\AnimationEvents.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\AnimationStateMachine.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\CameraFollow.h">
       <Filter>include\components</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\CharacterController.h">
@@ -368,16 +404,25 @@
     <ClInclude Include="$(SolutionDir)engine\include\components\GameplayComponents.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\GroundingComponents.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\InputComponent.h">
       <Filter>include\components</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\InputSource.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\LockOn.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\MeshRenderer.h">
       <Filter>include\components</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\PhysicsBody.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\RootMotion.h">
       <Filter>include\components</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\Tags.h">
@@ -392,6 +437,12 @@
     <ClInclude Include="$(SolutionDir)engine\include\systems\ActionInputSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\AISystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\AnimationEventSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\CollisionSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
@@ -401,16 +452,31 @@
     <ClInclude Include="$(SolutionDir)engine\include\systems\AnimationStateMachineSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\CameraFollowSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\CharacterControllerSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\CollisionResolutionSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\ContinuousCollisionSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\DamageSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\GroundingSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\HitboxLifetimeSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\InputSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\LockOnSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\MovementSystem.h">
@@ -419,7 +485,13 @@
     <ClInclude Include="$(SolutionDir)engine\include\systems\PhysicsSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\PreviousTransformSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\RenderSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\RootMotionSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\TransformSystem.h">

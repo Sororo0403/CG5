@@ -12,6 +12,7 @@ struct AnimationComponent {
     bool loop = true;
     bool playing = true;
     bool finished = false;
+    float previousTime = 0.0f;
 };
 
 /// <summary>

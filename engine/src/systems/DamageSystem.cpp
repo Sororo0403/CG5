@@ -31,6 +31,9 @@ Bounds MakeBounds(const Transform &transform, const Collider &collider) {
     DirectX::XMFLOAT3 halfSize = collider.halfSize;
     if (collider.shape == ColliderShape::Sphere) {
         halfSize = {collider.radius, collider.radius, collider.radius};
+    } else if (collider.shape == ColliderShape::Capsule) {
+        halfSize = {collider.radius, collider.radius + collider.capsuleHalfHeight,
+                    collider.radius};
     }
 
     return {{center.x - halfSize.x, center.y - halfSize.y,

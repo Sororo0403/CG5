@@ -27,6 +27,7 @@ struct WorldShape {
     Collider collider{};
     WorldBox box{};
     float sphereRadius = 0.5f;
+    XMFLOAT3 capsuleHalfAxis{0.0f, 0.5f, 0.0f};
 };
 
 struct BroadPhaseBounds {
@@ -82,6 +83,10 @@ XMFLOAT3 Cross(const XMFLOAT3 &a, const XMFLOAT3 &b) {
 }
 
 float LengthSq(const XMFLOAT3 &v) { return Dot(v, v); }
+
+XMFLOAT3 Abs(const XMFLOAT3 &v) {
+    return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
+}
 
 XMMATRIX ComposeMatrix(const Transform &transform) {
     const XMVECTOR rotation =
@@ -139,11 +144,14 @@ WorldShape MakeWorldShape(const XMMATRIX &matrix, const Collider &collider) {
     const float scale = (std::max)({std::sqrt(LengthSq(worldX)),
                                     std::sqrt(LengthSq(worldY)),
                                     std::sqrt(LengthSq(worldZ))});
-    shape.sphereRadius = collider.shape == ColliderShape::Sphere
+    shape.sphereRadius = collider.shape == ColliderShape::Sphere ||
+                                 collider.shape == ColliderShape::Capsule
                              ? collider.radius * scale
                              : std::sqrt(LengthSq(shape.box.halfAxes[0]) +
                                          LengthSq(shape.box.halfAxes[1]) +
                                          LengthSq(shape.box.halfAxes[2]));
+    shape.capsuleHalfAxis =
+        TransformVector(matrix, {0.0f, collider.capsuleHalfHeight, 0.0f});
 
     return shape;
 }
@@ -224,7 +232,129 @@ bool SphereIntersectsBox(const WorldShape &sphere, const WorldShape &box) {
     return LengthSq(delta) <= sphere.sphereRadius * sphere.sphereRadius;
 }
 
+XMFLOAT3 ClosestPointOnSegment(const XMFLOAT3 &a, const XMFLOAT3 &b,
+                               const XMFLOAT3 &point) {
+    const XMFLOAT3 ab = Subtract(b, a);
+    const float lengthSq = LengthSq(ab);
+    if (lengthSq <= 1.0e-6f) {
+        return a;
+    }
+
+    const float t =
+        std::clamp(Dot(Subtract(point, a), ab) / lengthSq, 0.0f, 1.0f);
+    return Add(a, Scale(ab, t));
+}
+
+float SegmentSegmentDistanceSq(const XMFLOAT3 &p1, const XMFLOAT3 &q1,
+                               const XMFLOAT3 &p2, const XMFLOAT3 &q2) {
+    const XMFLOAT3 d1 = Subtract(q1, p1);
+    const XMFLOAT3 d2 = Subtract(q2, p2);
+    const XMFLOAT3 r = Subtract(p1, p2);
+    const float a = LengthSq(d1);
+    const float e = LengthSq(d2);
+    const float f = Dot(d2, r);
+
+    float s = 0.0f;
+    float t = 0.0f;
+    if (a <= 1.0e-6f && e <= 1.0e-6f) {
+        return LengthSq(Subtract(p1, p2));
+    }
+    if (a <= 1.0e-6f) {
+        t = std::clamp(f / e, 0.0f, 1.0f);
+    } else {
+        const float c = Dot(d1, r);
+        if (e <= 1.0e-6f) {
+            s = std::clamp(-c / a, 0.0f, 1.0f);
+        } else {
+            const float b = Dot(d1, d2);
+            const float denom = a * e - b * b;
+            if (denom != 0.0f) {
+                s = std::clamp((b * f - c * e) / denom, 0.0f, 1.0f);
+            }
+            t = (b * s + f) / e;
+            if (t < 0.0f) {
+                t = 0.0f;
+                s = std::clamp(-c / a, 0.0f, 1.0f);
+            } else if (t > 1.0f) {
+                t = 1.0f;
+                s = std::clamp((b - c) / a, 0.0f, 1.0f);
+            }
+        }
+    }
+
+    const XMFLOAT3 c1 = Add(p1, Scale(d1, s));
+    const XMFLOAT3 c2 = Add(p2, Scale(d2, t));
+    return LengthSq(Subtract(c1, c2));
+}
+
+void CapsuleSegment(const WorldShape &capsule, XMFLOAT3 &a, XMFLOAT3 &b) {
+    a = Subtract(capsule.box.center, capsule.capsuleHalfAxis);
+    b = Add(capsule.box.center, capsule.capsuleHalfAxis);
+}
+
+bool SphereIntersectsCapsule(const WorldShape &sphere,
+                             const WorldShape &capsule) {
+    XMFLOAT3 a{};
+    XMFLOAT3 b{};
+    CapsuleSegment(capsule, a, b);
+    const XMFLOAT3 closest = ClosestPointOnSegment(a, b, sphere.box.center);
+    const float radius = sphere.sphereRadius + capsule.sphereRadius;
+    return LengthSq(Subtract(sphere.box.center, closest)) <= radius * radius;
+}
+
+bool CapsuleIntersectsCapsule(const WorldShape &a, const WorldShape &b) {
+    XMFLOAT3 a0{};
+    XMFLOAT3 a1{};
+    XMFLOAT3 b0{};
+    XMFLOAT3 b1{};
+    CapsuleSegment(a, a0, a1);
+    CapsuleSegment(b, b0, b1);
+    const float radius = a.sphereRadius + b.sphereRadius;
+    return SegmentSegmentDistanceSq(a0, a1, b0, b1) <= radius * radius;
+}
+
+bool CapsuleIntersectsBox(const WorldShape &capsule, const WorldShape &box) {
+    XMFLOAT3 a{};
+    XMFLOAT3 b{};
+    CapsuleSegment(capsule, a, b);
+    const XMFLOAT3 closestToCenter =
+        ClosestPointOnSegment(a, b, box.box.center);
+    const XMFLOAT3 closestOnBox = ClosestPointOnBox(box.box, closestToCenter);
+    if (LengthSq(Subtract(closestToCenter, closestOnBox)) <=
+        capsule.sphereRadius * capsule.sphereRadius) {
+        return true;
+    }
+
+    WorldShape endSphere = capsule;
+    endSphere.collider.shape = ColliderShape::Sphere;
+    endSphere.box.center = a;
+    if (SphereIntersectsBox(endSphere, box)) {
+        return true;
+    }
+    endSphere.box.center = b;
+    return SphereIntersectsBox(endSphere, box);
+}
+
 bool ShapesIntersect(const WorldShape &a, const WorldShape &b) {
+    if (a.collider.shape == ColliderShape::Capsule &&
+        b.collider.shape == ColliderShape::Capsule) {
+        return CapsuleIntersectsCapsule(a, b);
+    }
+    if (a.collider.shape == ColliderShape::Sphere &&
+        b.collider.shape == ColliderShape::Capsule) {
+        return SphereIntersectsCapsule(a, b);
+    }
+    if (a.collider.shape == ColliderShape::Capsule &&
+        b.collider.shape == ColliderShape::Sphere) {
+        return SphereIntersectsCapsule(b, a);
+    }
+    if (a.collider.shape == ColliderShape::Capsule) {
+        return CapsuleIntersectsBox(a, b);
+    }
+    if (b.collider.shape == ColliderShape::Capsule) {
+        return CapsuleIntersectsBox(b, a);
+    }
+
     if (a.collider.shape == ColliderShape::Sphere &&
         b.collider.shape == ColliderShape::Sphere) {
         const XMFLOAT3 centerDelta = Subtract(a.box.center, b.box.center);
@@ -243,13 +373,18 @@ bool ShapesIntersect(const WorldShape &a, const WorldShape &b) {
 }
 
 BroadPhaseBounds MakeBounds(const WorldShape &shape) {
-    if (shape.collider.shape == ColliderShape::Sphere) {
-        return {{shape.box.center.x - shape.sphereRadius,
-                 shape.box.center.y - shape.sphereRadius,
-                 shape.box.center.z - shape.sphereRadius},
-                {shape.box.center.x + shape.sphereRadius,
-                 shape.box.center.y + shape.sphereRadius,
-                 shape.box.center.z + shape.sphereRadius}};
+    if (shape.collider.shape == ColliderShape::Sphere ||
+        shape.collider.shape == ColliderShape::Capsule) {
+        const XMFLOAT3 capsuleExtent =
+            shape.collider.shape == ColliderShape::Capsule
+                ? Abs(shape.capsuleHalfAxis)
+                : XMFLOAT3{};
+        return {{shape.box.center.x - shape.sphereRadius - capsuleExtent.x,
+                 shape.box.center.y - shape.sphereRadius - capsuleExtent.y,
+                 shape.box.center.z - shape.sphereRadius - capsuleExtent.z},
+                {shape.box.center.x + shape.sphereRadius + capsuleExtent.x,
+                 shape.box.center.y + shape.sphereRadius + capsuleExtent.y,
+                 shape.box.center.z + shape.sphereRadius + capsuleExtent.z}};
     }
 
     const XMFLOAT3 extent{

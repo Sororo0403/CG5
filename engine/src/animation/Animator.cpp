@@ -14,6 +14,7 @@ void Animator::Play(const Model &model, AnimationComponent &animation,
 
     animation.currentAnimation = animationName;
     animation.time = 0.0f;
+    animation.previousTime = 0.0f;
     animation.loop = loop;
     animation.playing = true;
     animation.finished = false;
@@ -41,6 +42,8 @@ void Animator::ApplyBindPose(const Model &model, SkeletonPoseComponent &pose) {
 
 void Animator::Update(const Model &model, AnimationComponent &animation,
                       SkeletonPoseComponent &pose, float deltaTime) {
+    animation.previousTime = animation.time;
+
     if (animation.currentAnimation.empty()) {
         pose.hasRootAnimation = false;
         XMStoreFloat4x4(&pose.rootAnimationMatrix, XMMatrixIdentity());

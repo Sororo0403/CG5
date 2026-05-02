@@ -25,6 +25,8 @@ struct SimpleShape {
     DirectX::XMFLOAT3 halfSize{0.5f, 0.5f, 0.5f};
     float radius = 0.5f;
     bool sphere = false;
+    bool capsule = false;
+    float capsuleHalfHeight = 0.5f;
 };
 
 struct Resolution {
@@ -39,14 +41,21 @@ SimpleShape MakeShape(const Transform &transform, const Collider &collider) {
                     transform.position.y + collider.center.y,
                     transform.position.z + collider.center.z};
     shape.sphere = collider.shape == ColliderShape::Sphere;
+    shape.capsule = collider.shape == ColliderShape::Capsule;
 
-    if (shape.sphere) {
+    if (shape.sphere || shape.capsule) {
         const float scale =
             (std::max)({std::abs(transform.scale.x),
                         std::abs(transform.scale.y),
                         std::abs(transform.scale.z)});
         shape.radius = collider.radius * scale;
-        shape.halfSize = {shape.radius, shape.radius, shape.radius};
+        shape.capsuleHalfHeight =
+            collider.capsuleHalfHeight * std::abs(transform.scale.y);
+        shape.halfSize = {shape.radius,
+                          shape.radius +
+                              (shape.capsule ? shape.capsuleHalfHeight
+                                             : 0.0f),
+                          shape.radius};
     } else {
         shape.halfSize = {std::abs(collider.halfSize.x * transform.scale.x),
                           std::abs(collider.halfSize.y * transform.scale.y),
@@ -72,6 +81,55 @@ DirectX::XMFLOAT3 NormalizeOrUp(const DirectX::XMFLOAT3 &value) {
     }
     const float invLength = 1.0f / std::sqrt(lengthSq);
     return {value.x * invLength, value.y * invLength, value.z * invLength};
+}
+
+DirectX::XMFLOAT3 Add(const DirectX::XMFLOAT3 &a,
+                      const DirectX::XMFLOAT3 &b) {
+    return {a.x + b.x, a.y + b.y, a.z + b.z};
+}
+
+DirectX::XMFLOAT3 Scale(const DirectX::XMFLOAT3 &value, float scale) {
+    return {value.x * scale, value.y * scale, value.z * scale};
+}
+
+DirectX::XMFLOAT3 ClosestPointOnSegment(const DirectX::XMFLOAT3 &a,
+                                        const DirectX::XMFLOAT3 &b,
+                                        const DirectX::XMFLOAT3 &point) {
+    const DirectX::XMFLOAT3 ab = Subtract(b, a);
+    const float lengthSq = LengthSq(ab);
+    if (lengthSq <= 0.000001f) {
+        return a;
+    }
+
+    const float t = std::clamp(
+        (Subtract(point, a).x * ab.x + Subtract(point, a).y * ab.y +
+         Subtract(point, a).z * ab.z) /
+            lengthSq,
+        0.0f, 1.0f);
+    return Add(a, Scale(ab, t));
+}
+
+void CapsuleSegment(const SimpleShape &capsule, DirectX::XMFLOAT3 &a,
+                    DirectX::XMFLOAT3 &b) {
+    a = {capsule.center.x, capsule.center.y - capsule.capsuleHalfHeight,
+         capsule.center.z};
+    b = {capsule.center.x, capsule.center.y + capsule.capsuleHalfHeight,
+         capsule.center.z};
+}
+
+Resolution ResolveSphereSphereLike(const DirectX::XMFLOAT3 &aCenter,
+                                   float aRadius,
+                                   const DirectX::XMFLOAT3 &bCenter,
+                                   float bRadius) {
+    const DirectX::XMFLOAT3 delta = Subtract(aCenter, bCenter);
+    const float radius = aRadius + bRadius;
+    const float distanceSq = LengthSq(delta);
+    if (distanceSq >= radius * radius) {
+        return {};
+    }
+
+    const float distance = std::sqrt((std::max)(distanceSq, 0.000001f));
+    return {true, NormalizeOrUp(delta), radius - distance};
 }
 
 Resolution ResolveAabbAabb(const SimpleShape &a, const SimpleShape &b) {
@@ -104,15 +162,7 @@ Resolution ResolveAabbAabb(const SimpleShape &a, const SimpleShape &b) {
 }
 
 Resolution ResolveSphereSphere(const SimpleShape &a, const SimpleShape &b) {
-    const DirectX::XMFLOAT3 delta = Subtract(a.center, b.center);
-    const float radius = a.radius + b.radius;
-    const float distanceSq = LengthSq(delta);
-    if (distanceSq >= radius * radius) {
-        return {};
-    }
-
-    const float distance = std::sqrt((std::max)(distanceSq, 0.000001f));
-    return {true, NormalizeOrUp(delta), radius - distance};
+    return ResolveSphereSphereLike(a.center, a.radius, b.center, b.radius);
 }
 
 Resolution ResolveSphereAabb(const SimpleShape &sphere, const SimpleShape &box) {
@@ -134,7 +184,81 @@ Resolution ResolveSphereAabb(const SimpleShape &sphere, const SimpleShape &box) 
     return {true, NormalizeOrUp(delta), sphere.radius - distance};
 }
 
+Resolution ResolveCapsuleCapsule(const SimpleShape &a, const SimpleShape &b) {
+    DirectX::XMFLOAT3 a0{};
+    DirectX::XMFLOAT3 a1{};
+    DirectX::XMFLOAT3 b0{};
+    DirectX::XMFLOAT3 b1{};
+    CapsuleSegment(a, a0, a1);
+    CapsuleSegment(b, b0, b1);
+    const DirectX::XMFLOAT3 aClosest = ClosestPointOnSegment(a0, a1, b.center);
+    const DirectX::XMFLOAT3 bClosest = ClosestPointOnSegment(b0, b1, aClosest);
+    return ResolveSphereSphereLike(aClosest, a.radius, bClosest, b.radius);
+}
+
+Resolution ResolveSphereCapsule(const SimpleShape &sphere,
+                                const SimpleShape &capsule) {
+    DirectX::XMFLOAT3 a{};
+    DirectX::XMFLOAT3 b{};
+    CapsuleSegment(capsule, a, b);
+    const DirectX::XMFLOAT3 closest =
+        ClosestPointOnSegment(a, b, sphere.center);
+    return ResolveSphereSphereLike(sphere.center, sphere.radius, closest,
+                                   capsule.radius);
+}
+
+Resolution ResolveCapsuleAabb(const SimpleShape &capsule,
+                              const SimpleShape &box) {
+    DirectX::XMFLOAT3 a{};
+    DirectX::XMFLOAT3 b{};
+    CapsuleSegment(capsule, a, b);
+    const DirectX::XMFLOAT3 closestOnSegment =
+        ClosestPointOnSegment(a, b, box.center);
+    SimpleShape sphere = capsule;
+    sphere.sphere = true;
+    sphere.capsule = false;
+    sphere.center = closestOnSegment;
+
+    Resolution result = ResolveSphereAabb(sphere, box);
+    if (result.hit) {
+        return result;
+    }
+
+    sphere.center = a;
+    result = ResolveSphereAabb(sphere, box);
+    if (result.hit) {
+        return result;
+    }
+
+    sphere.center = b;
+    return ResolveSphereAabb(sphere, box);
+}
+
 Resolution ResolveShapes(const SimpleShape &a, const SimpleShape &b) {
+    if (a.capsule && b.capsule) {
+        return ResolveCapsuleCapsule(a, b);
+    }
+    if (a.sphere && b.capsule) {
+        return ResolveSphereCapsule(a, b);
+    }
+    if (a.capsule && b.sphere) {
+        Resolution result = ResolveSphereCapsule(b, a);
+        result.normal.x = -result.normal.x;
+        result.normal.y = -result.normal.y;
+        result.normal.z = -result.normal.z;
+        return result;
+    }
+    if (a.capsule) {
+        return ResolveCapsuleAabb(a, b);
+    }
+    if (b.capsule) {
+        Resolution result = ResolveCapsuleAabb(b, a);
+        result.normal.x = -result.normal.x;
+        result.normal.y = -result.normal.y;
+        result.normal.z = -result.normal.z;
+        return result;
+    }
+
     if (a.sphere && b.sphere) {
         return ResolveSphereSphere(a, b);
     }

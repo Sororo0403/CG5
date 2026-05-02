@@ -1,18 +1,34 @@
 #include "ActionInput.h"
+#include "AIController.h"
+#include "AISystem.h"
 #include "AnimationComponents.h"
+#include "AnimationEvents.h"
+#include "AnimationEventSystem.h"
 #include "AnimationStateMachine.h"
 #include "AnimationStateMachineSystem.h"
+#include "Camera.h"
+#include "CameraFollow.h"
+#include "CameraFollowSystem.h"
 #include "CharacterController.h"
 #include "CharacterControllerSystem.h"
 #include "Collider.h"
 #include "CollisionBody.h"
 #include "CollisionResolutionSystem.h"
 #include "CollisionSystem.h"
+#include "ContinuousCollisionSystem.h"
 #include "DamageSystem.h"
 #include "GameplayComponents.h"
+#include "GroundingComponents.h"
+#include "GroundingSystem.h"
+#include "HitboxLifetimeSystem.h"
+#include "LockOn.h"
+#include "LockOnSystem.h"
 #include "MovementSystem.h"
 #include "PhysicsBody.h"
 #include "PhysicsSystem.h"
+#include "PreviousTransformSystem.h"
+#include "RootMotion.h"
+#include "RootMotionSystem.h"
 #include "SystemPipeline.h"
 #include "Transform.h"
 #include "TransformHierarchy.h"
@@ -397,6 +413,235 @@ void TestAnimationStateMachineUpdatesAnimationComponent() {
             "AnimationStateMachineSystem should start playback");
 }
 
+void TestCapsuleCollisionEnterAndResolution() {
+    World world;
+    const Entity first = world.CreateEntity();
+    const Entity second = world.CreateEntity();
+
+    Collider capsule{};
+    capsule.shape = ColliderShape::Capsule;
+    capsule.radius = 0.5f;
+    capsule.capsuleHalfHeight = 1.0f;
+
+    world.Add<Transform>(first, Transform{{0.0f, 0.0f, 0.0f}});
+    world.Add<Collider>(first, capsule);
+    world.Add<CollisionBody>(
+        first, CollisionBody{CollisionBodyType::Dynamic, true, true, 0.5f});
+    world.Add<Velocity>(first);
+
+    world.Add<Transform>(second, Transform{{0.75f, 0.0f, 0.0f}});
+    world.Add<Collider>(second, capsule);
+    world.Add<CollisionBody>(
+        second, CollisionBody{CollisionBodyType::Static, true, true, 0.5f});
+
+    CollisionSystem collision;
+    collision.Update(world);
+    Require(ContainsEvent(collision.Events(), first, second,
+                          CollisionEventType::Enter),
+            "CollisionSystem should detect capsule overlaps");
+
+    CollisionResolutionSystem resolution;
+    resolution.Update(world);
+    Require(world.Get<Transform>(first).position.x < 0.0f,
+            "CollisionResolutionSystem should push capsule out horizontally");
+}
+
+void TestLockOnSystemChoosesNearestTarget() {
+    World world;
+    const Entity player = world.CreateEntity();
+    const Entity nearTarget = world.CreateEntity();
+    const Entity farTarget = world.CreateEntity();
+
+    world.Add<Transform>(player, Transform{{0.0f, 0.0f, 0.0f}});
+    world.Add<ActionInput>(player, ActionInput{});
+    world.Get<ActionInput>(player).lockOnPressed = true;
+    world.Add<LockOnState>(player);
+
+    world.Add<Transform>(nearTarget, Transform{{3.0f, 0.0f, 0.0f}});
+    world.Add<LockOnTarget>(nearTarget);
+    world.Add<Transform>(farTarget, Transform{{10.0f, 0.0f, 0.0f}});
+    world.Add<LockOnTarget>(farTarget);
+
+    LockOnSystem lockOn;
+    lockOn.Update(world);
+
+    Require(world.Get<LockOnState>(player).locked,
+            "LockOnSystem should lock when a target is available");
+    Require(world.Get<LockOnState>(player).target == nearTarget,
+            "LockOnSystem should choose the nearest target");
+}
+
+void TestCameraFollowSystemMovesCamera() {
+    World world;
+    const Entity player = world.CreateEntity();
+
+    world.Add<Transform>(player, Transform{{5.0f, 1.0f, 2.0f}});
+    world.Add<CameraFollow>(
+        player, CameraFollow{kInvalidEntity, {0.0f, 3.0f, -6.0f},
+                             {0.0f, 1.0f, 0.0f}, 100.0f, 100.0f});
+
+    Camera camera;
+    camera.Initialize(16.0f / 9.0f);
+
+    CameraFollowSystem cameraFollow;
+    cameraFollow.Update(world, camera, 1.0f);
+
+    RequireNear(camera.GetPosition().x, 5.0f,
+                "CameraFollowSystem should follow target x");
+    RequireNear(camera.GetPosition().y, 4.0f,
+                "CameraFollowSystem should apply camera offset y");
+    RequireNear(camera.GetPosition().z, -4.0f,
+                "CameraFollowSystem should apply camera offset z");
+}
+
+void TestAISystemPursuesTarget() {
+    World world;
+    const Entity enemy = world.CreateEntity();
+    const Entity target = world.CreateEntity();
+
+    world.Add<Transform>(enemy, Transform{{0.0f, 0.0f, 0.0f}});
+    world.Add<Velocity>(enemy);
+    world.Add<PursuitAI>(enemy, PursuitAI{target, 4.0f, 20.0f, 1.0f, 10.0f});
+
+    world.Add<Transform>(target, Transform{{5.0f, 0.0f, 0.0f}});
+
+    AISystem ai;
+    ai.Update(world, 0.1f);
+
+    RequireNear(world.Get<Velocity>(enemy).linear.x, 2.0f,
+                "AISystem should accelerate toward target");
+    RequireNear(world.Get<Velocity>(enemy).linear.z, 0.0f,
+                "AISystem should not move sideways when target is on x axis");
+}
+
+void TestHitboxLifetimeDisablesExpiredHitbox() {
+    World world;
+    WorldCommandBuffer commands;
+    const Entity hitboxEntity = world.CreateEntity();
+
+    world.Add<Hitbox>(hitboxEntity);
+    world.Add<HitboxLifetime>(hitboxEntity,
+                              HitboxLifetime{0.05f, false});
+
+    HitboxLifetimeSystem lifetime;
+    lifetime.Update(world, commands, 0.1f);
+    commands.Playback(world);
+
+    Require(!world.Get<Hitbox>(hitboxEntity).active,
+            "HitboxLifetimeSystem should disable expired hitboxes");
+    Require(world.IsAlive(hitboxEntity),
+            "HitboxLifetimeSystem should keep entity when destroy flag is false");
+}
+
+void TestGroundingSystemSnapsToGround() {
+    World world;
+    const Entity player = world.CreateEntity();
+    const Entity ground = world.CreateEntity();
+
+    world.Add<Transform>(player, Transform{{0.0f, 1.12f, 0.0f}});
+    world.Add<Collider>(player,
+                        Collider{ColliderShape::AABB, {}, {0.5f, 0.5f, 0.5f}});
+    world.Add<CollisionBody>(
+        player, CollisionBody{CollisionBodyType::Dynamic, true, true, 0.5f});
+    world.Add<GroundedState>(player);
+    world.Add<GroundingAssist>(player, GroundingAssist{0.2f, 0.35f, 0.0f});
+    world.Add<Velocity>(player, Velocity{{0.0f, -1.0f, 0.0f}});
+
+    world.Add<Transform>(ground, Transform{{0.0f, 0.0f, 0.0f}});
+    world.Add<Collider>(ground,
+                        Collider{ColliderShape::AABB, {}, {3.0f, 0.5f, 3.0f}});
+    world.Add<CollisionBody>(ground);
+    world.Add<GroundSurface>(ground);
+
+    GroundingSystem grounding;
+    grounding.Update(world);
+
+    Require(world.Get<GroundedState>(player).grounded,
+            "GroundingSystem should mark nearby ground as grounded");
+    RequireNear(world.Get<Transform>(player).position.y, 1.0f,
+                "GroundingSystem should snap body onto the ground top");
+    RequireNear(world.Get<Velocity>(player).linear.y, 0.0f,
+                "GroundingSystem should clear downward velocity");
+}
+
+void TestContinuousCollisionSystemStopsFastFall() {
+    World world;
+    const Entity player = world.CreateEntity();
+    const Entity ground = world.CreateEntity();
+
+    world.Add<Transform>(player, Transform{{0.0f, 0.2f, 0.0f}});
+    world.Add<PreviousTransform>(
+        player, PreviousTransform{Transform{{0.0f, 3.0f, 0.0f}}});
+    world.Add<Collider>(player,
+                        Collider{ColliderShape::AABB, {}, {0.5f, 0.5f, 0.5f}});
+    world.Add<CollisionBody>(
+        player, CollisionBody{CollisionBodyType::Dynamic, true, true, 0.5f});
+    world.Add<GroundedState>(player);
+    world.Add<Velocity>(player, Velocity{{0.0f, -30.0f, 0.0f}});
+
+    world.Add<Transform>(ground, Transform{{0.0f, 0.0f, 0.0f}});
+    world.Add<Collider>(ground,
+                        Collider{ColliderShape::AABB, {}, {3.0f, 0.5f, 3.0f}});
+    world.Add<CollisionBody>(ground);
+
+    ContinuousCollisionSystem ccd;
+    ccd.Update(world);
+
+    RequireNear(world.Get<Transform>(player).position.y, 1.0f,
+                "ContinuousCollisionSystem should snap fast fall to ground");
+    Require(world.Get<GroundedState>(player).grounded,
+            "ContinuousCollisionSystem should ground the falling entity");
+}
+
+void TestRootMotionSystemAppliesDelta() {
+    World world;
+    const Entity entity = world.CreateEntity();
+
+    SkeletonPoseComponent pose{};
+    pose.hasRootAnimation = true;
+    pose.rootAnimationMatrix._11 = 1.0f;
+    pose.rootAnimationMatrix._22 = 1.0f;
+    pose.rootAnimationMatrix._33 = 1.0f;
+    pose.rootAnimationMatrix._44 = 1.0f;
+    pose.rootAnimationMatrix._41 = 1.0f;
+
+    world.Add<Transform>(entity);
+    world.Add<SkeletonPoseComponent>(entity, pose);
+    world.Add<AnimationComponent>(entity, AnimationComponent{"Run", 0.5f});
+    world.Add<RootMotion>(entity);
+    world.Add<RootMotionState>(entity);
+
+    RootMotionSystem rootMotion;
+    rootMotion.Update(world);
+
+    world.Get<SkeletonPoseComponent>(entity).rootAnimationMatrix._41 = 2.5f;
+    world.Get<AnimationComponent>(entity).previousTime = 0.5f;
+    world.Get<AnimationComponent>(entity).time = 0.6f;
+    rootMotion.Update(world);
+
+    RequireNear(world.Get<Transform>(entity).position.x, 1.5f,
+                "RootMotionSystem should apply root translation delta");
+}
+
+void TestAnimationEventSystemQueuesCrossedEvents() {
+    World world;
+    const Entity entity = world.CreateEntity();
+
+    world.Add<AnimationComponent>(
+        entity, AnimationComponent{"Attack", 0.55f, false, true, false, 0.10f});
+    world.Add<AnimationEventTrack>(
+        entity, AnimationEventTrack{{{"hit_on", 0.25f}, {"hit_off", 0.50f}}});
+
+    AnimationEventSystem events;
+    events.Update(world);
+
+    const AnimationEventQueue &queue = world.Get<AnimationEventQueue>(entity);
+    Require(queue.events.size() == 2,
+            "AnimationEventSystem should queue all crossed events");
+    Require(queue.events[0] == "hit_on" && queue.events[1] == "hit_off",
+            "AnimationEventSystem should preserve event order");
+}
+
 using TestFn = void (*)();
 
 struct TestCase {
@@ -423,6 +668,19 @@ int RunAllTests() {
         {"DamageSystem hitbox damage", TestDamageSystemAppliesHitboxDamage},
         {"AnimationStateMachineSystem state request",
          TestAnimationStateMachineUpdatesAnimationComponent},
+        {"Capsule collision enter and resolution",
+         TestCapsuleCollisionEnterAndResolution},
+        {"LockOnSystem nearest target", TestLockOnSystemChoosesNearestTarget},
+        {"CameraFollowSystem movement", TestCameraFollowSystemMovesCamera},
+        {"AISystem pursuit", TestAISystemPursuesTarget},
+        {"HitboxLifetimeSystem expiry",
+         TestHitboxLifetimeDisablesExpiredHitbox},
+        {"GroundingSystem snap", TestGroundingSystemSnapsToGround},
+        {"ContinuousCollisionSystem fast fall",
+         TestContinuousCollisionSystemStopsFastFall},
+        {"RootMotionSystem delta", TestRootMotionSystemAppliesDelta},
+        {"AnimationEventSystem crossed events",
+         TestAnimationEventSystemQueuesCrossedEvents},
     };
 
     int passed = 0;

@@ -34,6 +34,14 @@ struct Hitbox {
 };
 
 /// <summary>
+/// 攻撃判定の寿命。
+/// </summary>
+struct HitboxLifetime {
+    float timeRemaining = 0.1f;
+    bool destroyEntityWhenExpired = false;
+};
+
+/// <summary>
 /// ダメージを受ける判定。
 /// </summary>
 struct Hurtbox {
