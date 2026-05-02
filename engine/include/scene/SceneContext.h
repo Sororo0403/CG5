@@ -3,7 +3,7 @@
 class Input;
 class WinApp;
 class SoundManager;
-class ModelManager;
+class ModelAssets;
 class SpriteManager;
 class ModelRenderer;
 class SpriteRenderer;
@@ -29,7 +29,7 @@ struct CoreServices {
 };
 
 struct AssetServices {
-    ModelManager *model = nullptr;
+    ModelAssets *model = nullptr;
     SpriteManager *sprite = nullptr;
     TextureManager *texture = nullptr;
 };

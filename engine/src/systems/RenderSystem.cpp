@@ -2,20 +2,25 @@
 
 #include "Camera.h"
 #include "MeshRenderer.h"
-#include "ModelManager.h"
+#include "ModelAssets.h"
+#include "ModelRenderer.h"
 #include "Transform.h"
 #include "World.h"
 
-void RenderSystem::Draw(World &world, ModelManager &modelManager,
-                        const Camera &camera) {
-    modelManager.PreDraw();
+void RenderSystem::Draw(World &world, const ModelAssets &modelAssets,
+                        ModelRenderer &modelRenderer, const Camera &camera) {
+    modelRenderer.PreDraw();
     world.View<Transform, MeshRenderer>(
-        [&modelManager, &camera](Entity, Transform &transform,
-                                 MeshRenderer &renderer) {
-            if (!renderer.visible) {
+        [&modelAssets, &modelRenderer, &camera](
+            Entity, Transform &transform, MeshRenderer &meshRenderer) {
+            if (!meshRenderer.visible) {
                 return;
             }
-            modelManager.Draw(renderer.modelId, transform, camera);
+            const Model *model = modelAssets.GetModel(meshRenderer.modelId);
+            if (!model) {
+                return;
+            }
+            modelRenderer.Draw(*model, transform, camera);
         });
-    modelManager.PostDraw();
+    modelRenderer.PostDraw();
 }

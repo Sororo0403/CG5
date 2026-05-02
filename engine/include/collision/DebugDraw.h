@@ -5,15 +5,16 @@
 #include <cstdint>
 
 class Camera;
-class ModelManager;
+class ModelAssets;
+class ModelRenderer;
 
 class DebugDraw {
   public:
     void Initialize(uint32_t boxModelId) { boxModelId_ = boxModelId; }
-    void DrawOBB(ModelManager *modelManager, const OBB &obb,
-                 const Camera &camera);
-    void DrawAABB(ModelManager *modelManager, const AABB &aabb,
-                  const Camera &camera);
+    void DrawOBB(const ModelAssets *modelAssets, ModelRenderer *modelRenderer,
+                 const OBB &obb, const Camera &camera);
+    void DrawAABB(const ModelAssets *modelAssets, ModelRenderer *modelRenderer,
+                  const AABB &aabb, const Camera &camera);
 
   private:
     uint32_t boxModelId_ = 0;

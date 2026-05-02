@@ -6,7 +6,7 @@
 #include <random>
 #include <vector>
 
-class ModelManager;
+class ModelAssets;
 class ModelRenderer;
 
 /// <summary>
@@ -17,10 +17,10 @@ class RingParticleSystem {
     /// <summary>
     /// 初期化する
     /// </summary>
-    /// <param name="modelManager">ModelManager</param>
+    /// <param name="modelAssets">ModelAssets</param>
     /// <param name="renderer">ModelRenderer</param>
     /// <param name="modelId">RingモデルID</param>
-    void Initialize(ModelManager *modelManager, ModelRenderer *renderer,
+    void Initialize(ModelAssets *modelAssets, ModelRenderer *renderer,
                     uint32_t modelId);
 
     /// <summary>
@@ -55,7 +55,7 @@ class RingParticleSystem {
 
     static constexpr uint32_t kMaxParticles_ = 128;
 
-    ModelManager *modelManager_ = nullptr;
+    ModelAssets *modelAssets_ = nullptr;
     ModelRenderer *renderer_ = nullptr;
     uint32_t modelId_ = 0;
     float effectTime_ = 0.0f;

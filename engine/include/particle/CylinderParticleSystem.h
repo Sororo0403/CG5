@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-class ModelManager;
+class ModelAssets;
 class ModelRenderer;
 
 /// <summary>
@@ -13,7 +13,7 @@ class ModelRenderer;
 /// </summary>
 class CylinderParticleSystem {
   public:
-    void Initialize(ModelManager *modelManager, ModelRenderer *renderer,
+    void Initialize(ModelAssets *modelAssets, ModelRenderer *renderer,
                     uint32_t modelId);
     void EmitBurst(const DirectX::XMFLOAT3 &position);
     void Update(float deltaTime);
@@ -30,7 +30,7 @@ class CylinderParticleSystem {
 
     static constexpr uint32_t kMaxParticles_ = 32;
 
-    ModelManager *modelManager_ = nullptr;
+    ModelAssets *modelAssets_ = nullptr;
     ModelRenderer *renderer_ = nullptr;
     uint32_t modelId_ = 0;
     float effectTime_ = 0.0f;

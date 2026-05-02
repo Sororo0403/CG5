@@ -1,7 +1,8 @@
 #pragma once
 
 class Camera;
-class ModelManager;
+class ModelAssets;
+class ModelRenderer;
 class World;
 
 /// <summary>
@@ -9,10 +10,12 @@ class World;
 /// </summary>
 struct RenderSystem {
     /// <summary>
-    /// World内の描画対象EntityをModelManagerで描画する。
+    /// World内の描画対象EntityをModelRendererで描画する。
     /// </summary>
     /// <param name="world">描画対象のWorld。</param>
-    /// <param name="modelManager">モデル描画を行うModelManager。</param>
+    /// <param name="modelAssets">モデルデータを取得するModelAssets。</param>
+    /// <param name="modelRenderer">モデル描画を行うModelRenderer。</param>
     /// <param name="camera">描画に使用するCamera。</param>
-    void Draw(World &world, ModelManager &modelManager, const Camera &camera);
+    void Draw(World &world, const ModelAssets &modelAssets,
+              ModelRenderer &modelRenderer, const Camera &camera);
 };

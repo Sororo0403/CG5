@@ -1,16 +1,16 @@
 #include "RingParticleSystem.h"
 #include "Material.h"
-#include "ModelManager.h"
+#include "ModelAssets.h"
 #include "ModelRenderer.h"
 #include <numbers>
 #include <random>
 
 using namespace DirectX;
 
-void RingParticleSystem::Initialize(ModelManager *modelManager,
+void RingParticleSystem::Initialize(ModelAssets *modelAssets,
                                     ModelRenderer *renderer,
                                     uint32_t modelId) {
-    modelManager_ = modelManager;
+    modelAssets_ = modelAssets;
     renderer_ = renderer;
     modelId_ = modelId;
     particles_.assign(kMaxParticles_, {});
@@ -88,17 +88,17 @@ void RingParticleSystem::Update(float deltaTime) {
 }
 
 void RingParticleSystem::Draw(const Camera &camera) {
-    if (!modelManager_ || !renderer_) {
+    if (!modelAssets_ || !renderer_) {
         return;
     }
 
-    const Model *effectModel = modelManager_->GetModel(modelId_);
+    const Model *effectModel = modelAssets_->GetModel(modelId_);
     if (!effectModel || effectModel->subMeshes.empty()) {
         return;
     }
 
     const uint32_t materialId = effectModel->subMeshes.front().materialId;
-    const Material baseMaterial = modelManager_->GetMaterial(materialId);
+    const Material baseMaterial = modelAssets_->GetMaterial(materialId);
 
     XMMATRIX billboard = camera.GetView();
     billboard.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
@@ -132,7 +132,7 @@ void RingParticleSystem::Draw(const Camera &camera) {
         const XMMATRIX uvTransform = XMMatrixScaling(1.0f, uvScaleV, 1.0f) *
                                      XMMatrixTranslation(0.0f, uvScroll, 0.0f);
         XMStoreFloat4x4(&material.uvTransform, XMMatrixTranspose(uvTransform));
-        modelManager_->SetMaterial(materialId, material);
+        modelAssets_->SetMaterial(materialId, material);
 
         Transform drawTransform = particle.transform;
         const XMMATRIX rotationMatrix = XMMatrixRotationZ(particle.roll) * billboard;
@@ -143,6 +143,6 @@ void RingParticleSystem::Draw(const Camera &camera) {
         renderer_->Draw(*effectModel, drawTransform, camera);
     }
 
-    modelManager_->SetMaterial(materialId, baseMaterial);
+    modelAssets_->SetMaterial(materialId, baseMaterial);
     renderer_->ClearDrawEffect();
 }

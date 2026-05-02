@@ -1,14 +1,14 @@
 #include "CylinderParticleSystem.h"
 #include "Material.h"
-#include "ModelManager.h"
+#include "ModelAssets.h"
 #include "ModelRenderer.h"
 
 using namespace DirectX;
 
-void CylinderParticleSystem::Initialize(ModelManager *modelManager,
+void CylinderParticleSystem::Initialize(ModelAssets *modelAssets,
                                         ModelRenderer *renderer,
                                         uint32_t modelId) {
-    modelManager_ = modelManager;
+    modelAssets_ = modelAssets;
     renderer_ = renderer;
     modelId_ = modelId;
     particles_.assign(kMaxParticles_, {});
@@ -54,17 +54,17 @@ void CylinderParticleSystem::Update(float deltaTime) {
 }
 
 void CylinderParticleSystem::Draw(const Camera &camera) {
-    if (!modelManager_ || !renderer_) {
+    if (!modelAssets_ || !renderer_) {
         return;
     }
 
-    const Model *effectModel = modelManager_->GetModel(modelId_);
+    const Model *effectModel = modelAssets_->GetModel(modelId_);
     if (!effectModel || effectModel->subMeshes.empty()) {
         return;
     }
 
     const uint32_t materialId = effectModel->subMeshes.front().materialId;
-    const Material baseMaterial = modelManager_->GetMaterial(materialId);
+    const Material baseMaterial = modelAssets_->GetMaterial(materialId);
 
     ModelDrawEffect drawEffect{};
     drawEffect.enabled = true;
@@ -94,11 +94,11 @@ void CylinderParticleSystem::Draw(const Camera &camera) {
         const XMMATRIX uvTransform = XMMatrixScaling(1.0f, uvScaleV, 1.0f) *
                                      XMMatrixTranslation(uvScrollU, 0.0f, 0.0f);
         XMStoreFloat4x4(&material.uvTransform, XMMatrixTranspose(uvTransform));
-        modelManager_->SetMaterial(materialId, material);
+        modelAssets_->SetMaterial(materialId, material);
 
         renderer_->Draw(*effectModel, particle.transform, camera);
     }
 
-    modelManager_->SetMaterial(materialId, baseMaterial);
+    modelAssets_->SetMaterial(materialId, baseMaterial);
     renderer_->ClearDrawEffect();
 }
