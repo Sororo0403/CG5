@@ -8,8 +8,13 @@
 #include "EnemyAnimationController.h"
 #include "LightingController.h"
 #include "Player.h"
+#include "gameobject/EnemyAIComponent.h"
+#include "gameobject/GameObject.h"
+#include "gameobject/PlayerControllerComponent.h"
 #include <DirectXMath.h>
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 class GameScene : public BaseScene {
   public:
@@ -20,6 +25,10 @@ class GameScene : public BaseScene {
     const Camera *GetCurrentCamera() const { return &camera_; }
 
   private:
+    void CreateGameObjects();
+    void UpdateGameplayObjects(float playerDeltaTime, float enemyDeltaTime,
+                               bool freezeEnemyMotion);
+    void DrawGameplayObjects(const Camera &camera);
     void UpdateCamera(Input *input);
     void UpdateSceneCamera();
     void UpdateCounterVignette(float deltaTime);
@@ -37,6 +46,11 @@ class GameScene : public BaseScene {
     CombatSystem combatSystem_;
     uint32_t playerModelId_ = 0;
     uint32_t enemyModelId_ = 0;
+    std::vector<std::unique_ptr<GameObject>> gameObjects_;
+    GameObject *playerObject_ = nullptr;
+    GameObject *enemyObject_ = nullptr;
+    PlayerControllerComponent *playerController_ = nullptr;
+    EnemyAIComponent *enemyAI_ = nullptr;
 
 #ifdef _DEBUG
     bool dbgFreezeEnemyMotion_ = false;

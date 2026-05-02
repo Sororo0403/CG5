@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="src\gameobject\ColliderComponent.cpp" />
+    <ClCompile Include="src\gameobject\EnemyAIComponent.cpp" />
+    <ClCompile Include="src\gameobject\GameObject.cpp" />
+    <ClCompile Include="src\gameobject\PlayerControllerComponent.cpp" />
+    <ClCompile Include="src\gameobject\RenderComponent.cpp" />
     <ClCompile Include="src\scene\BattleCameraController.cpp" />
     <ClCompile Include="src\scene\BattleEffectDirector.cpp" />
     <ClCompile Include="src\scene\CombatSystem.cpp" />
@@ -26,6 +31,13 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\gameobject\ColliderComponent.h" />
+    <ClInclude Include="include\gameobject\Component.h" />
+    <ClInclude Include="include\gameobject\EnemyAIComponent.h" />
+    <ClInclude Include="include\gameobject\GameObject.h" />
+    <ClInclude Include="include\gameobject\PlayerControllerComponent.h" />
+    <ClInclude Include="include\gameobject\RenderComponent.h" />
+    <ClInclude Include="include\gameobject\TransformComponent.h" />
     <ClInclude Include="include\scene\BattleCameraController.h" />
     <ClInclude Include="include\scene\BattleEffectDirector.h" />
     <ClInclude Include="include\scene\CombatSystem.h" />

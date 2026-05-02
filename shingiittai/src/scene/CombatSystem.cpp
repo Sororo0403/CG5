@@ -1,9 +1,9 @@
 #include "CombatSystem.h"
-#include "CollisionUtil.h"
 #include "EffectSystem.h"
 #include "Enemy.h"
 #include "Player.h"
 #include "SceneContext.h"
+#include "gameobject/ColliderComponent.h"
 
 #include <cmath>
 
@@ -103,7 +103,7 @@ void CombatSystem::ResolvePlayerAttack(Player &player, Enemy &enemy,
 
         auto swordHitBox = sword->GetOBB();
         auto bodyBox = enemy.GetBodyOBB();
-        const bool hitBody = CollisionUtil::CheckOBB(swordHitBox, bodyBox);
+        const bool hitBody = ColliderComponent::Intersects(swordHitBox, bodyBox);
 
         if (enemyHitCooldown_ <= 0.0f && hitBody) {
             enemy.TakeDamage(10.0f);
@@ -139,7 +139,7 @@ void CombatSystem::ResolveMelee(Player &player, Enemy &enemy,
 
     const auto enemyAttackBox = enemy.GetAttackOBB();
     const auto playerBox = player.GetOBB();
-    if (!CollisionUtil::CheckOBB(enemyAttackBox, playerBox) ||
+    if (!ColliderComponent::Intersects(enemyAttackBox, playerBox) ||
         playerHitCooldown_ > 0.0f) {
         return;
     }
@@ -200,13 +200,13 @@ void CombatSystem::ResolveBullets(Player &player, Enemy &enemy,
         bulletBox.rotation = player.GetTransform().rotation;
 
         if (!bullet.isReflected && isPlayerCountering &&
-            CollisionUtil::CheckOBB(bulletBox, counterBox)) {
+            ColliderComponent::Intersects(bulletBox, counterBox)) {
             enemy.ReflectBullet(i, enemy.GetTransform().position);
             continue;
         }
 
         if (bullet.isReflected) {
-            if (CollisionUtil::CheckOBB(bulletBox, enemyBodyBox) &&
+            if (ColliderComponent::Intersects(bulletBox, enemyBodyBox) &&
                 enemyHitCooldown_ <= 0.0f) {
                 reflectedDamage_ =
                     enemy.GetBulletDamage() * context.reflectDamageMultiplier;
@@ -218,7 +218,7 @@ void CombatSystem::ResolveBullets(Player &player, Enemy &enemy,
             continue;
         }
 
-        if (CollisionUtil::CheckOBB(bulletBox, playerBox)) {
+        if (ColliderComponent::Intersects(bulletBox, playerBox)) {
             if (playerHitCooldown_ <= 0.0f) {
                 float vx = bullet.velocity.x;
                 float vz = bullet.velocity.z;
@@ -277,13 +277,13 @@ void CombatSystem::ResolveWaves(Player &player, Enemy &enemy,
         waveBox.rotation = player.GetTransform().rotation;
 
         if (!wave.isReflected && isPlayerCountering &&
-            CollisionUtil::CheckOBB(waveBox, counterBox)) {
+            ColliderComponent::Intersects(waveBox, counterBox)) {
             enemy.ReflectWave(i, enemy.GetTransform().position);
             continue;
         }
 
         if (wave.isReflected) {
-            if (CollisionUtil::CheckOBB(waveBox, enemyBodyBox) &&
+            if (ColliderComponent::Intersects(waveBox, enemyBodyBox) &&
                 enemyHitCooldown_ <= 0.0f) {
                 reflectedDamage_ =
                     enemy.GetWaveDamage() * context.reflectDamageMultiplier;
@@ -295,7 +295,7 @@ void CombatSystem::ResolveWaves(Player &player, Enemy &enemy,
             continue;
         }
 
-        if (CollisionUtil::CheckOBB(waveBox, playerBox)) {
+        if (ColliderComponent::Intersects(waveBox, playerBox)) {
             if (playerHitCooldown_ <= 0.0f) {
                 float vx = wave.direction.x;
                 float vz = wave.direction.z;

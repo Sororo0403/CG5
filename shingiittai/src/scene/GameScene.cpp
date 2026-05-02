@@ -8,6 +8,11 @@
 #include "SceneManager.h"
 #include "TextureManager.h"
 #include "WinApp.h"
+#include "gameobject/ColliderComponent.h"
+#include "gameobject/RenderComponent.h"
+
+#include <memory>
+#include <utility>
 
 using namespace DirectX;
 
@@ -47,6 +52,7 @@ void GameScene::Initialize(const SceneContext &ctx) {
     enemyModelId_ = enemyModel;
     enemy_.ApplyAnimationTimingsFromModel(model->GetModel(enemyModelId_));
     enemyAnimation_.Initialize(enemyModelId_);
+    CreateGameObjects();
 
     const DirectX::XMFLOAT3 &playerPos = player_.GetTransform().position;
     const DirectX::XMFLOAT3 &enemyPos = enemy_.GetTransform().position;
@@ -69,6 +75,78 @@ void GameScene::Initialize(const SceneContext &ctx) {
     }
 }
 
+void GameScene::CreateGameObjects() {
+    gameObjects_.clear();
+    playerObject_ = nullptr;
+    enemyObject_ = nullptr;
+    playerController_ = nullptr;
+    enemyAI_ = nullptr;
+
+    auto playerObject = std::make_unique<GameObject>("Player");
+    playerObject->GetTransformComponent().SetTransform(player_.GetTransform());
+    playerController_ =
+        &playerObject->AddComponent<PlayerControllerComponent>(&player_,
+                                                               ctx_->input);
+    playerController_->SetLookTargetProvider(
+        [this]() { return enemy_.GetTransform().position; });
+    playerController_->SetCameraYawProvider(
+        [this]() { return battleCamera_.GetYaw(); });
+    playerObject->AddComponent<ColliderComponent>(
+        ColliderLayer::Player, [this]() { return player_.GetOBB(); });
+    playerObject->AddComponent<RenderComponent>(
+        ctx_->model, playerModelId_,
+        [this](ModelManager *modelManager, const Camera &camera) {
+            player_.Draw(modelManager, camera);
+        });
+    playerObject_ = playerObject.get();
+    gameObjects_.push_back(std::move(playerObject));
+
+    auto enemyObject = std::make_unique<GameObject>("Enemy");
+    enemyObject->GetTransformComponent().SetTransform(enemy_.GetTransform());
+    enemyAI_ = &enemyObject->AddComponent<EnemyAIComponent>(&enemy_);
+    enemyAI_->SetObservationProvider([this]() {
+        if (playerController_ == nullptr) {
+            return PlayerCombatObservation{};
+        }
+        return playerController_->BuildCombatObservation();
+    });
+    enemyObject->AddComponent<ColliderComponent>(
+        ColliderLayer::Enemy, [this]() { return enemy_.GetBodyOBB(); });
+    enemyObject->AddComponent<RenderComponent>(
+        ctx_->model, enemyModelId_,
+        [this](ModelManager *modelManager, const Camera &camera) {
+            enemy_.Draw(modelManager, camera);
+        });
+    enemyObject_ = enemyObject.get();
+    gameObjects_.push_back(std::move(enemyObject));
+}
+
+void GameScene::UpdateGameplayObjects(float playerDeltaTime,
+                                      float enemyDeltaTime,
+                                      bool freezeEnemyMotion) {
+    if (playerController_ != nullptr) {
+        playerController_->SetInput(ctx_->input);
+    }
+    if (playerObject_ != nullptr) {
+        playerObject_->Update(playerDeltaTime);
+    }
+
+    if (enemyAI_ != nullptr) {
+        enemyAI_->SetFrozen(freezeEnemyMotion);
+    }
+    if (enemyObject_ != nullptr) {
+        enemyObject_->Update(enemyDeltaTime);
+    }
+}
+
+void GameScene::DrawGameplayObjects(const Camera &camera) {
+    for (auto &object : gameObjects_) {
+        if (object != nullptr) {
+            object->Draw(camera);
+        }
+    }
+}
+
 void GameScene::Update() {
     Input *input = ctx_->input;
     const float baseDeltaTime = ctx_->deltaTime;
@@ -88,39 +166,7 @@ void GameScene::Update() {
 
     ctx_->model->UpdateAnimation(playerModelId_, playerDeltaTime);
 
-    player_.Update(input, playerDeltaTime, enemy_.GetTransform().position,
-                   battleCamera_.GetYaw());
-
-    const auto playerSlashStates = player_.GetSwordSlashStates();
-
-    PlayerCombatObservation playerObs{};
-    playerObs.position = player_.GetTransform().position;
-    playerObs.velocity = player_.GetVelocity();
-    playerObs.isGuarding = player_.IsGuarding();
-    playerObs.isCounterStance = player_.IsCounterStance();
-    playerObs.justCountered = player_.JustCountered();
-    playerObs.justCounterFailed = player_.JustCounterFailed();
-    playerObs.justCounterEarly = player_.JustCounterEarly();
-    playerObs.justCounterLate = player_.JustCounterLate();
-    playerObs.isAttacking = playerSlashStates[0] || playerSlashStates[1];
-
-    switch (player_.GetCounterAxis()) {
-    case SwordCounterAxis::Vertical:
-        playerObs.counterAxis = CounterAxis::Vertical;
-        break;
-
-    case SwordCounterAxis::Horizontal:
-        playerObs.counterAxis = CounterAxis::Horizontal;
-        break;
-
-    default:
-        playerObs.counterAxis = CounterAxis::None;
-        break;
-    }
-
-    if (!freezeEnemyMotion) {
-        enemy_.Update(playerObs, enemyDeltaTime);
-    }
+    UpdateGameplayObjects(playerDeltaTime, enemyDeltaTime, freezeEnemyMotion);
     lighting_.Update(*ctx_, player_, enemy_, baseDeltaTime);
 
     enemyAnimation_.Sync(ctx_->model, enemy_);
@@ -194,8 +240,7 @@ void GameScene::Draw() {
         return;
     }
 
-    player_.Draw(ctx_->model, *currentCamera);
-    enemy_.Draw(ctx_->model, *currentCamera);
+    DrawGameplayObjects(*currentCamera);
     ctx_->model->PostDraw();
     battleEffects_.Draw(*ctx_, enemy_, *currentCamera);
     DrawCounterVignette();
