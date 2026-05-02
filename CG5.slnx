@@ -2,14 +2,13 @@
   <Configurations>
     <Platform Name="x64" />
   </Configurations>
-  <Folder Name="/Externals/">
-    <Project Path="engine/externals/DirectXTex/DirectXTex_Desktop_2022.vcxproj" Id="371b9fa9-4c90-4ac6-a123-aced756d6c77" />
-  </Folder>
-  <Folder Name="/Internals/">
-    <Project Path="engine/Engine.vcxproj" Id="8d69c2b4-4f39-47f0-9a40-4cb78ec442a1" />
-  </Folder>
-  <Folder Name="/Apps/">
+  <Folder Name="/App/">
+    <Project Path="app/EngineCoreTests/EngineCoreTests.vcxproj" Id="2d0215a9-0d70-43ac-9571-37fd4ba3ed18" />
     <Project Path="app/EngineTestApp/EngineTestApp.vcxproj" Id="736dfc6e-5c91-42fe-b3c8-7c32e4c9e5bb" />
+  </Folder>
+  <Folder Name="/Engines/">
+    <Project Path="engine/Engine.vcxproj" Id="8d69c2b4-4f39-47f0-9a40-4cb78ec442a1" />
+    <Project Path="engine/externals/DirectXTex/DirectXTex_Desktop_2022.vcxproj" Id="371b9fa9-4c90-4ac6-a123-aced756d6c77" />
   </Folder>
   <Folder Name="/SolutionItems/">
     <File Path=".clang-format" />

@@ -144,10 +144,25 @@
     <ClCompile Include="$(SolutionDir)engine\src\ecs\World.cpp">
       <Filter>src\ecs</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\ActionInputSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\AnimationStateMachineSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\CharacterControllerSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\CollisionSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\CollisionResolutionSystem.cpp">
+      <Filter>src\systems</Filter>
+    </ClCompile>
+    <ClCompile Include="$(SolutionDir)engine\src\systems\DamageSystem.cpp">
       <Filter>src\systems</Filter>
     </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\systems\InputSystem.cpp">
@@ -332,10 +347,25 @@
     <ClInclude Include="$(SolutionDir)engine\include\ecs\WorldCommandBuffer.h">
       <Filter>include\ecs</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\ActionInput.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\AnimationComponents.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\AnimationStateMachine.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\CharacterController.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\Collider.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\CollisionBody.h">
+      <Filter>include\components</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\components\GameplayComponents.h">
       <Filter>include\components</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\components\InputComponent.h">
@@ -359,10 +389,25 @@
     <ClInclude Include="$(SolutionDir)engine\include\components\Velocity.h">
       <Filter>include\components</Filter>
     </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\ActionInputSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\CollisionSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\AnimationSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\AnimationStateMachineSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\CharacterControllerSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\CollisionResolutionSystem.h">
+      <Filter>include\systems</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)engine\include\systems\DamageSystem.h">
       <Filter>include\systems</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\systems\InputSystem.h">
