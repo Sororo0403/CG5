@@ -59,29 +59,6 @@ void SkeletonPoseBuilder::BuildAnimatedLocals(
 }
 
 void SkeletonPoseBuilder::UpdateSkeleton(
-    Model &model, const std::vector<XMMATRIX> &localMatrices) {
-    const size_t boneCount = model.bones.size();
-    std::vector<XMMATRIX> globalMatrices(boneCount);
-
-    for (size_t i = 0; i < boneCount; i++) {
-        int parent = model.bones[i].parentIndex;
-        if (parent < 0) {
-            globalMatrices[i] = localMatrices[i];
-        } else {
-            globalMatrices[i] = localMatrices[i] * globalMatrices[parent];
-        }
-
-        XMStoreFloat4x4(&model.skeletonSpaceMatrices[i], globalMatrices[i]);
-    }
-
-    for (size_t i = 0; i < boneCount; i++) {
-        XMMATRIX offset = XMLoadFloat4x4(&model.bones[i].offsetMatrix);
-        XMMATRIX final = offset * globalMatrices[i];
-        XMStoreFloat4x4(&model.finalBoneMatrices[i], final);
-    }
-}
-
-void SkeletonPoseBuilder::UpdateSkeleton(
     const Model &model, SkeletonPoseComponent &pose,
     const std::vector<XMMATRIX> &localMatrices) {
     const size_t boneCount = model.bones.size();

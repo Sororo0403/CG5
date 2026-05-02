@@ -15,6 +15,7 @@ class DirectXCommon;
 class SrvManager;
 class MeshManager;
 class TextureManager;
+class World;
 
 /// <summary>
 /// モデル描画時の一時エフェクト設定
@@ -60,7 +61,13 @@ class ModelRenderer {
     void Draw(const Model &model, const Transform &transform,
               const Camera &camera,
               uint32_t environmentTextureId = UINT32_MAX);
+    void Draw(const Model &model, const DirectX::XMFLOAT4X4 &worldMatrix,
+              const Camera &camera,
+              uint32_t environmentTextureId = UINT32_MAX);
     void Draw(const Model &model, const Transform &transform,
+              const Camera &camera, const SkeletonPoseComponent &pose,
+              Entity entity, uint32_t environmentTextureId = UINT32_MAX);
+    void Draw(const Model &model, const DirectX::XMFLOAT4X4 &worldMatrix,
               const Camera &camera, const SkeletonPoseComponent &pose,
               Entity entity, uint32_t environmentTextureId = UINT32_MAX);
 
@@ -69,7 +76,14 @@ class ModelRenderer {
     /// </summary>
     void DrawGBuffer(const Model &model, const Transform &transform,
                      const Camera &camera);
+    void DrawGBuffer(const Model &model,
+                     const DirectX::XMFLOAT4X4 &worldMatrix,
+                     const Camera &camera);
     void DrawGBuffer(const Model &model, const Transform &transform,
+                     const Camera &camera, const SkeletonPoseComponent &pose,
+                     Entity entity);
+    void DrawGBuffer(const Model &model,
+                     const DirectX::XMFLOAT4X4 &worldMatrix,
                      const Camera &camera, const SkeletonPoseComponent &pose,
                      Entity entity);
 
@@ -119,8 +133,7 @@ class ModelRenderer {
     /// <param name="model">対象モデル</param>
     void ReleaseSkinClusters(Model &model);
     void ReleaseInstanceSkinPalette(Entity entity);
-    void ReleaseDeadInstanceSkinPalettes(
-        const std::vector<Entity> &aliveEntities);
+    void ReleaseUnusedInstanceSkinPalettes(const World &world);
     /// <summary>
     /// スキンクラスターのパレット内容を更新する
     /// </summary>
@@ -168,7 +181,18 @@ class ModelRenderer {
                       const Camera &camera,
                       const SkeletonPoseComponent *pose, Entity entity,
                       uint32_t environmentTextureId);
+    void DrawInternal(const Model &model,
+                      const DirectX::XMFLOAT4X4 *worldMatrix,
+                      const Transform *transform, const Camera &camera,
+                      const SkeletonPoseComponent *pose, Entity entity,
+                      uint32_t environmentTextureId);
     void DrawGBufferInternal(const Model &model, const Transform &transform,
+                             const Camera &camera,
+                             const SkeletonPoseComponent *pose,
+                             Entity entity);
+    void DrawGBufferInternal(const Model &model,
+                             const DirectX::XMFLOAT4X4 *worldMatrix,
+                             const Transform *transform,
                              const Camera &camera,
                              const SkeletonPoseComponent *pose,
                              Entity entity);

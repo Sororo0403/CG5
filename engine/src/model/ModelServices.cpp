@@ -1,6 +1,5 @@
 #include "ModelServices.h"
 #include "DirectXCommon.h"
-#include "ModelAnimationController.h"
 #include "ModelAssets.h"
 #include "ModelRenderer.h"
 #include "SkeletonDebugRenderer.h"
@@ -11,7 +10,6 @@
 ModelServices::ModelServices()
     : assets_(std::make_unique<ModelAssets>()),
       renderer_(std::make_unique<ModelRenderer>()),
-      animation_(std::make_unique<ModelAnimationController>()),
       skeletonDebug_(std::make_unique<SkeletonDebugRenderer>()) {}
 
 ModelServices::~ModelServices() { ReleaseRenderResources(); }
@@ -38,19 +36,6 @@ bool ModelServices::PrepareModel(uint32_t modelId) {
     }
 
     renderer_->CreateSkinClusters(*model);
-    animation_->InitializeDefault(*model);
-    animation_->Update(*model, 0.0f);
-    renderer_->UpdateSkinClusters(*model);
-    return true;
-}
-
-bool ModelServices::UpdateAnimation(uint32_t modelId, float deltaTime) {
-    Model *model = assets_->GetModel(modelId);
-    if (!model) {
-        return false;
-    }
-
-    animation_->Update(*model, deltaTime);
     renderer_->UpdateSkinClusters(*model);
     return true;
 }

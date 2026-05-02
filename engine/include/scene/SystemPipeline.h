@@ -11,18 +11,29 @@
 class SystemPipeline {
   public:
     using Step = std::function<void()>;
+    using WorldStep = std::function<void(World &, WorldCommandBuffer &)>;
 
-    void AddUpdateStep(Step step) { updateSteps_.push_back(std::move(step)); }
+    void AddUpdateStep(Step step) {
+        updateSteps_.push_back(
+            [step = std::move(step)](World &, WorldCommandBuffer &) {
+                step();
+            });
+    }
+    void AddWorldUpdateStep(WorldStep step) {
+        updateSteps_.push_back(std::move(step));
+    }
+    void AddCommandFlushStep() {
+        updateSteps_.push_back([](World &world,
+                                  WorldCommandBuffer &commandBuffer) {
+            commandBuffer.Playback(world);
+        });
+    }
     void AddDrawStep(Step step) { drawSteps_.push_back(std::move(step)); }
 
-    void Update() {
-        for (auto &step : updateSteps_) {
-            step();
-        }
-    }
-
     void Update(World &world, WorldCommandBuffer &commandBuffer) {
-        Update();
+        for (auto &step : updateSteps_) {
+            step(world, commandBuffer);
+        }
         commandBuffer.Playback(world);
     }
 
@@ -38,6 +49,6 @@ class SystemPipeline {
     }
 
   private:
-    std::vector<Step> updateSteps_;
+    std::vector<WorldStep> updateSteps_;
     std::vector<Step> drawSteps_;
 };

@@ -4,6 +4,7 @@
 
 #include <any>
 #include <cassert>
+#include <stdexcept>
 #include <tuple>
 #include <typeindex>
 #include <unordered_map>
@@ -43,7 +44,11 @@ class World {
     /// <returns>追加されたComponentへの参照。</returns>
     template <class T>
     T &Add(Entity entity, T component = {}) {
+        AssertCanChangeStructure();
         assert(IsAlive(entity));
+        if (!IsAlive(entity)) {
+            throw std::logic_error("Cannot add a component to a dead Entity.");
+        }
         return Storage<T>().Add(entity, std::move(component));
     }
 
@@ -53,6 +58,7 @@ class World {
     /// <param name="entity">Componentを削除するEntity ID。</param>
     template <class T>
     void Remove(Entity entity) {
+        AssertCanChangeStructure();
         Storage<T>().Remove(entity);
     }
 
@@ -98,6 +104,9 @@ class World {
     T &Get(Entity entity) {
         T *component = TryGet<T>(entity);
         assert(component != nullptr);
+        if (component == nullptr) {
+            throw std::logic_error("Entity does not have the requested component.");
+        }
         return *component;
     }
 
@@ -110,6 +119,9 @@ class World {
     const T &Get(Entity entity) const {
         const T *component = TryGet<T>(entity);
         assert(component != nullptr);
+        if (component == nullptr) {
+            throw std::logic_error("Entity does not have the requested component.");
+        }
         return *component;
     }
 
@@ -130,10 +142,11 @@ class World {
             return;
         }
 
-        const std::vector<Entity> entities = firstStorage->Entities();
+        ViewScope viewScope(*this);
+        const std::vector<Entity> &entities = firstStorage->Entities();
         for (Entity entity : entities) {
             if (IsAlive(entity) && (Has<Components>(entity) && ...)) {
-                std::forward<Fn>(fn)(entity, Get<Components>(entity)...);
+                fn(entity, Get<Components>(entity)...);
             }
         }
     }
@@ -145,6 +158,24 @@ class World {
     const std::vector<Entity> &AliveEntities() const;
 
   private:
+    void AssertCanChangeStructure() const {
+        assert(viewDepth_ == 0 &&
+               "Do not change World structure while iterating a View. Use "
+               "WorldCommandBuffer and play it back after systems run.");
+        if (viewDepth_ != 0) {
+            throw std::logic_error(
+                "Do not change World structure while iterating a View. Use "
+                "WorldCommandBuffer and play it back after systems run.");
+        }
+    }
+
+    struct ViewScope {
+        explicit ViewScope(World &world) : world(world) { ++world.viewDepth_; }
+        ~ViewScope() { --world.viewDepth_; }
+
+        World &world;
+    };
+
     struct StorageEntry {
         std::any storage;
         void (*remove)(std::any &, Entity) = nullptr;
@@ -190,7 +221,9 @@ class World {
   private:
     std::vector<uint32_t> generations_{0};
     std::vector<Entity> aliveEntities_;
+    std::unordered_map<Entity, uint32_t> aliveEntityToIndex_;
     std::vector<uint32_t> freeIndices_;
     std::unordered_set<Entity> aliveSet_;
     std::unordered_map<std::type_index, StorageEntry> storages_;
+    uint32_t viewDepth_ = 0;
 };

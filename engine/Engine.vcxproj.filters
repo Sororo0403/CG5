@@ -273,9 +273,6 @@
     <ClCompile Include="$(SolutionDir)engine\src\animation\Animator.cpp">
       <Filter>src\animation</Filter>
     </ClCompile>
-    <ClCompile Include="$(SolutionDir)engine\src\animation\ModelAnimationController.cpp">
-      <Filter>src\animation</Filter>
-    </ClCompile>
     <ClCompile Include="$(SolutionDir)engine\src\animation\AnimationSampler.cpp">
       <Filter>src\animation</Filter>
     </ClCompile>
@@ -558,9 +555,6 @@
       <Filter>include\collision</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\animation\Animator.h">
-      <Filter>include\animation</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)engine\include\animation\ModelAnimationController.h">
       <Filter>include\animation</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)engine\include\animation\AnimationSampler.h">

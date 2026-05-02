@@ -4,11 +4,13 @@
 #include "DxUtils.h"
 #include "GBuffer.h"
 #include "MaterialManager.h"
+#include "MeshRenderer.h"
 #include "MeshManager.h"
 #include "ShaderCompiler.h"
 #include "SrvManager.h"
 #include "TextureManager.h"
 #include "Vertex.h"
+#include "World.h"
 #include <algorithm>
 #include <cstring>
 
@@ -37,7 +39,7 @@ static void NormalizeInfluence(VertexInfluence &influence) {
     }
 }
 
-static XMMATRIX MakeWorldMatrix(const Model &model, const Transform &transform,
+static XMMATRIX MakeWorldMatrix(const Transform &transform,
                                 const SkeletonPoseComponent *pose) {
     XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
 
@@ -50,10 +52,17 @@ static XMMATRIX MakeWorldMatrix(const Model &model, const Transform &transform,
 
     if (pose && pose->hasRootAnimation) {
         world = XMLoadFloat4x4(&pose->rootAnimationMatrix) * world;
-    } else if (model.hasRootAnimation) {
-        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
     }
 
+    return world;
+}
+
+static XMMATRIX MakeWorldMatrix(const XMFLOAT4X4 &worldMatrix,
+                                const SkeletonPoseComponent *pose) {
+    XMMATRIX world = XMLoadFloat4x4(&worldMatrix);
+    if (pose && pose->hasRootAnimation) {
+        world = XMLoadFloat4x4(&pose->rootAnimationMatrix) * world;
+    }
     return world;
 }
 
@@ -101,7 +110,14 @@ void ModelRenderer::PreDraw() {
 void ModelRenderer::Draw(const Model &model, const Transform &transform,
                          const Camera &camera,
                          uint32_t environmentTextureId) {
-    DrawInternal(model, transform, camera, nullptr, kInvalidEntity,
+    DrawInternal(model, nullptr, &transform, camera, nullptr, kInvalidEntity,
+                 environmentTextureId);
+}
+
+void ModelRenderer::Draw(const Model &model, const XMFLOAT4X4 &worldMatrix,
+                         const Camera &camera,
+                         uint32_t environmentTextureId) {
+    DrawInternal(model, &worldMatrix, nullptr, camera, nullptr, kInvalidEntity,
                  environmentTextureId);
 }
 
@@ -109,12 +125,31 @@ void ModelRenderer::Draw(const Model &model, const Transform &transform,
                          const Camera &camera,
                          const SkeletonPoseComponent &pose, Entity entity,
                          uint32_t environmentTextureId) {
-    DrawInternal(model, transform, camera, &pose, entity,
+    DrawInternal(model, nullptr, &transform, camera, &pose, entity,
+                 environmentTextureId);
+}
+
+void ModelRenderer::Draw(const Model &model, const XMFLOAT4X4 &worldMatrix,
+                         const Camera &camera,
+                         const SkeletonPoseComponent &pose, Entity entity,
+                         uint32_t environmentTextureId) {
+    DrawInternal(model, &worldMatrix, nullptr, camera, &pose, entity,
                  environmentTextureId);
 }
 
 void ModelRenderer::DrawInternal(const Model &model,
                                  const Transform &transform,
+                                 const Camera &camera,
+                                 const SkeletonPoseComponent *pose,
+                                 Entity entity,
+                                 uint32_t environmentTextureId) {
+    DrawInternal(model, nullptr, &transform, camera, pose, entity,
+                 environmentTextureId);
+}
+
+void ModelRenderer::DrawInternal(const Model &model,
+                                 const XMFLOAT4X4 *worldMatrix,
+                                 const Transform *transform,
                                  const Camera &camera,
                                  const SkeletonPoseComponent *pose,
                                  Entity entity,
@@ -131,7 +166,8 @@ void ModelRenderer::DrawInternal(const Model &model,
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMMATRIX world = MakeWorldMatrix(model, transform, pose);
+    XMMATRIX world = worldMatrix ? MakeWorldMatrix(*worldMatrix, pose)
+                                 : MakeWorldMatrix(*transform, pose);
     XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
 
     auto drawSubMesh = [&](const ModelSubMesh &subMesh,
@@ -236,7 +272,15 @@ void ModelRenderer::DrawInternal(const Model &model,
 
 void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
                                 const Camera &camera) {
-    DrawGBufferInternal(model, transform, camera, nullptr, kInvalidEntity);
+    DrawGBufferInternal(model, nullptr, &transform, camera, nullptr,
+                        kInvalidEntity);
+}
+
+void ModelRenderer::DrawGBuffer(const Model &model,
+                                const XMFLOAT4X4 &worldMatrix,
+                                const Camera &camera) {
+    DrawGBufferInternal(model, &worldMatrix, nullptr, camera, nullptr,
+                        kInvalidEntity);
 }
 
 void ModelRenderer::DrawGBuffer(const Model &model,
@@ -244,11 +288,28 @@ void ModelRenderer::DrawGBuffer(const Model &model,
                                 const Camera &camera,
                                 const SkeletonPoseComponent &pose,
                                 Entity entity) {
-    DrawGBufferInternal(model, transform, camera, &pose, entity);
+    DrawGBufferInternal(model, nullptr, &transform, camera, &pose, entity);
 }
 
 void ModelRenderer::DrawGBufferInternal(const Model &model,
                                         const Transform &transform,
+                                        const Camera &camera,
+                                        const SkeletonPoseComponent *pose,
+                                        Entity entity) {
+    DrawGBufferInternal(model, nullptr, &transform, camera, pose, entity);
+}
+
+void ModelRenderer::DrawGBuffer(const Model &model,
+                                const XMFLOAT4X4 &worldMatrix,
+                                const Camera &camera,
+                                const SkeletonPoseComponent &pose,
+                                Entity entity) {
+    DrawGBufferInternal(model, &worldMatrix, nullptr, camera, &pose, entity);
+}
+
+void ModelRenderer::DrawGBufferInternal(const Model &model,
+                                        const XMFLOAT4X4 *worldMatrix,
+                                        const Transform *transform,
                                         const Camera &camera,
                                         const SkeletonPoseComponent *pose,
                                         Entity entity) {
@@ -264,7 +325,8 @@ void ModelRenderer::DrawGBufferInternal(const Model &model,
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMMATRIX world = MakeWorldMatrix(model, transform, pose);
+    XMMATRIX world = worldMatrix ? MakeWorldMatrix(*worldMatrix, pose)
+                                 : MakeWorldMatrix(*transform, pose);
     XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
 
     auto drawSubMesh = [&](const ModelSubMesh &subMesh,
@@ -599,19 +661,19 @@ void ModelRenderer::ReleaseInstanceSkinPalette(Entity entity) {
     instanceSkinPalettes_.erase(it);
 }
 
-void ModelRenderer::ReleaseDeadInstanceSkinPalettes(
-    const std::vector<Entity> &aliveEntities) {
-    std::vector<Entity> deadEntities;
-    deadEntities.reserve(instanceSkinPalettes_.size());
+void ModelRenderer::ReleaseUnusedInstanceSkinPalettes(const World &world) {
+    std::vector<Entity> unusedEntities;
+    unusedEntities.reserve(instanceSkinPalettes_.size());
 
     for (const auto &[entity, _] : instanceSkinPalettes_) {
-        if (std::find(aliveEntities.begin(), aliveEntities.end(), entity) ==
-            aliveEntities.end()) {
-            deadEntities.push_back(entity);
+        if (!world.IsAlive(entity) ||
+            !world.Has<SkeletonPoseComponent>(entity) ||
+            !world.Has<MeshRenderer>(entity)) {
+            unusedEntities.push_back(entity);
         }
     }
 
-    for (Entity entity : deadEntities) {
+    for (Entity entity : unusedEntities) {
         ReleaseInstanceSkinPalette(entity);
     }
 }
@@ -623,34 +685,13 @@ void ModelRenderer::UpdateSkinClusters(Model &model) {
             continue;
         }
 
-        if (model.bones.empty() || model.skeletonSpaceMatrices.empty()) {
-            skinCluster.mappedPalette[0].skeletonSpaceMatrix =
+        for (uint32_t jointIndex = 0; jointIndex < skinCluster.paletteCount;
+             ++jointIndex) {
+            skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix =
                 StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-            skinCluster.mappedPalette[0].skeletonSpaceInverseTransposeMatrix =
+            skinCluster.mappedPalette[jointIndex]
+                .skeletonSpaceInverseTransposeMatrix =
                 StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-            continue;
-        }
-
-        const uint32_t jointCount = std::min<uint32_t>(
-            skinCluster.paletteCount,
-            static_cast<uint32_t>(model.skeletonSpaceMatrices.size()));
-
-        for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
-            XMMATRIX inverseBindPose =
-                XMLoadFloat4x4(&skinCluster.inverseBindPoseMatrices[jointIndex]);
-            XMMATRIX skeletonSpace =
-                XMLoadFloat4x4(&model.skeletonSpaceMatrices[jointIndex]);
-            XMMATRIX skinningMatrix = inverseBindPose * skeletonSpace;
-            XMMATRIX skinningInverseTranspose =
-                XMMatrixTranspose(XMMatrixInverse(nullptr, skinningMatrix));
-
-            XMStoreFloat4x4(
-                &skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix,
-                XMMatrixTranspose(skinningMatrix));
-            XMStoreFloat4x4(
-                &skinCluster.mappedPalette[jointIndex]
-                     .skeletonSpaceInverseTransposeMatrix,
-                XMMatrixTranspose(skinningInverseTranspose));
         }
     }
 }

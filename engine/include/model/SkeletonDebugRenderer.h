@@ -36,8 +36,7 @@ class SkeletonDebugRenderer {
     void CreatePipelineState();
     void CreateBuffers();
     void EnsureVertexCapacity(uint32_t vertexCount);
-    DirectX::XMMATRIX MakeWorldMatrix(const Model &model,
-                                      const Transform &transform) const;
+    DirectX::XMMATRIX MakeWorldMatrix(const Transform &transform) const;
     DirectX::XMMATRIX MakeWorldMatrix(const Transform &transform,
                                       const SkeletonPoseComponent &pose) const;
     void DrawInternal(const Model &model, const Transform &transform,

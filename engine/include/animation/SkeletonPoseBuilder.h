@@ -22,12 +22,6 @@ class SkeletonPoseBuilder {
                                     std::vector<DirectX::XMMATRIX> &localMatrices);
 
     /// <summary>
-    /// ローカル行列配列からスケルトン空間行列を更新する
-    /// </summary>
-    static void UpdateSkeleton(
-        Model &model, const std::vector<DirectX::XMMATRIX> &localMatrices);
-
-    /// <summary>
     /// ローカル行列配列からEntityごとの姿勢Componentを更新する
     /// </summary>
     static void UpdateSkeleton(

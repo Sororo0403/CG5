@@ -6,11 +6,12 @@
 #include "ModelAssets.h"
 #include "ModelRenderer.h"
 #include "Transform.h"
+#include "TransformHierarchy.h"
 #include "World.h"
 
 void RenderSystem::Draw(World &world, ModelAssets &modelAssets,
                         ModelRenderer &modelRenderer, const Camera &camera) {
-    modelRenderer.ReleaseDeadInstanceSkinPalettes(world.AliveEntities());
+    modelRenderer.ReleaseUnusedInstanceSkinPalettes(world);
     modelRenderer.PreDraw();
     world.View<Transform, MeshRenderer>(
         [&world, &modelAssets, &modelRenderer, &camera](
@@ -25,7 +26,19 @@ void RenderSystem::Draw(World &world, ModelAssets &modelAssets,
 
             if (const auto *pose =
                     world.TryGet<SkeletonPoseComponent>(entity)) {
+                if (const auto *worldMatrix =
+                        world.TryGet<WorldTransformMatrix>(entity)) {
+                    modelRenderer.Draw(*model, worldMatrix->matrix, camera,
+                                       *pose, entity);
+                    return;
+                }
                 modelRenderer.Draw(*model, transform, camera, *pose, entity);
+                return;
+            }
+
+            if (const auto *worldMatrix =
+                    world.TryGet<WorldTransformMatrix>(entity)) {
+                modelRenderer.Draw(*model, worldMatrix->matrix, camera);
                 return;
             }
 

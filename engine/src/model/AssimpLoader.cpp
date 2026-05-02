@@ -34,6 +34,5 @@ Model AssimpLoader::Load(const DirectXCommon::UploadContext &uploadContext,
     meshLoader_.LoadMeshes(uploadContext, scene, path, model);
     animationLoader_.LoadAnimations(scene, model);
 
-    model.finalBoneMatrices.resize(model.bones.size());
     return model;
 }

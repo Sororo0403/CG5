@@ -3,6 +3,8 @@
 #include <algorithm>
 
 Entity World::CreateEntity() {
+    AssertCanChangeStructure();
+
     uint32_t index = 0;
     if (!freeIndices_.empty()) {
         index = freeIndices_.back();
@@ -13,12 +15,15 @@ Entity World::CreateEntity() {
     }
 
     Entity entity{index, generations_[index]};
+    aliveEntityToIndex_[entity] = static_cast<uint32_t>(aliveEntities_.size());
     aliveEntities_.push_back(entity);
     aliveSet_.insert(entity);
     return entity;
 }
 
 void World::DestroyEntity(Entity entity) {
+    AssertCanChangeStructure();
+
     if (!IsAlive(entity)) {
         return;
     }
@@ -28,9 +33,19 @@ void World::DestroyEntity(Entity entity) {
     }
 
     aliveSet_.erase(entity);
-    aliveEntities_.erase(
-        std::remove(aliveEntities_.begin(), aliveEntities_.end(), entity),
-        aliveEntities_.end());
+    const auto aliveIt = aliveEntityToIndex_.find(entity);
+    if (aliveIt != aliveEntityToIndex_.end()) {
+        const uint32_t index = aliveIt->second;
+        const uint32_t lastIndex =
+            static_cast<uint32_t>(aliveEntities_.size() - 1);
+        if (index != lastIndex) {
+            const Entity lastEntity = aliveEntities_[lastIndex];
+            aliveEntities_[index] = lastEntity;
+            aliveEntityToIndex_[lastEntity] = index;
+        }
+        aliveEntities_.pop_back();
+        aliveEntityToIndex_.erase(aliveIt);
+    }
 
     ++generations_[entity.index];
     if (generations_[entity.index] == 0) {

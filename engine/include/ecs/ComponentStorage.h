@@ -3,6 +3,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <stdexcept>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -30,6 +31,9 @@ class ComponentStorage {
     /// <returns>追加されたComponentへの参照。</returns>
     T &Add(Entity entity, T component = {}) {
         assert(!Has(entity));
+        if (Has(entity)) {
+            throw std::logic_error("Entity already has the requested component.");
+        }
 
         const uint32_t index = static_cast<uint32_t>(components_.size());
         entities_.push_back(entity);
@@ -98,6 +102,9 @@ class ComponentStorage {
     T &Get(Entity entity) {
         T *component = TryGet(entity);
         assert(component != nullptr);
+        if (component == nullptr) {
+            throw std::logic_error("Entity does not have the requested component.");
+        }
         return *component;
     }
 
@@ -109,6 +116,9 @@ class ComponentStorage {
     const T &Get(Entity entity) const {
         const T *component = TryGet(entity);
         assert(component != nullptr);
+        if (component == nullptr) {
+            throw std::logic_error("Entity does not have the requested component.");
+        }
         return *component;
     }
 

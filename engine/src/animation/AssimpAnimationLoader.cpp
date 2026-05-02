@@ -65,10 +65,4 @@ void AssimpAnimationLoader::LoadAnimations(const aiScene *scene, Model &model) c
         model.animations[animName] = clip;
     }
 
-    if (!model.animations.empty()) {
-        model.currentAnimation = model.animations.begin()->first;
-        model.animationTime = 0.0f;
-        model.isLoop = true;
-        model.isPlaying = true;
-    }
 }

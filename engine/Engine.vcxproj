@@ -119,7 +119,6 @@
     <ClCompile Include="$(SolutionDir)engine\src\model\MaterialManager.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\camera\DebugCamera.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\animation\Animator.cpp" />
-    <ClCompile Include="$(SolutionDir)engine\src\animation\ModelAnimationController.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\animation\AnimationSampler.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\animation\AssimpAnimationLoader.cpp" />
     <ClCompile Include="$(SolutionDir)engine\src\model\AssimpLoader.cpp" />
@@ -180,7 +179,6 @@
     <ClInclude Include="$(SolutionDir)engine\include\particle\GpuSlashParticleSystem.h" />
     <ClInclude Include="$(SolutionDir)engine\include\camera\DebugCamera.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\Animator.h" />
-    <ClInclude Include="$(SolutionDir)engine\include\animation\ModelAnimationController.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\AnimationSampler.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\AssimpAnimationLoader.h" />
     <ClInclude Include="$(SolutionDir)engine\include\animation\AnimationTypes.h" />

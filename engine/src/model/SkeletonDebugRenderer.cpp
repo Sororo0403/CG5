@@ -9,6 +9,30 @@ using namespace DirectX;
 using namespace DxUtils;
 using Microsoft::WRL::ComPtr;
 
+namespace {
+
+std::vector<XMFLOAT4X4> BuildBindPoseSkeletonMatrices(const Model &model) {
+    const size_t boneCount = model.bones.size();
+    std::vector<XMFLOAT4X4> skeletonMatrices(boneCount);
+    std::vector<XMMATRIX> globalMatrices(boneCount);
+
+    for (size_t i = 0; i < boneCount; ++i) {
+        const XMMATRIX local = XMLoadFloat4x4(&model.bones[i].localBindMatrix);
+        const int parent = model.bones[i].parentIndex;
+        if (parent < 0) {
+            globalMatrices[i] = local;
+        } else {
+            globalMatrices[i] = local * globalMatrices[parent];
+        }
+
+        XMStoreFloat4x4(&skeletonMatrices[i], globalMatrices[i]);
+    }
+
+    return skeletonMatrices;
+}
+
+} // namespace
+
 void SkeletonDebugRenderer::Initialize(DirectXCommon *dxCommon) {
     dxCommon_ = dxCommon;
     CreateRootSignature();
@@ -18,7 +42,8 @@ void SkeletonDebugRenderer::Initialize(DirectXCommon *dxCommon) {
 
 void SkeletonDebugRenderer::Draw(const Model &model, const Transform &transform,
                                  const Camera &camera) {
-    DrawInternal(model, transform, camera, model.skeletonSpaceMatrices, nullptr);
+    DrawInternal(model, transform, camera, BuildBindPoseSkeletonMatrices(model),
+                 nullptr);
 }
 
 void SkeletonDebugRenderer::Draw(const Model &model,
@@ -50,8 +75,7 @@ void SkeletonDebugRenderer::DrawInternal(
     }
 
     const XMMATRIX world =
-        pose ? MakeWorldMatrix(transform, *pose)
-             : MakeWorldMatrix(model, transform);
+        pose ? MakeWorldMatrix(transform, *pose) : MakeWorldMatrix(transform);
     const XMFLOAT4 parentColor{1.0f, 0.58f, 0.05f, 1.0f};
     const XMFLOAT4 childColor{0.25f, 0.80f, 1.0f, 1.0f};
 
@@ -208,7 +232,7 @@ void SkeletonDebugRenderer::EnsureVertexCapacity(uint32_t vertexCount) {
 }
 
 XMMATRIX SkeletonDebugRenderer::MakeWorldMatrix(
-    const Model &model, const Transform &transform) const {
+    const Transform &transform) const {
     XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
     XMMATRIX world =
         XMMatrixScaling(transform.scale.x, transform.scale.y, transform.scale.z) *
@@ -216,9 +240,6 @@ XMMATRIX SkeletonDebugRenderer::MakeWorldMatrix(
         XMMatrixTranslation(transform.position.x, transform.position.y,
                             transform.position.z);
 
-    if (model.hasRootAnimation) {
-        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
-    }
     return world;
 }
 
