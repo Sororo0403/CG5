@@ -1,42 +1,86 @@
 #pragma once
-#include "DirectXCommon.h"
+#include "texture/Texture.h"
+#include <DirectXTex.h>
 #include <cstdint>
 #include <d3d12.h>
-#include <memory>
+#include <future>
+#include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
+#include <wrl.h>
 
+class DirectXCommon;
 class SrvManager;
-class TextureGpuStore;
 
 /// <summary>
 /// テクスチャ読み込みとSRV管理を担当する
 /// </summary>
 class TextureManager {
-  public:
-    TextureManager();
-    ~TextureManager();
+  private:
+    /// <summary>
+    /// テクスチャ本体と対応するSRV情報
+    /// </summary>
+    struct Entry {
+        Texture texture;
+        uint32_t srvIndex = 0;
+    };
 
-    TextureManager(const TextureManager &) = delete;
-    TextureManager &operator=(const TextureManager &) = delete;
-    TextureManager(TextureManager &&) noexcept;
-    TextureManager &operator=(TextureManager &&) noexcept;
+  public:
+    /// <summary>
+    /// TextureManagerの共有インスタンスを取得する
+    /// </summary>
+    static TextureManager &GetInstance();
 
     /// <summary>
-    /// 初期化処理
+    /// テクスチャ管理に必要なDirectXとSRV管理への参照を設定する
     /// </summary>
     /// <param name="dxCommon">DirectXCommonインスタンス</param>
     /// <param name="srvManager">SrvManagerインスタンス</param>
-    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
-                    const DirectXCommon::UploadContext &uploadContext);
+    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager);
 
     /// <summary>
     /// ファイルからテクスチャをロードしてidを返す
     /// </summary>
     /// <param name="filePath">ロードするテクスチャのファイルパス</param>
     /// <returns>テクスチャid</returns>
-    uint32_t Load(const DirectXCommon::UploadContext &uploadContext,
-                  const std::wstring &filePath);
+    uint32_t Load(const std::wstring &filePath);
+
+    /// <summary>
+    /// 複数テクスチャをまとめて読み込み、ID配列を返す
+    /// </summary>
+    std::vector<uint32_t> LoadBatch(const std::vector<std::wstring> &filePaths);
+
+    /// <summary>
+    /// テクスチャのファイル読み込みとデコードをバックグラウンドで開始する
+    /// </summary>
+    uint32_t RequestAsyncLoad(const std::wstring &filePath);
+
+    /// <summary>
+    /// 複数テクスチャの非同期読み込みをまとめて開始する
+    /// </summary>
+    std::vector<uint32_t>
+    RequestAsyncLoadBatch(const std::vector<std::wstring> &filePaths);
+
+    /// <summary>
+    /// 完了した非同期読み込みを現在のコマンドリストへ転送する
+    /// </summary>
+    void UpdateAsyncLoads();
+
+    /// <summary>
+    /// 非同期読み込みが完了したかを取得する
+    /// </summary>
+    bool IsAsyncLoadComplete(uint32_t requestId) const;
+
+    /// <summary>
+    /// 非同期読み込み結果のテクスチャIDを取得する
+    /// </summary>
+    std::optional<uint32_t> GetAsyncTextureId(uint32_t requestId) const;
+
+    /// <summary>
+    /// 非同期読み込みが失敗したかを取得する
+    /// </summary>
+    bool HasAsyncLoadFailed(uint32_t requestId) const;
 
     /// <summary>
     /// メモリからテクスチャをロードしてidを返す
@@ -44,25 +88,26 @@ class TextureManager {
     /// <param name="data">画像データの先頭アドレス</param>
     /// <param name="size">画像データのバイトサイズ</param>
     /// <returns>生成されたテクスチャのID</returns>
-    uint32_t LoadFromMemory(const DirectXCommon::UploadContext &uploadContext,
-                            const uint8_t *data, size_t size);
+    uint32_t LoadFromMemory(const uint8_t *data, size_t size);
 
     /// <summary>
-    /// ディゾルブなどに使うグレースケールノイズテクスチャを生成する
+    /// RGBA8ピクセル配列から2Dテクスチャを作成する
     /// </summary>
-    /// <param name="width">テクスチャ幅</param>
-    /// <param name="height">テクスチャ高さ</param>
-    /// <returns>生成されたテクスチャのID</returns>
-    uint32_t CreateNoiseTexture(const DirectXCommon::UploadContext &uploadContext,
-                                uint32_t width = 256, uint32_t height = 256);
+    uint32_t CreateFromRgbaPixels(uint32_t width, uint32_t height,
+                                  const uint8_t *pixels);
+
     /// <summary>
-    /// 1x1の単色キューブマップを生成する
+    /// 任意フォーマットのピクセル配列から2Dテクスチャを作成する
     /// </summary>
-    /// <param name="rgba">RGBA8色</param>
-    /// <returns>生成されたテクスチャのID</returns>
-    uint32_t CreateSolidCubeTexture(
-        const DirectXCommon::UploadContext &uploadContext,
-        uint32_t rgba = 0xFFFFFFFFu);
+    uint32_t CreateTexture2D(uint32_t width, uint32_t height,
+                             DXGI_FORMAT format, const uint8_t *pixels,
+                             size_t rowPitch);
+
+    /// <summary>
+    /// 既存2Dテクスチャのピクセル内容を更新する
+    /// </summary>
+    void UpdateTexture2D(uint32_t textureId, const uint8_t *pixels,
+                         size_t rowPitch);
 
     /// <summary>
     /// ロード時に使った一時UploadBufferを解放
@@ -75,32 +120,68 @@ class TextureManager {
     /// <param name="textureId">テクスチャID</param>
     /// <returns>GPUディスクリプタハンドル</returns>
     D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle(uint32_t textureId) const;
+
+    uint32_t GetWhiteTextureId() const { return whiteTextureId_; }
+    uint32_t GetDefaultNormalTextureId() const { return defaultNormalTextureId_; }
+
     /// <summary>
     /// テクスチャリソースを取得する
     /// </summary>
     /// <param name="textureId">テクスチャID</param>
     /// <returns>ID3D12Resourceへのポインタ</returns>
     ID3D12Resource *GetResource(uint32_t textureId) const;
+
     /// <summary>
     /// テクスチャ幅を取得する
     /// </summary>
     /// <param name="id">テクスチャID</param>
     /// <returns>テクスチャ幅</returns>
     uint32_t GetWidth(uint32_t id) const;
+
     /// <summary>
     /// テクスチャ高さを取得する
     /// </summary>
     /// <param name="id">テクスチャID</param>
     /// <returns>テクスチャ高さ</returns>
     uint32_t GetHeight(uint32_t id) const;
-    /// <summary>
-    /// デフォルトの黒キューブマップテクスチャIDを取得する
-    /// </summary>
-    /// <returns>テクスチャID</returns>
-    uint32_t GetDefaultCubeTextureId() const { return defaultCubeTextureId_; }
 
   private:
-    std::unique_ptr<TextureGpuStore> gpuStore_;
+    /// <summary>
+    /// Image配列からGPUテクスチャを生成する
+    /// </summary>
+    /// <param name="images">画像配列</param>
+    /// <param name="imageCount">画像枚数</param>
+    /// <param name="metadata">テクスチャメタデータ</param>
+    /// <returns>生成されたテクスチャID</returns>
+    uint32_t CreateTexture(const DirectX::Image *images, size_t imageCount,
+                           const DirectX::TexMetadata &metadata);
+
+  public:
+    struct DecodedTexture {
+        std::wstring pathKey;
+        DirectX::ScratchImage scratch;
+        DirectX::TexMetadata metadata{};
+    };
+
+    struct AsyncTextureRequest {
+        uint32_t requestId = 0;
+        std::future<DecodedTexture> future;
+        uint32_t textureId = UINT32_MAX;
+        bool completed = false;
+        bool failed = false;
+    };
+
+  private:
+    DirectXCommon *dxCommon_ = nullptr;
+    SrvManager *srvManager_ = nullptr;
+
+    std::vector<Entry> textures_;
+    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> uploadBuffers_;
+    std::vector<std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>>
+        frameUploadBuffers_;
     std::unordered_map<std::wstring, uint32_t> filePathToTextureId_;
-    uint32_t defaultCubeTextureId_ = 0;
+    std::vector<AsyncTextureRequest> asyncRequests_;
+    uint32_t nextAsyncRequestId_ = 1;
+    uint32_t whiteTextureId_ = 0;
+    uint32_t defaultNormalTextureId_ = 0;
 };

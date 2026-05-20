@@ -1,7 +1,7 @@
-#include "MaterialManager.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
+#include "model/MaterialManager.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
 #include <stdexcept>
 
 using namespace DirectX;
@@ -9,13 +9,7 @@ using namespace DxUtils;
 using Microsoft::WRL::ComPtr;
 
 void MaterialManager::Initialize(DirectXCommon *dxCommon) {
-    if (!dxCommon) {
-        throw std::invalid_argument(
-            "MaterialManager::Initialize requires dxCommon");
-    }
-
     dxCommon_ = dxCommon;
-    materials_.clear();
 }
 
 uint32_t MaterialManager::CreateMaterial(const Material &material) {
@@ -24,7 +18,7 @@ uint32_t MaterialManager::CreateMaterial(const Material &material) {
     }
 
     MaterialResource matRes;
-    matRes.material = material;
+    matRes.material = NormalizeMaterialForDraw(material);
 
     UINT size = Align256(sizeof(Material));
 
@@ -42,7 +36,7 @@ uint32_t MaterialManager::CreateMaterial(const Material &material) {
                              reinterpret_cast<void **>(&matRes.mappedData)),
         "Material resource Map failed");
 
-    std::memcpy(matRes.mappedData, &material, sizeof(Material));
+    std::memcpy(matRes.mappedData, &matRes.material, sizeof(Material));
 
     materials_.push_back(std::move(matRes));
     uint32_t materialId = static_cast<uint32_t>(materials_.size() - 1);
@@ -56,8 +50,9 @@ void MaterialManager::SetMaterial(uint32_t materialId,
         return;
     }
 
-    materials_[materialId].material = material;
-    std::memcpy(materials_[materialId].mappedData, &material, sizeof(Material));
+    materials_[materialId].material = NormalizeMaterialForDraw(material);
+    std::memcpy(materials_[materialId].mappedData,
+                &materials_[materialId].material, sizeof(Material));
 }
 
 D3D12_GPU_VIRTUAL_ADDRESS
@@ -70,5 +65,5 @@ MaterialManager::GetGPUVirtualAddress(uint32_t materialId) const {
 }
 
 const Material &MaterialManager::GetMaterial(uint32_t materialId) const {
-    return materials_.at(materialId).material;
+    return materials_[materialId].material;
 }

@@ -1,10 +1,11 @@
-#include "SkyboxRenderer.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
-#include "ShaderCompiler.h"
-#include "SrvManager.h"
-#include "TextureManager.h"
+#include "model/SkyboxRenderer.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
+#include "graphics/ShaderCompiler.h"
+#include "graphics/ShaderPaths.h"
+#include "graphics/SrvManager.h"
+#include "texture/TextureManager.h"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -54,21 +55,12 @@ void SkyboxRenderer::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
 }
 
 void SkyboxRenderer::Draw(uint32_t textureId, const Camera &camera) {
-    DrawInternal(textureId, camera, pipelineState_.Get());
-}
-
-void SkyboxRenderer::DrawNoDepth(uint32_t textureId, const Camera &camera) {
-    DrawInternal(textureId, camera, noDepthPipelineState_.Get());
-}
-
-void SkyboxRenderer::DrawInternal(uint32_t textureId, const Camera &camera,
-                                  ID3D12PipelineState *pipelineState) {
     auto *cmd = dxCommon_->GetCommandList();
 
     ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
     cmd->SetDescriptorHeaps(1, heaps);
 
-    cmd->SetPipelineState(pipelineState);
+    cmd->SetPipelineState(pipelineState_.Get());
     cmd->SetGraphicsRootSignature(rootSignature_.Get());
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     cmd->IASetVertexBuffers(0, 1, &vbView_);
@@ -99,10 +91,10 @@ void SkyboxRenderer::DrawInternal(uint32_t textureId, const Camera &camera,
         hasCachedCameraState_ = true;
     }
 
-    cmd->SetGraphicsRootConstantBufferView(0,
-                                           constBuffer_->GetGPUVirtualAddress());
-    cmd->SetGraphicsRootDescriptorTable(1,
-                                        textureManager_->GetGpuHandle(textureId));
+    cmd->SetGraphicsRootConstantBufferView(
+        0, constBuffer_->GetGPUVirtualAddress());
+    cmd->SetGraphicsRootDescriptorTable(
+        1, textureManager_->GetGpuHandle(textureId));
     cmd->DrawIndexedInstanced(indexCount_, 1, 0, 0, 0);
 }
 
@@ -134,11 +126,9 @@ void SkyboxRenderer::CreateRootSignature() {
 
 void SkyboxRenderer::CreatePipelineState() {
     auto vs =
-        ShaderCompiler::Compile(L"engine/resources/shaders/skybox/SkyboxVS.hlsl", "main",
-                                "vs_5_0");
+        ShaderCompiler::Compile(ShaderPaths::SkyboxVS, "main", "vs_5_0");
     auto ps =
-        ShaderCompiler::Compile(L"engine/resources/shaders/skybox/SkyboxPS.hlsl", "main",
-                                "ps_5_0");
+        ShaderCompiler::Compile(ShaderPaths::SkyboxPS, "main", "ps_5_0");
 
     D3D12_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -152,7 +142,7 @@ void SkyboxRenderer::CreatePipelineState() {
     desc.InputLayout = {layout, _countof(layout)};
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = 1;
-    desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    desc.RTVFormats[0] = DirectXCommon::kSceneColorFormat;
     desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
     desc.SampleDesc.Count = 1;
     desc.SampleMask = UINT_MAX;
@@ -163,8 +153,7 @@ void SkyboxRenderer::CreatePipelineState() {
 
     desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 
-    D3D12_DEPTH_STENCIL_DESC depth =
-        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    D3D12_DEPTH_STENCIL_DESC depth = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     depth.DepthEnable = TRUE;
     depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     depth.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
@@ -173,15 +162,6 @@ void SkyboxRenderer::CreatePipelineState() {
     ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
                       &desc, IID_PPV_ARGS(&pipelineState_)),
                   "CreateGraphicsPipelineState(Skybox) failed");
-
-    depth.DepthEnable = FALSE;
-    depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    desc.DepthStencilState = depth;
-    desc.DSVFormat = DXGI_FORMAT_UNKNOWN;
-
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
-                      &desc, IID_PPV_ARGS(&noDepthPipelineState_)),
-                  "CreateGraphicsPipelineState(SkyboxNoDepth) failed");
 }
 
 void SkyboxRenderer::CreateMesh() {
@@ -197,9 +177,8 @@ void SkyboxRenderer::CreateMesh() {
     }};
 
     static constexpr std::array<uint32_t, 36> kIndices = {{
-        0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6,
-        4, 5, 1, 4, 1, 0, 3, 2, 6, 3, 6, 7,
-        1, 5, 6, 1, 6, 2, 4, 0, 3, 4, 3, 7,
+        0, 1, 2, 0, 2, 3, 4, 6, 5, 4, 7, 6, 4, 5, 1, 4, 1, 0,
+        3, 2, 6, 3, 6, 7, 1, 5, 6, 1, 6, 2, 4, 0, 3, 4, 3, 7,
     }};
 
     indexCount_ = static_cast<uint32_t>(kIndices.size());
@@ -256,9 +235,9 @@ void SkyboxRenderer::CreateConstantBuffer() {
                       IID_PPV_ARGS(&constBuffer_)),
                   "CreateCommittedResource(SkyboxCB) failed");
 
-    ThrowIfFailed(constBuffer_->Map(
-                      0, nullptr, reinterpret_cast<void **>(&mappedCB_)),
-                  "Map(SkyboxCB) failed");
+    ThrowIfFailed(
+        constBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mappedCB_)),
+        "Map(SkyboxCB) failed");
 
     XMStoreFloat4x4(&mappedCB_->matWVP, XMMatrixTranspose(XMMatrixIdentity()));
 }

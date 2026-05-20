@@ -1,17 +1,21 @@
-#include "SpriteRenderer.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
-#include "ShaderCompiler.h"
-#include "Sprite.h"
-#include "SrvManager.h"
-#include "TextureManager.h"
-#include <algorithm>
-#include <cmath>
-#include <stdexcept>
+#include "sprite/SpriteRenderer.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
+#include "graphics/ShaderCompiler.h"
+#include "graphics/ShaderPaths.h"
+#include "graphics/SrvManager.h"
+#include "sprite/Sprite.h"
+#include "texture/TextureManager.h"
 
 using namespace DirectX;
 using namespace DxUtils;
+
+struct SpriteVertex {
+    XMFLOAT3 pos;
+    XMFLOAT2 uv;
+    XMFLOAT4 color;
+};
 
 struct SpriteConstBuffer {
     XMFLOAT4X4 mat;
@@ -26,121 +30,80 @@ void SpriteRenderer::Initialize(DirectXCommon *dxCommon,
 
     CreateRootSignature();
     CreatePipelineState();
-    CreateVertexBuffer();
-    CreateConstantBuffer();
+    CreateUploadBuffer();
     UpdateProjection(width, height);
 }
 
 void SpriteRenderer::Draw(const Sprite &sprite) {
     auto cmd = dxCommon_->GetCommandList();
+    const float l = sprite.position.x;
+    const float t = sprite.position.y;
+    const float r = sprite.position.x + sprite.size.x;
+    const float b = sprite.position.y + sprite.size.y;
+    const float u0 = sprite.uvLeftTop.x;
+    const float v0 = sprite.uvLeftTop.y;
+    const float u1 = sprite.uvLeftTop.x + sprite.uvSize.x;
+    const float v1 = sprite.uvLeftTop.y + sprite.uvSize.y;
 
-    // 頂点生成
-    float l = sprite.position.x;
-    float t = sprite.position.y;
-    float r = sprite.position.x + sprite.size.x;
-    float b = sprite.position.y + sprite.size.y;
+    auto drawPass = [&](PipelineKind pipelineKind, const XMFLOAT4 &color) {
+        if (drawCursor_ >= kMaxSpriteDraws) {
+            return;
+        }
 
-    SpriteVertex vertices[6] = {
-        {{l, t, 0.0f}, {0.0f, 0.0f}, sprite.color},
-        {{r, t, 0.0f}, {1.0f, 0.0f}, sprite.color},
-        {{l, b, 0.0f}, {0.0f, 1.0f}, sprite.color},
+        if (activePipelineKind_ != pipelineKind) {
+            activePipelineKind_ = pipelineKind;
+            cmd->SetPipelineState(
+                pipelineStates_[static_cast<uint32_t>(activePipelineKind_)]
+                    .Get());
+        }
 
-        {{l, b, 0.0f}, {0.0f, 1.0f}, sprite.color},
-        {{r, t, 0.0f}, {1.0f, 0.0f}, sprite.color},
-        {{r, b, 0.0f}, {1.0f, 1.0f}, sprite.color},
+        SpriteVertex vertices[6] = {
+            {{l, t, 0.0f}, {u0, v0}, color}, {{r, t, 0.0f}, {u1, v0}, color},
+            {{l, b, 0.0f}, {u0, v1}, color},
+
+            {{l, b, 0.0f}, {u0, v1}, color}, {{r, t, 0.0f}, {u1, v0}, color},
+            {{r, b, 0.0f}, {u1, v1}, color},
+        };
+
+        ++drawCursor_;
+        const UploadAllocation allocation =
+            uploadBuffer_.WriteArray(vertices, kVerticesPerSprite,
+                                     alignof(SpriteVertex));
+        D3D12_VERTEX_BUFFER_VIEW view{};
+        view.BufferLocation = allocation.gpu;
+        view.SizeInBytes = sizeof(vertices);
+        view.StrideInBytes = sizeof(SpriteVertex);
+        cmd->IASetVertexBuffers(0, 1, &view);
+        cmd->SetGraphicsRootDescriptorTable(
+            1, textureManager_->GetGpuHandle(sprite.textureId));
+        cmd->DrawInstanced(6, 1, 0, 0);
     };
 
-    // テクスチャ
-    cmd->SetGraphicsRootDescriptorTable(
-        1, textureManager_->GetGpuHandle(sprite.textureId));
+    switch (sprite.blendMode) {
+    case SpriteBlendMode::Modulate:
+        drawPass(PipelineKind::Modulate, sprite.color);
+        break;
+    case SpriteBlendMode::PremultipliedMask: {
 
-    DrawVertices(vertices, 6);
-}
-
-void SpriteRenderer::DrawFilledCircle(const XMFLOAT2 &center, float radius,
-                                      const XMFLOAT4 &color,
-                                      uint32_t segments) {
-    if (radius <= 0.0f) {
-        return;
+        const XMFLOAT4 darkenColor = {
+            sprite.color.x * 0.60f, sprite.color.y * 0.60f,
+            sprite.color.z * 0.60f, sprite.color.w * 1.10f};
+        const XMFLOAT4 tintColor = {sprite.color.x, sprite.color.y,
+                                    sprite.color.z, sprite.color.w * 0.64f};
+        drawPass(PipelineKind::Modulate, darkenColor);
+        drawPass(PipelineKind::Alpha, tintColor);
+        break;
     }
-    segments = (std::max)(segments, 3u);
-    constexpr float kTwoPi = 6.28318530717958647692f;
-    for (uint32_t i = 0; i < segments; ++i) {
-        const float a0 = kTwoPi * static_cast<float>(i) /
-                         static_cast<float>(segments);
-        const float a1 = kTwoPi * static_cast<float>(i + 1) /
-                         static_cast<float>(segments);
-        DrawPrimitiveTriangle(
-            center, {center.x + std::cosf(a0) * radius,
-                     center.y + std::sinf(a0) * radius},
-            {center.x + std::cosf(a1) * radius,
-             center.y + std::sinf(a1) * radius},
-            color);
+    case SpriteBlendMode::Alpha:
+    default:
+        drawPass(PipelineKind::Alpha, sprite.color);
+        break;
     }
 }
 
-void SpriteRenderer::DrawCircle(const XMFLOAT2 &center, float radius,
-                                const XMFLOAT4 &color, float thickness,
-                                uint32_t segments) {
-    if (radius <= 0.0f || thickness <= 0.0f) {
-        return;
-    }
-    segments = (std::max)(segments, 3u);
-    constexpr float kTwoPi = 6.28318530717958647692f;
-    XMFLOAT2 prev{center.x + radius, center.y};
-    for (uint32_t i = 1; i <= segments; ++i) {
-        const float angle = kTwoPi * static_cast<float>(i) /
-                            static_cast<float>(segments);
-        XMFLOAT2 next{center.x + std::cosf(angle) * radius,
-                      center.y + std::sinf(angle) * radius};
-        DrawLine(prev, next, color, thickness);
-        prev = next;
-    }
-}
-
-void SpriteRenderer::DrawLine(const XMFLOAT2 &start, const XMFLOAT2 &end,
-                              const XMFLOAT4 &color, float thickness) {
-    const float dx = end.x - start.x;
-    const float dy = end.y - start.y;
-    const float length = std::sqrtf(dx * dx + dy * dy);
-    if (length <= 0.0001f || thickness <= 0.0f) {
-        return;
-    }
-
-    const float half = thickness * 0.5f;
-    const float nx = -dy / length * half;
-    const float ny = dx / length * half;
-
-    DrawPrimitiveQuad({start.x + nx, start.y + ny}, {end.x + nx, end.y + ny},
-                      {end.x - nx, end.y - ny}, {start.x - nx, start.y - ny},
-                      color);
-}
-
-void SpriteRenderer::DrawPolyline(const XMFLOAT2 *points, size_t pointCount,
-                                  const XMFLOAT4 &color, bool closed,
-                                  float thickness) {
-    if (points == nullptr || pointCount < 2) {
-        return;
-    }
-
-    for (size_t i = 1; i < pointCount; ++i) {
-        DrawLine(points[i - 1], points[i], color, thickness);
-    }
-    if (closed) {
-        DrawLine(points[pointCount - 1], points[0], color, thickness);
-    }
-}
-
-void SpriteRenderer::DrawConvexPolygon(const XMFLOAT2 *points,
-                                       size_t pointCount,
-                                       const XMFLOAT4 &color) {
-    if (points == nullptr || pointCount < 3) {
-        return;
-    }
-
-    for (size_t i = 2; i < pointCount; ++i) {
-        DrawPrimitiveTriangle(points[0], points[i - 1], points[i], color);
-    }
+void SpriteRenderer::BeginFrame() {
+    uploadBuffer_.BeginFrame();
+    drawCursor_ = 0;
 }
 
 void SpriteRenderer::PreDraw() {
@@ -149,112 +112,23 @@ void SpriteRenderer::PreDraw() {
     ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
     cmd->SetDescriptorHeaps(1, heaps);
 
-    cmd->SetPipelineState(pipelineState_.Get());
+    activePipelineKind_ = PipelineKind::Alpha;
+    cmd->SetPipelineState(
+        pipelineStates_[static_cast<uint32_t>(activePipelineKind_)].Get());
     cmd->SetGraphicsRootSignature(rootSignature_.Get());
 
-    cmd->SetGraphicsRootConstantBufferView(
-        0, constBuffer_->GetGPUVirtualAddress());
+    SpriteConstBuffer constants{};
+    constants.mat = matProjection_;
+    const UploadAllocation allocation = uploadBuffer_.Write(constants);
+    cmd->SetGraphicsRootConstantBufferView(0, allocation.gpu);
 
     cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    vertexCursor_ = 0;
 }
 
 void SpriteRenderer::PostDraw() {}
 
-void SpriteRenderer::DrawPrimitiveTriangle(const XMFLOAT2 &a, const XMFLOAT2 &b,
-                                           const XMFLOAT2 &c,
-                                           const XMFLOAT4 &color) {
-    auto cmd = dxCommon_->GetCommandList();
-
-    SpriteVertex vertices[6] = {
-        {{a.x, a.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
-        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
-        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f, 0.0f}},
-    };
-
-    cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
-    DrawVertices(vertices, 3);
-}
-
-void SpriteRenderer::DrawPrimitiveQuad(const XMFLOAT2 &a, const XMFLOAT2 &b,
-                                       const XMFLOAT2 &c, const XMFLOAT2 &d,
-                                       const XMFLOAT4 &color) {
-    auto cmd = dxCommon_->GetCommandList();
-
-    SpriteVertex vertices[6] = {
-        {{a.x, a.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{d.x, d.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{d.x, d.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{b.x, b.y, 0.0f}, {0.0f, 0.0f}, color},
-        {{c.x, c.y, 0.0f}, {0.0f, 0.0f}, color},
-    };
-
-    cmd->SetGraphicsRootDescriptorTable(1, textureManager_->GetGpuHandle(0));
-    DrawVertices(vertices, 6);
-}
-
-void SpriteRenderer::DrawVertices(const SpriteVertex *vertices,
-                                  UINT vertexCount) {
-    if (!vertices || vertexCount == 0) {
-        return;
-    }
-    if (vertexCursor_ + vertexCount > kMaxDynamicVertices) {
-        throw std::runtime_error("Sprite dynamic vertex buffer exhausted");
-    }
-
-    const UINT startVertex = vertexCursor_;
-    memcpy(vertexMapped_ + startVertex, vertices,
-           sizeof(SpriteVertex) * vertexCount);
-    vertexCursor_ += vertexCount;
-
-    D3D12_VERTEX_BUFFER_VIEW view = vbView_;
-    view.BufferLocation += sizeof(SpriteVertex) * startVertex;
-    view.SizeInBytes = sizeof(SpriteVertex) * vertexCount;
-
-    auto cmd = dxCommon_->GetCommandList();
-    cmd->IASetVertexBuffers(0, 1, &view);
-    cmd->DrawInstanced(vertexCount, 1, 0, 0);
-}
-
-void SpriteRenderer::CreateVertexBuffer() {
-    UINT size = sizeof(SpriteVertex) * kMaxDynamicVertices;
-
-    CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
-    auto desc = CD3DX12_RESOURCE_DESC::Buffer(size);
-
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateCommittedResource(
-                      &heap, D3D12_HEAP_FLAG_NONE, &desc,
-                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                      IID_PPV_ARGS(&vertexBuffer_)),
-                  "Create sprite VB failed");
-
-    vbView_.BufferLocation = vertexBuffer_->GetGPUVirtualAddress();
-    vbView_.SizeInBytes = size;
-    vbView_.StrideInBytes = sizeof(SpriteVertex);
-
-    vertexBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&vertexMapped_));
-}
-
-void SpriteRenderer::CreateConstantBuffer() {
-    UINT size = Align256(sizeof(SpriteConstBuffer));
-
-    CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
-    auto desc = CD3DX12_RESOURCE_DESC::Buffer(size);
-
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateCommittedResource(
-                      &heap, D3D12_HEAP_FLAG_NONE, &desc,
-                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                      IID_PPV_ARGS(&constBuffer_)),
-                  "Create sprite CB failed");
-
-    SpriteConstBuffer *mapped = nullptr;
-    constBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
-    mapped->mat = matProjection_;
-    constBuffer_->Unmap(0, nullptr);
+void SpriteRenderer::CreateUploadBuffer() {
+    uploadBuffer_.Initialize(dxCommon_->GetDevice(), kUploadBytesPerFrame, 2);
 }
 
 void SpriteRenderer::UpdateProjection(int width, int height) {
@@ -263,11 +137,6 @@ void SpriteRenderer::UpdateProjection(int width, int height) {
         1.0f);
 
     XMStoreFloat4x4(&matProjection_, XMMatrixTranspose(ortho));
-
-    SpriteConstBuffer *mapped = nullptr;
-    constBuffer_->Map(0, nullptr, reinterpret_cast<void **>(&mapped));
-    mapped->mat = matProjection_;
-    constBuffer_->Unmap(0, nullptr);
 }
 
 void SpriteRenderer::CreateRootSignature() {
@@ -297,10 +166,13 @@ void SpriteRenderer::CreateRootSignature() {
 }
 
 void SpriteRenderer::CreatePipelineState() {
-    auto vs = ShaderCompiler::Compile(L"engine/resources/shaders/sprite/SpriteVS.hlsl",
-                                      "main", "vs_5_0");
-    auto ps = ShaderCompiler::Compile(L"engine/resources/shaders/sprite/SpritePS.hlsl",
-                                      "main", "ps_5_0");
+    auto vs = ShaderCompiler::Compile(ShaderPaths::SpriteVS, "main", "vs_5_0");
+    auto psAlpha =
+        ShaderCompiler::Compile(ShaderPaths::SpritePS, "main", "ps_5_0");
+    auto psModulate = ShaderCompiler::Compile(ShaderPaths::SpritePS,
+                                              "mainModulate", "ps_5_0");
+    auto psPremultipliedMask = ShaderCompiler::Compile(
+        ShaderPaths::SpritePS, "mainPremultipliedMask", "ps_5_0");
 
     D3D12_INPUT_ELEMENT_DESC layout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
@@ -314,16 +186,14 @@ void SpriteRenderer::CreatePipelineState() {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
     desc.pRootSignature = rootSignature_.Get();
     desc.VS = {vs->GetBufferPointer(), vs->GetBufferSize()};
-    desc.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
     desc.InputLayout = {layout, _countof(layout)};
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = 1;
-    desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    desc.RTVFormats[0] = DirectXCommon::kSceneColorFormat;
     desc.SampleDesc.Count = 1;
     desc.SampleMask = UINT_MAX;
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    D3D12_DEPTH_STENCIL_DESC depth =
-        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    D3D12_DEPTH_STENCIL_DESC depth = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     depth.DepthEnable = FALSE;
     depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     desc.DepthStencilState = depth;
@@ -340,7 +210,36 @@ void SpriteRenderer::CreatePipelineState() {
     rt.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
     desc.BlendState = blend;
 
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateGraphicsPipelineState(
-                      &desc, IID_PPV_ARGS(&pipelineState_)),
-                  "CreateGraphicsPipelineState failed");
+    desc.PS = {psAlpha->GetBufferPointer(), psAlpha->GetBufferSize()};
+    ThrowIfFailed(
+        dxCommon_->GetDevice()->CreateGraphicsPipelineState(
+            &desc,
+            IID_PPV_ARGS(
+                &pipelineStates_[static_cast<uint32_t>(PipelineKind::Alpha)])),
+        "Create alpha sprite pipeline failed");
+
+    rt.SrcBlend = D3D12_BLEND_ZERO;
+    rt.DestBlend = D3D12_BLEND_SRC_COLOR;
+    rt.SrcBlendAlpha = D3D12_BLEND_ZERO;
+    rt.DestBlendAlpha = D3D12_BLEND_ONE;
+    desc.BlendState = blend;
+    desc.PS = {psModulate->GetBufferPointer(), psModulate->GetBufferSize()};
+    ThrowIfFailed(
+        dxCommon_->GetDevice()->CreateGraphicsPipelineState(
+            &desc, IID_PPV_ARGS(&pipelineStates_[static_cast<uint32_t>(
+                       PipelineKind::Modulate)])),
+        "Create modulate sprite pipeline failed");
+
+    rt.SrcBlend = D3D12_BLEND_ONE;
+    rt.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+    rt.SrcBlendAlpha = D3D12_BLEND_ONE;
+    rt.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+    desc.BlendState = blend;
+    desc.PS = {psPremultipliedMask->GetBufferPointer(),
+               psPremultipliedMask->GetBufferSize()};
+    ThrowIfFailed(
+        dxCommon_->GetDevice()->CreateGraphicsPipelineState(
+            &desc, IID_PPV_ARGS(&pipelineStates_[static_cast<uint32_t>(
+                       PipelineKind::PremultipliedMask)])),
+        "Create premultiplied mask sprite pipeline failed");
 }

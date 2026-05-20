@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="public">
+      <UniqueIdentifier>{398E9867-F7B5-4B9D-9B7B-F1E079379CC2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{731E5431-7276-4A35-B644-56082B1085A5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="include\scene">
+      <UniqueIdentifier>{22A9E79A-4815-48F9-A095-018C6F5672F5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{D9012924-5983-4774-B95C-E6F1204B8184}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\core">
+      <UniqueIdentifier>{51B1FC0C-64B5-4496-9FBB-09B70570DFD1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\scene">
+      <UniqueIdentifier>{15B8F764-7D48-4627-A853-21716C47632C}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="$(ProjectDir)src\core\App.cpp">
+      <Filter>src\core</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)src\scene\GameScene.cpp">
+      <Filter>src\scene</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="$(ProjectDir)public\App.h">
+      <Filter>public</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ProjectDir)include\scene\GameScene.h">
+      <Filter>include\scene</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,27 +1,105 @@
-#include "ModelRenderer.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
-#include "GBuffer.h"
-#include "MaterialManager.h"
-#include "MeshRenderer.h"
-#include "MeshManager.h"
-#include "ShaderCompiler.h"
-#include "SrvManager.h"
-#include "TextureManager.h"
-#include "Vertex.h"
-#include "World.h"
+#include "model/ModelRenderer.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
+#include "graphics/ShaderCompiler.h"
+#include "graphics/ShaderPaths.h"
+#include "graphics/SrvManager.h"
+#include "model/MaterialManager.h"
+#include "model/MeshManager.h"
+#include "model/Vertex.h"
+#include "texture/TextureManager.h"
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstring>
+#include <vector>
 
 using namespace DirectX;
 using namespace DxUtils;
 using Microsoft::WRL::ComPtr;
 
+namespace {
+
+constexpr UINT kSkinningThreadCount = 1024u;
+
+bool IsTransparentMaterial(const Material &material) {
+    return material.blendMode == static_cast<int32_t>(BlendMode::Transparent) ||
+           material.color.w < 1.0f;
+}
+
+D3D12_CULL_MODE ToD3D12CullMode(const MaterialCullMode mode) {
+    switch (mode) {
+    case MaterialCullMode::None:
+        return D3D12_CULL_MODE_NONE;
+    case MaterialCullMode::Front:
+        return D3D12_CULL_MODE_FRONT;
+    case MaterialCullMode::Back:
+    default:
+        return D3D12_CULL_MODE_BACK;
+    }
+}
+
+size_t PipelineVariantIndex(bool transparent, MaterialCullMode cullMode,
+                            bool depthWrite) {
+    const size_t blendIndex = transparent ? 1 : 0;
+    const size_t cullIndex = static_cast<size_t>(cullMode);
+    const size_t depthIndex = depthWrite ? 1 : 0;
+    return blendIndex * 6 + cullIndex * 2 + depthIndex;
+}
+
+size_t PipelineVariantIndex(const Material &material) {
+    const Material drawMaterial = NormalizeMaterialForDraw(material);
+    MaterialCullMode cullMode =
+        static_cast<MaterialCullMode>(drawMaterial.cullMode);
+    if (drawMaterial.cullMode < static_cast<int32_t>(MaterialCullMode::None) ||
+        drawMaterial.cullMode > static_cast<int32_t>(MaterialCullMode::Back)) {
+        cullMode = MaterialCullMode::Back;
+    }
+    return PipelineVariantIndex(IsTransparentMaterial(drawMaterial), cullMode,
+                                drawMaterial.depthWrite != 0);
+}
+
+uint32_t ResolveNormalTextureId(TextureManager *textureManager,
+                                uint32_t normalTextureId) {
+    return normalTextureId == UINT32_MAX
+               ? textureManager->GetDefaultNormalTextureId()
+               : normalTextureId;
+}
+
+uint32_t ResolveBaseColorTextureId(const Material &material,
+                                   uint32_t fallbackTextureId) {
+    return material.baseColorTextureId == UINT32_MAX
+               ? fallbackTextureId
+               : material.baseColorTextureId;
+}
+
+uint32_t ResolveNormalTextureId(TextureManager *textureManager,
+                                const Material &material,
+                                uint32_t fallbackTextureId) {
+    const uint32_t textureId = material.normalTextureId == UINT32_MAX
+                                   ? fallbackTextureId
+                                   : material.normalTextureId;
+    return ResolveNormalTextureId(textureManager, textureId);
+}
+
+}
+
 static XMFLOAT4X4 StoreMatrix(const XMMATRIX &matrix) {
     XMFLOAT4X4 result{};
     XMStoreFloat4x4(&result, matrix);
     return result;
+}
+
+static XMMATRIX MakeSafeInverseTranspose(const XMMATRIX &matrix) {
+    const XMVECTOR determinant = XMMatrixDeterminant(matrix);
+    const float determinantValue = XMVectorGetX(determinant);
+    if (!std::isfinite(determinantValue) ||
+        std::abs(determinantValue) <= 0.000001f) {
+        return XMMatrixIdentity();
+    }
+
+    return XMMatrixTranspose(XMMatrixInverse(nullptr, matrix));
 }
 
 static void NormalizeInfluence(VertexInfluence &influence) {
@@ -39,43 +117,33 @@ static void NormalizeInfluence(VertexInfluence &influence) {
     }
 }
 
-static XMMATRIX MakeWorldMatrix(const Transform &transform,
-                                const SkeletonPoseComponent *pose) {
-    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
-
-    XMMATRIX world =
-        XMMatrixScaling(transform.scale.x, transform.scale.y,
-                        transform.scale.z) *
-        XMMatrixRotationQuaternion(q) *
-        XMMatrixTranslation(transform.position.x, transform.position.y,
-                            transform.position.z);
-
-    if (pose && pose->hasRootAnimation) {
-        world = XMLoadFloat4x4(&pose->rootAnimationMatrix) * world;
-    }
-
-    return world;
-}
-
-static XMMATRIX MakeWorldMatrix(const XMFLOAT4X4 &worldMatrix,
-                                const SkeletonPoseComponent *pose) {
-    XMMATRIX world = XMLoadFloat4x4(&worldMatrix);
-    if (pose && pose->hasRootAnimation) {
-        world = XMLoadFloat4x4(&pose->rootAnimationMatrix) * world;
-    }
-    return world;
-}
-
 struct PerObjectConstBufferData {
     XMFLOAT4X4 matWVP;
     XMFLOAT4X4 matWorld;
+    XMFLOAT4X4 matWorldInverseTranspose;
 };
 
 struct SceneConstBufferData {
+    struct PointLightData {
+        XMFLOAT4 positionRange;
+        XMFLOAT4 colorIntensity;
+    };
+
     XMFLOAT4 cameraPos;
-    XMFLOAT4 effectColor;
-    XMFLOAT4 effectParams;
-    ForwardLightingData lighting;
+    XMFLOAT4 keyLightDirection;
+    XMFLOAT4 keyLightColor;
+    XMFLOAT4 fillLightDirection;
+    XMFLOAT4 fillLightColor;
+    XMFLOAT4 ambientColor;
+    PointLightData pointLights[2];
+    XMFLOAT4 lightingParams;
+    XMFLOAT4 lightingModeParams;
+    XMFLOAT4 fogColor;
+    XMFLOAT4 fogParams;
+    XMFLOAT4X4 viewProjection;
+    XMFLOAT4X4 lightViewProjection;
+    XMFLOAT4 shadowParams;
+    XMFLOAT4 shadowFilterParams;
 };
 
 void ModelRenderer::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
@@ -89,10 +157,17 @@ void ModelRenderer::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
     materialManager_ = materialManager;
 
     CreateRootSignature();
+    CreateShadowRootSignature();
     CreateSkinningRootSignature();
     CreatePipelineState();
+    CreateShadowPipelineState();
     CreateSkinningPipelineState();
-    CreateConstantBuffer();
+    CreateUploadBuffer();
+}
+
+void ModelRenderer::BeginFrame() {
+    uploadBuffer_.BeginFrame();
+    drawIndex_ = 0;
 }
 
 void ModelRenderer::PreDraw() {
@@ -102,129 +177,50 @@ void ModelRenderer::PreDraw() {
     cmd->SetDescriptorHeaps(1, heaps);
 
     cmd->SetGraphicsRootSignature(rootSignature_.Get());
-    cmd->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     drawIndex_ = 0;
 }
 
 void ModelRenderer::Draw(const Model &model, const Transform &transform,
-                         const Camera &camera,
-                         uint32_t environmentTextureId) {
-    DrawInternal(model, nullptr, &transform, camera, nullptr, kInvalidEntity,
-                 environmentTextureId);
-}
-
-void ModelRenderer::Draw(const Model &model, const XMFLOAT4X4 &worldMatrix,
-                         const Camera &camera,
-                         uint32_t environmentTextureId) {
-    DrawInternal(model, &worldMatrix, nullptr, camera, nullptr, kInvalidEntity,
-                 environmentTextureId);
-}
-
-void ModelRenderer::Draw(const Model &model, const Transform &transform,
-                         const Camera &camera,
-                         const SkeletonPoseComponent &pose, Entity entity,
-                         uint32_t environmentTextureId) {
-    DrawInternal(model, nullptr, &transform, camera, &pose, entity,
-                 environmentTextureId);
-}
-
-void ModelRenderer::Draw(const Model &model, const XMFLOAT4X4 &worldMatrix,
-                         const Camera &camera,
-                         const SkeletonPoseComponent &pose, Entity entity,
-                         uint32_t environmentTextureId) {
-    DrawInternal(model, &worldMatrix, nullptr, camera, &pose, entity,
-                 environmentTextureId);
-}
-
-void ModelRenderer::DrawInternal(const Model &model,
-                                 const Transform &transform,
-                                 const Camera &camera,
-                                 const SkeletonPoseComponent *pose,
-                                 Entity entity,
-                                 uint32_t environmentTextureId) {
-    DrawInternal(model, nullptr, &transform, camera, pose, entity,
-                 environmentTextureId);
-}
-
-void ModelRenderer::DrawInternal(const Model &model,
-                                 const XMFLOAT4X4 *worldMatrix,
-                                 const Transform *transform,
-                                 const Camera &camera,
-                                 const SkeletonPoseComponent *pose,
-                                 Entity entity,
-                                 uint32_t environmentTextureId) {
+                         const Camera &camera, uint32_t environmentTextureId) {
     if (drawIndex_ >= kMaxDraws) {
-#ifdef _DEBUG
-        if (!drawLimitWarningIssued_) {
-            OutputDebugStringA("[ModelRenderer] kMaxDraws exceeded; draw skipped\n");
-            drawLimitWarningIssued_ = true;
-        }
-#endif
         return;
     }
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMMATRIX world = worldMatrix ? MakeWorldMatrix(*worldMatrix, pose)
-                                 : MakeWorldMatrix(*transform, pose);
+    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+
+    XMMATRIX world =
+        XMMatrixScaling(transform.scale.x, transform.scale.y,
+                        transform.scale.z) *
+        XMMatrixRotationQuaternion(q) *
+        XMMatrixTranslation(transform.position.x, transform.position.y,
+                            transform.position.z);
+
+    if (model.hasRootAnimation) {
+        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
+    }
+
+    XMMATRIX worldInverseTranspose = MakeSafeInverseTranspose(world);
+
     XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
 
-    auto drawSubMesh = [&](const ModelSubMesh &subMesh,
-                           size_t subMeshIndex) {
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
         if (drawIndex_ >= kMaxDraws) {
-#ifdef _DEBUG
-            if (!drawLimitWarningIssued_) {
-                OutputDebugStringA(
-                    "[ModelRenderer] kMaxDraws exceeded; submesh draw skipped\n");
-                drawLimitWarningIssued_ = true;
-            }
-#endif
             return;
         }
 
-        auto *objectDst = reinterpret_cast<PerObjectConstBufferData *>(
-            mappedObjectCB_ + objectCbStride_ * drawIndex_);
-        auto *sceneDst = reinterpret_cast<SceneConstBufferData *>(
-            mappedSceneCB_ + sceneCbStride_ * drawIndex_);
-        XMStoreFloat4x4(&objectDst->matWVP, XMMatrixTranspose(wvp));
-        XMStoreFloat4x4(&objectDst->matWorld, XMMatrixTranspose(world));
-        sceneDst->cameraPos = {camera.GetPosition().x, camera.GetPosition().y,
-                               camera.GetPosition().z, 1.0f};
-        sceneDst->effectColor = currentEffect_.color;
-        sceneDst->effectParams = {
-            currentEffect_.enabled ? currentEffect_.intensity : 0.0f,
-            currentEffect_.fresnelPower,
-            currentEffect_.noiseAmount,
-            currentEffect_.time,
-        };
-        sceneDst->lighting = currentLighting_;
-
         D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
-            objectConstBuffer_->GetGPUVirtualAddress() +
-            objectCbStride_ * drawIndex_;
-        D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr =
-            sceneConstBuffer_->GetGPUVirtualAddress() +
-            sceneCbStride_ * drawIndex_;
+            WriteObjectConstants(wvp, world, worldInverseTranspose);
+        D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr = WriteSceneConstants(camera);
 
-        const D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle =
-            ResolvePaletteHandle(model, subMesh, subMeshIndex, pose, entity);
-        DispatchSkinning(subMesh, paletteSrvGpuHandle);
+        DispatchSkinning(subMesh);
 
         const Material &material =
             materialManager_->GetMaterial(subMesh.materialId);
 
-        if (currentEffect_.enabled && currentEffect_.additiveBlend) {
-            if (currentEffect_.disableCulling) {
-                cmd->SetPipelineState(additiveNoCullPSO_.Get());
-            } else {
-                cmd->SetPipelineState(additivePSO_.Get());
-            }
-        } else if (material.color.w < 1.0f || currentEffect_.enabled) {
-            cmd->SetPipelineState(transparentPSO_.Get());
-        } else {
-            cmd->SetPipelineState(opaquePSO_.Get());
-        }
+        SetPipelineForMaterial(material);
 
         const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
         const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
@@ -237,32 +233,37 @@ void ModelRenderer::DrawInternal(const Model &model,
         cmd->SetGraphicsRootConstantBufferView(
             2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
         cmd->SetGraphicsRootDescriptorTable(
-            3, textureManager_->GetGpuHandle(subMesh.textureId));
-        cmd->SetGraphicsRootDescriptorTable(4, paletteSrvGpuHandle);
+            3, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
+        cmd->SetGraphicsRootDescriptorTable(
+            4, subMesh.skinCluster.paletteSrvGpuHandle);
         const bool hasPerDrawEnvironmentTexture =
             (environmentTextureId != UINT32_MAX);
         const bool useEnvironmentTexture =
             hasPerDrawEnvironmentTexture || hasEnvironmentTexture_;
-        const uint32_t boundEnvironmentTextureId =
-            useEnvironmentTexture
-                ? (hasPerDrawEnvironmentTexture ? environmentTextureId
-                                                : environmentTextureId_)
-                : textureManager_->GetDefaultCubeTextureId();
+        const uint32_t boundEnvironmentTextureId = hasPerDrawEnvironmentTexture
+                                                       ? environmentTextureId
+                                                       : environmentTextureId_;
+        if (useEnvironmentTexture) {
+            cmd->SetGraphicsRootDescriptorTable(
+                5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
+        }
+        cmd->SetGraphicsRootDescriptorTable(6, shadowMapGpuHandle_);
         cmd->SetGraphicsRootDescriptorTable(
-            5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
-        cmd->SetGraphicsRootDescriptorTable(
-            6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
+            7, textureManager_->GetGpuHandle(ResolveNormalTextureId(
+                   textureManager_, material, subMesh.normalTextureId)));
 
         cmd->IASetVertexBuffers(0, 1, &vertexBufferView);
         cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
         cmd->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
 
         drawIndex_++;
     };
 
     if (!model.subMeshes.empty()) {
-        for (size_t i = 0; i < model.subMeshes.size(); ++i) {
-            drawSubMesh(model.subMeshes[i], i);
+        for (const auto &subMesh : model.subMeshes) {
+            drawSubMesh(subMesh);
             if (drawIndex_ >= kMaxDraws) {
                 break;
             }
@@ -270,149 +271,354 @@ void ModelRenderer::DrawInternal(const Model &model,
     }
 }
 
-void ModelRenderer::DrawGBuffer(const Model &model, const Transform &transform,
-                                const Camera &camera) {
-    DrawGBufferInternal(model, nullptr, &transform, camera, nullptr,
-                        kInvalidEntity);
-}
-
-void ModelRenderer::DrawGBuffer(const Model &model,
-                                const XMFLOAT4X4 &worldMatrix,
-                                const Camera &camera) {
-    DrawGBufferInternal(model, &worldMatrix, nullptr, camera, nullptr,
-                        kInvalidEntity);
-}
-
-void ModelRenderer::DrawGBuffer(const Model &model,
-                                const Transform &transform,
-                                const Camera &camera,
-                                const SkeletonPoseComponent &pose,
-                                Entity entity) {
-    DrawGBufferInternal(model, nullptr, &transform, camera, &pose, entity);
-}
-
-void ModelRenderer::DrawGBufferInternal(const Model &model,
-                                        const Transform &transform,
-                                        const Camera &camera,
-                                        const SkeletonPoseComponent *pose,
-                                        Entity entity) {
-    DrawGBufferInternal(model, nullptr, &transform, camera, pose, entity);
-}
-
-void ModelRenderer::DrawGBuffer(const Model &model,
-                                const XMFLOAT4X4 &worldMatrix,
-                                const Camera &camera,
-                                const SkeletonPoseComponent &pose,
-                                Entity entity) {
-    DrawGBufferInternal(model, &worldMatrix, nullptr, camera, &pose, entity);
-}
-
-void ModelRenderer::DrawGBufferInternal(const Model &model,
-                                        const XMFLOAT4X4 *worldMatrix,
-                                        const Transform *transform,
-                                        const Camera &camera,
-                                        const SkeletonPoseComponent *pose,
-                                        Entity entity) {
-    if (drawIndex_ >= kMaxDraws) {
-#ifdef _DEBUG
-        if (!drawLimitWarningIssued_) {
-            OutputDebugStringA("[ModelRenderer] kMaxDraws exceeded; GBuffer draw skipped\n");
-            drawLimitWarningIssued_ = true;
-        }
-#endif
+void ModelRenderer::DrawInstanced(const Model &model,
+                                  const Transform *transforms,
+                                  uint32_t instanceCount,
+                                  const Camera &camera,
+                                  uint32_t environmentTextureId) {
+    if (!transforms || instanceCount == 0) {
         return;
     }
 
     auto cmd = dxCommon_->GetCommandList();
 
-    XMMATRIX world = worldMatrix ? MakeWorldMatrix(*worldMatrix, pose)
-                                 : MakeWorldMatrix(*transform, pose);
-    XMMATRIX wvp = world * camera.GetView() * camera.GetProj();
+    const D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+        WriteObjectConstants(XMMatrixIdentity(), XMMatrixIdentity(),
+                             XMMatrixIdentity());
+    const D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr = WriteSceneConstants(camera);
+    const D3D12_VERTEX_BUFFER_VIEW instanceView =
+        WriteInstances(model, transforms, instanceCount);
 
-    auto drawSubMesh = [&](const ModelSubMesh &subMesh,
-                           size_t subMeshIndex) {
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
         if (drawIndex_ >= kMaxDraws) {
-#ifdef _DEBUG
-            if (!drawLimitWarningIssued_) {
-                OutputDebugStringA(
-                    "[ModelRenderer] kMaxDraws exceeded; GBuffer submesh draw skipped\n");
-                drawLimitWarningIssued_ = true;
-            }
-#endif
             return;
         }
 
-        auto *objectDst = reinterpret_cast<PerObjectConstBufferData *>(
-            mappedObjectCB_ + objectCbStride_ * drawIndex_);
-        auto *sceneDst = reinterpret_cast<SceneConstBufferData *>(
-            mappedSceneCB_ + sceneCbStride_ * drawIndex_);
-        XMStoreFloat4x4(&objectDst->matWVP, XMMatrixTranspose(wvp));
-        XMStoreFloat4x4(&objectDst->matWorld, XMMatrixTranspose(world));
-        sceneDst->cameraPos = {camera.GetPosition().x, camera.GetPosition().y,
-                               camera.GetPosition().z, 1.0f};
-        sceneDst->effectColor = currentEffect_.color;
-        sceneDst->effectParams = {
-            currentEffect_.enabled ? currentEffect_.intensity : 0.0f,
-            currentEffect_.fresnelPower,
-            currentEffect_.noiseAmount,
-            currentEffect_.time,
-        };
-        sceneDst->lighting = currentLighting_;
-
-        D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
-            objectConstBuffer_->GetGPUVirtualAddress() +
-            objectCbStride_ * drawIndex_;
-        D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr =
-            sceneConstBuffer_->GetGPUVirtualAddress() +
-            sceneCbStride_ * drawIndex_;
-
-        const D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle =
-            ResolvePaletteHandle(model, subMesh, subMeshIndex, pose, entity);
-        DispatchSkinning(subMesh, paletteSrvGpuHandle);
+        DispatchSkinning(subMesh);
 
         const Material &material =
             materialManager_->GetMaterial(subMesh.materialId);
-        if (material.color.w < 1.0f || currentEffect_.enabled) {
-            return;
-        }
+        SetInstancedPipelineForMaterial(material);
 
         const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
         const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
             subMesh.skinCluster.skinnedVertexResource
                 ? subMesh.skinCluster.skinnedVertexBufferView
                 : mesh.vbView;
+        D3D12_VERTEX_BUFFER_VIEW views[] = {vertexBufferView, instanceView};
 
-        cmd->SetPipelineState(gBufferPSO_.Get());
         cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
         cmd->SetGraphicsRootConstantBufferView(1, sceneCbAddr);
         cmd->SetGraphicsRootConstantBufferView(
             2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
         cmd->SetGraphicsRootDescriptorTable(
-            3, textureManager_->GetGpuHandle(subMesh.textureId));
-        cmd->SetGraphicsRootDescriptorTable(4, paletteSrvGpuHandle);
+            3, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
         cmd->SetGraphicsRootDescriptorTable(
-            5, textureManager_->GetGpuHandle(textureManager_->GetDefaultCubeTextureId()));
-        cmd->SetGraphicsRootDescriptorTable(
-            6, textureManager_->GetGpuHandle(dissolveNoiseTextureId_));
+            4, subMesh.skinCluster.paletteSrvGpuHandle);
 
-        cmd->IASetVertexBuffers(0, 1, &vertexBufferView);
+        const bool hasPerDrawEnvironmentTexture =
+            (environmentTextureId != UINT32_MAX);
+        const bool useEnvironmentTexture =
+            hasPerDrawEnvironmentTexture || hasEnvironmentTexture_;
+        const uint32_t boundEnvironmentTextureId = hasPerDrawEnvironmentTexture
+                                                       ? environmentTextureId
+                                                       : environmentTextureId_;
+        if (useEnvironmentTexture) {
+            cmd->SetGraphicsRootDescriptorTable(
+                5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
+        }
+        cmd->SetGraphicsRootDescriptorTable(6, shadowMapGpuHandle_);
+        cmd->SetGraphicsRootDescriptorTable(
+            7, textureManager_->GetGpuHandle(ResolveNormalTextureId(
+                   textureManager_, material, subMesh.normalTextureId)));
+
+        cmd->IASetVertexBuffers(0, 2, views);
         cmd->IASetIndexBuffer(&mesh.ibView);
-        cmd->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
+        cmd->DrawIndexedInstanced(mesh.indexCount, instanceCount, 0, 0, 0);
 
-        drawIndex_++;
+        ++drawIndex_;
     };
 
-    if (!model.subMeshes.empty()) {
-        for (size_t i = 0; i < model.subMeshes.size(); ++i) {
-            drawSubMesh(model.subMeshes[i], i);
-            if (drawIndex_ >= kMaxDraws) {
-                break;
-            }
+    for (const auto &subMesh : model.subMeshes) {
+        drawSubMesh(subMesh);
+        if (drawIndex_ >= kMaxDraws) {
+            break;
+        }
+    }
+}
+
+void ModelRenderer::DrawInstanced(const Model &model,
+                                  const InstanceData *instances,
+                                  uint32_t instanceCount,
+                                  const Camera &camera,
+                                  uint32_t environmentTextureId) {
+    if (!instances || instanceCount == 0) {
+        return;
+    }
+
+    auto cmd = dxCommon_->GetCommandList();
+
+    const D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+        WriteObjectConstants(XMMatrixIdentity(), XMMatrixIdentity(),
+                             XMMatrixIdentity());
+    const D3D12_GPU_VIRTUAL_ADDRESS sceneCbAddr = WriteSceneConstants(camera);
+    const D3D12_VERTEX_BUFFER_VIEW instanceView =
+        WriteInstances(model, instances, instanceCount);
+
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+        if (drawIndex_ >= kMaxDraws) {
+            return;
+        }
+
+        DispatchSkinning(subMesh);
+
+        const Material &material =
+            materialManager_->GetMaterial(subMesh.materialId);
+        SetInstancedPipelineForMaterial(material);
+
+        const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
+        const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
+            subMesh.skinCluster.skinnedVertexResource
+                ? subMesh.skinCluster.skinnedVertexBufferView
+                : mesh.vbView;
+        D3D12_VERTEX_BUFFER_VIEW views[] = {vertexBufferView, instanceView};
+
+        cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(1, sceneCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(
+            2, materialManager_->GetGPUVirtualAddress(subMesh.materialId));
+        cmd->SetGraphicsRootDescriptorTable(
+            3, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
+        cmd->SetGraphicsRootDescriptorTable(
+            4, subMesh.skinCluster.paletteSrvGpuHandle);
+
+        const bool hasPerDrawEnvironmentTexture =
+            (environmentTextureId != UINT32_MAX);
+        const bool useEnvironmentTexture =
+            hasPerDrawEnvironmentTexture || hasEnvironmentTexture_;
+        const uint32_t boundEnvironmentTextureId = hasPerDrawEnvironmentTexture
+                                                       ? environmentTextureId
+                                                       : environmentTextureId_;
+        if (useEnvironmentTexture) {
+            cmd->SetGraphicsRootDescriptorTable(
+                5, textureManager_->GetGpuHandle(boundEnvironmentTextureId));
+        }
+        cmd->SetGraphicsRootDescriptorTable(6, shadowMapGpuHandle_);
+        cmd->SetGraphicsRootDescriptorTable(
+            7, textureManager_->GetGpuHandle(ResolveNormalTextureId(
+                   textureManager_, material, subMesh.normalTextureId)));
+
+        cmd->IASetVertexBuffers(0, 2, views);
+        cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
+        cmd->DrawIndexedInstanced(mesh.indexCount, instanceCount, 0, 0, 0);
+
+        ++drawIndex_;
+    };
+
+    for (const auto &subMesh : model.subMeshes) {
+        drawSubMesh(subMesh);
+        if (drawIndex_ >= kMaxDraws) {
+            break;
         }
     }
 }
 
 void ModelRenderer::PostDraw() {}
+
+void ModelRenderer::SetShadowMap(
+    D3D12_GPU_DESCRIPTOR_HANDLE shadowMap,
+    const DirectX::XMFLOAT4X4 &lightViewProjection,
+    const SceneShadowSettings &settings) {
+    shadowMapGpuHandle_ = shadowMap;
+    shadowLightViewProjection_ = lightViewProjection;
+    shadowParams_ = {1.0f, settings.bias,
+                     (std::clamp)(settings.strength, 0.0f, 1.0f),
+                     settings.normalBias};
+    shadowFilterParams_ = {(std::max)(settings.filterRadius, 0.0f),
+                           (std::max)(settings.depthSoftness, 0.0001f),
+                           (std::max)(settings.edgeFade, 0.0f), 0.0f};
+}
+
+void ModelRenderer::PreDrawShadow() {
+    auto cmd = dxCommon_->GetCommandList();
+    ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
+    cmd->SetDescriptorHeaps(1, heaps);
+    cmd->SetGraphicsRootSignature(shadowRootSignature_.Get());
+    cmd->SetPipelineState(shadowPSO_.Get());
+}
+
+void ModelRenderer::DrawShadow(
+    const Model &model, const Transform &transform,
+    const DirectX::XMFLOAT4X4 &lightViewProjection) {
+    if (drawIndex_ >= kMaxDraws) {
+        return;
+    }
+
+    auto cmd = dxCommon_->GetCommandList();
+    XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+    XMMATRIX world =
+        XMMatrixScaling(transform.scale.x, transform.scale.y,
+                        transform.scale.z) *
+        XMMatrixRotationQuaternion(q) *
+        XMMatrixTranslation(transform.position.x, transform.position.y,
+                            transform.position.z);
+
+    if (model.hasRootAnimation) {
+        world = XMLoadFloat4x4(&model.rootAnimationMatrix) * world;
+    }
+
+    const XMMATRIX lightVP = XMLoadFloat4x4(&lightViewProjection);
+    const XMMATRIX wvp = world * lightVP;
+
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+        if (drawIndex_ >= kMaxDraws) {
+            return;
+        }
+
+        DispatchSkinning(subMesh);
+        cmd->SetGraphicsRootSignature(shadowRootSignature_.Get());
+        cmd->SetPipelineState(shadowPSO_.Get());
+        const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
+        const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
+            subMesh.skinCluster.skinnedVertexResource
+                ? subMesh.skinCluster.skinnedVertexBufferView
+                : mesh.vbView;
+
+        const D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+            WriteObjectConstants(wvp, world, XMMatrixIdentity());
+        const Material &material =
+            materialManager_->GetMaterial(subMesh.materialId);
+        const D3D12_GPU_VIRTUAL_ADDRESS materialCbAddr =
+            materialManager_->GetGPUVirtualAddress(subMesh.materialId);
+        cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(1, materialCbAddr);
+        cmd->SetGraphicsRootDescriptorTable(
+            2, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
+        cmd->IASetVertexBuffers(0, 1, &vertexBufferView);
+        cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
+        cmd->DrawIndexedInstanced(mesh.indexCount, 1, 0, 0, 0);
+        ++drawIndex_;
+    };
+
+    for (const auto &subMesh : model.subMeshes) {
+        drawSubMesh(subMesh);
+        if (drawIndex_ >= kMaxDraws) {
+            break;
+        }
+    }
+}
+
+void ModelRenderer::DrawInstancedShadow(
+    const Model &model, const Transform *transforms, uint32_t instanceCount,
+    const DirectX::XMFLOAT4X4 &lightViewProjection) {
+    if (!transforms || instanceCount == 0 || drawIndex_ >= kMaxDraws) {
+        return;
+    }
+
+    auto cmd = dxCommon_->GetCommandList();
+    const XMMATRIX lightVP = XMLoadFloat4x4(&lightViewProjection);
+    const D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+        WriteObjectConstants(lightVP, XMMatrixIdentity(), XMMatrixIdentity());
+    const D3D12_VERTEX_BUFFER_VIEW instanceView =
+        WriteInstances(model, transforms, instanceCount);
+
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+        if (drawIndex_ >= kMaxDraws) {
+            return;
+        }
+
+        DispatchSkinning(subMesh);
+        cmd->SetGraphicsRootSignature(shadowRootSignature_.Get());
+        cmd->SetPipelineState(instancedShadowPSO_.Get());
+        const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
+        const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
+            subMesh.skinCluster.skinnedVertexResource
+                ? subMesh.skinCluster.skinnedVertexBufferView
+                : mesh.vbView;
+        D3D12_VERTEX_BUFFER_VIEW views[] = {vertexBufferView, instanceView};
+
+        const Material &material =
+            materialManager_->GetMaterial(subMesh.materialId);
+        const D3D12_GPU_VIRTUAL_ADDRESS materialCbAddr =
+            materialManager_->GetGPUVirtualAddress(subMesh.materialId);
+        cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(1, materialCbAddr);
+        cmd->SetGraphicsRootDescriptorTable(
+            2, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
+        cmd->IASetVertexBuffers(0, 2, views);
+        cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
+        cmd->DrawIndexedInstanced(mesh.indexCount, instanceCount, 0, 0, 0);
+        ++drawIndex_;
+    };
+
+    for (const auto &subMesh : model.subMeshes) {
+        drawSubMesh(subMesh);
+        if (drawIndex_ >= kMaxDraws) {
+            break;
+        }
+    }
+}
+
+void ModelRenderer::DrawInstancedShadow(
+    const Model &model, const InstanceData *instances, uint32_t instanceCount,
+    const DirectX::XMFLOAT4X4 &lightViewProjection) {
+    if (!instances || instanceCount == 0 || drawIndex_ >= kMaxDraws) {
+        return;
+    }
+
+    auto cmd = dxCommon_->GetCommandList();
+    const XMMATRIX lightVP = XMLoadFloat4x4(&lightViewProjection);
+    const D3D12_GPU_VIRTUAL_ADDRESS objectCbAddr =
+        WriteObjectConstants(lightVP, XMMatrixIdentity(), XMMatrixIdentity());
+    const D3D12_VERTEX_BUFFER_VIEW instanceView =
+        WriteInstances(model, instances, instanceCount);
+
+    auto drawSubMesh = [&](const ModelSubMesh &subMesh) {
+        if (drawIndex_ >= kMaxDraws) {
+            return;
+        }
+
+        DispatchSkinning(subMesh);
+        cmd->SetGraphicsRootSignature(shadowRootSignature_.Get());
+        cmd->SetPipelineState(instancedShadowPSO_.Get());
+        const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
+        const D3D12_VERTEX_BUFFER_VIEW vertexBufferView =
+            subMesh.skinCluster.skinnedVertexResource
+                ? subMesh.skinCluster.skinnedVertexBufferView
+                : mesh.vbView;
+        D3D12_VERTEX_BUFFER_VIEW views[] = {vertexBufferView, instanceView};
+
+        const Material &material =
+            materialManager_->GetMaterial(subMesh.materialId);
+        const D3D12_GPU_VIRTUAL_ADDRESS materialCbAddr =
+            materialManager_->GetGPUVirtualAddress(subMesh.materialId);
+        cmd->SetGraphicsRootConstantBufferView(0, objectCbAddr);
+        cmd->SetGraphicsRootConstantBufferView(1, materialCbAddr);
+        cmd->SetGraphicsRootDescriptorTable(
+            2, textureManager_->GetGpuHandle(
+                   ResolveBaseColorTextureId(material, subMesh.textureId)));
+        cmd->IASetVertexBuffers(0, 2, views);
+        cmd->IASetIndexBuffer(&mesh.ibView);
+        cmd->IASetPrimitiveTopology(mesh.primitiveTopology);
+        cmd->DrawIndexedInstanced(mesh.indexCount, instanceCount, 0, 0, 0);
+        ++drawIndex_;
+    };
+
+    for (const auto &subMesh : model.subMeshes) {
+        drawSubMesh(subMesh);
+        if (drawIndex_ >= kMaxDraws) {
+            break;
+        }
+    }
+}
 
 void ModelRenderer::CreateSkinClusters(Model &model) {
     auto *device = dxCommon_->GetDevice();
@@ -428,8 +634,8 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
 
         if (subMesh.vertexCount > 0) {
             const Mesh &mesh = meshManager_->GetMesh(subMesh.meshId);
-            const UINT influenceBufferSize =
-                static_cast<UINT>(sizeof(VertexInfluence) * subMesh.vertexCount);
+            const UINT influenceBufferSize = static_cast<UINT>(
+                sizeof(VertexInfluence) * subMesh.vertexCount);
 
             CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
             auto influenceDesc =
@@ -441,17 +647,17 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                               IID_PPV_ARGS(&skinCluster.influenceResource)),
                           "CreateCommittedResource(InfluenceBuffer) failed");
 
-            ThrowIfFailed(skinCluster.influenceResource->Map(
-                              0, nullptr,
-                              reinterpret_cast<void **>(&skinCluster.mappedInfluence)),
-                          "InfluenceBuffer Map failed");
+            ThrowIfFailed(
+                skinCluster.influenceResource->Map(
+                    0, nullptr,
+                    reinterpret_cast<void **>(&skinCluster.mappedInfluence)),
+                "InfluenceBuffer Map failed");
 
             skinCluster.influenceCount = subMesh.vertexCount;
             std::memset(skinCluster.mappedInfluence, 0,
                         sizeof(VertexInfluence) * skinCluster.influenceCount);
 
             const UINT inputVertexSrvIndex = srvManager_->Allocate();
-            skinCluster.inputVertexSrvIndex = inputVertexSrvIndex;
             skinCluster.inputVertexSrvCpuHandle =
                 srvManager_->GetCpuHandle(inputVertexSrvIndex);
             skinCluster.inputVertexSrvGpuHandle =
@@ -466,12 +672,11 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
             vertexSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
             vertexSrvDesc.Buffer.NumElements = subMesh.vertexCount;
             vertexSrvDesc.Buffer.StructureByteStride = sizeof(Vertex);
-            device->CreateShaderResourceView(mesh.vertexBuffer.Get(),
-                                             &vertexSrvDesc,
-                                             skinCluster.inputVertexSrvCpuHandle);
+            device->CreateShaderResourceView(
+                mesh.vertexBuffer.Get(), &vertexSrvDesc,
+                skinCluster.inputVertexSrvCpuHandle);
 
             const UINT influenceSrvIndex = srvManager_->Allocate();
-            skinCluster.influenceSrvIndex = influenceSrvIndex;
             skinCluster.influenceSrvCpuHandle =
                 srvManager_->GetCpuHandle(influenceSrvIndex);
             skinCluster.influenceSrvGpuHandle =
@@ -485,7 +690,8 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
             influenceSrvDesc.Buffer.FirstElement = 0;
             influenceSrvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
             influenceSrvDesc.Buffer.NumElements = subMesh.vertexCount;
-            influenceSrvDesc.Buffer.StructureByteStride = sizeof(VertexInfluence);
+            influenceSrvDesc.Buffer.StructureByteStride =
+                sizeof(VertexInfluence);
             device->CreateShaderResourceView(
                 skinCluster.influenceResource.Get(), &influenceSrvDesc,
                 skinCluster.influenceSrvCpuHandle);
@@ -494,15 +700,15 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                 static_cast<UINT>(sizeof(Vertex) * subMesh.vertexCount);
             CD3DX12_HEAP_PROPERTIES defaultHeap(D3D12_HEAP_TYPE_DEFAULT);
             auto skinnedVertexDesc = CD3DX12_RESOURCE_DESC::Buffer(
-                skinnedVertexBufferSize, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+                skinnedVertexBufferSize,
+                D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
 
-            ThrowIfFailed(device->CreateCommittedResource(
-                              &defaultHeap, D3D12_HEAP_FLAG_NONE,
-                              &skinnedVertexDesc,
-                              D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-                              nullptr,
-                              IID_PPV_ARGS(&skinCluster.skinnedVertexResource)),
-                          "CreateCommittedResource(SkinnedVertexBuffer) failed");
+            ThrowIfFailed(
+                device->CreateCommittedResource(
+                    &defaultHeap, D3D12_HEAP_FLAG_NONE, &skinnedVertexDesc,
+                    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, nullptr,
+                    IID_PPV_ARGS(&skinCluster.skinnedVertexResource)),
+                "CreateCommittedResource(SkinnedVertexBuffer) failed");
 
             skinCluster.skinnedVertexBufferView.BufferLocation =
                 skinCluster.skinnedVertexResource->GetGPUVirtualAddress();
@@ -511,7 +717,6 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
             skinCluster.skinnedVertexBufferView.StrideInBytes = sizeof(Vertex);
 
             const UINT skinnedVertexUavIndex = srvManager_->Allocate();
-            skinCluster.skinnedVertexUavIndex = skinnedVertexUavIndex;
             skinCluster.skinnedVertexUavCpuHandle =
                 srvManager_->GetCpuHandle(skinnedVertexUavIndex);
             skinCluster.skinnedVertexUavGpuHandle =
@@ -529,7 +734,8 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                 &skinnedVertexUavDesc, skinCluster.skinnedVertexUavCpuHandle);
         }
 
-        for (const auto &[jointName, jointWeightData] : subMesh.skinClusterData) {
+        for (const auto &[jointName, jointWeightData] :
+             subMesh.skinClusterData) {
             const auto jointIt = model.boneMap.find(jointName);
             if (jointIt == model.boneMap.end()) {
                 continue;
@@ -581,10 +787,11 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
                           IID_PPV_ARGS(&skinCluster.paletteResource)),
                       "CreateCommittedResource(PaletteBuffer) failed");
 
-        ThrowIfFailed(skinCluster.paletteResource->Map(
-                          0, nullptr,
-                          reinterpret_cast<void **>(&skinCluster.mappedPalette)),
-                      "PaletteBuffer Map failed");
+        ThrowIfFailed(
+            skinCluster.paletteResource->Map(
+                0, nullptr,
+                reinterpret_cast<void **>(&skinCluster.mappedPalette)),
+            "PaletteBuffer Map failed");
 
         skinCluster.paletteCount = jointCount;
         for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
@@ -596,7 +803,6 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
         }
 
         const UINT srvIndex = srvManager_->Allocate();
-        skinCluster.paletteSrvIndex = srvIndex;
         skinCluster.paletteSrvCpuHandle = srvManager_->GetCpuHandle(srvIndex);
         skinCluster.paletteSrvGpuHandle = srvManager_->GetGpuHandle(srvIndex);
 
@@ -618,66 +824,6 @@ void ModelRenderer::CreateSkinClusters(Model &model) {
     UpdateSkinClusters(model);
 }
 
-void ModelRenderer::ReleaseSkinClusters(Model &model) {
-    if (!srvManager_) {
-        return;
-    }
-
-    for (auto &subMesh : model.subMeshes) {
-        SkinCluster &skinCluster = subMesh.skinCluster;
-
-        if (skinCluster.inputVertexSrvIndex != UINT_MAX) {
-            srvManager_->Free(skinCluster.inputVertexSrvIndex);
-            skinCluster.inputVertexSrvIndex = UINT_MAX;
-        }
-        if (skinCluster.influenceSrvIndex != UINT_MAX) {
-            srvManager_->Free(skinCluster.influenceSrvIndex);
-            skinCluster.influenceSrvIndex = UINT_MAX;
-        }
-        if (skinCluster.skinnedVertexUavIndex != UINT_MAX) {
-            srvManager_->Free(skinCluster.skinnedVertexUavIndex);
-            skinCluster.skinnedVertexUavIndex = UINT_MAX;
-        }
-        if (skinCluster.paletteSrvIndex != UINT_MAX) {
-            srvManager_->Free(skinCluster.paletteSrvIndex);
-            skinCluster.paletteSrvIndex = UINT_MAX;
-        }
-    }
-}
-
-void ModelRenderer::ReleaseInstanceSkinPalette(Entity entity) {
-    auto it = instanceSkinPalettes_.find(entity);
-    if (it == instanceSkinPalettes_.end() || !srvManager_) {
-        return;
-    }
-
-    for (auto &palette : it->second) {
-        if (palette.paletteSrvIndex != UINT_MAX) {
-            srvManager_->Free(palette.paletteSrvIndex);
-            palette.paletteSrvIndex = UINT_MAX;
-        }
-    }
-
-    instanceSkinPalettes_.erase(it);
-}
-
-void ModelRenderer::ReleaseUnusedInstanceSkinPalettes(const World &world) {
-    std::vector<Entity> unusedEntities;
-    unusedEntities.reserve(instanceSkinPalettes_.size());
-
-    for (const auto &[entity, _] : instanceSkinPalettes_) {
-        if (!world.IsAlive(entity) ||
-            !world.Has<SkeletonPoseComponent>(entity) ||
-            !world.Has<MeshRenderer>(entity)) {
-            unusedEntities.push_back(entity);
-        }
-    }
-
-    for (Entity entity : unusedEntities) {
-        ReleaseInstanceSkinPalette(entity);
-    }
-}
-
 void ModelRenderer::UpdateSkinClusters(Model &model) {
     for (auto &subMesh : model.subMeshes) {
         SkinCluster &skinCluster = subMesh.skinCluster;
@@ -685,174 +831,148 @@ void ModelRenderer::UpdateSkinClusters(Model &model) {
             continue;
         }
 
-        for (uint32_t jointIndex = 0; jointIndex < skinCluster.paletteCount;
-             ++jointIndex) {
-            skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix =
+        if (model.bones.empty() || model.skeletonSpaceMatrices.empty()) {
+            skinCluster.mappedPalette[0].skeletonSpaceMatrix =
                 StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-            skinCluster.mappedPalette[jointIndex]
-                .skeletonSpaceInverseTransposeMatrix =
+            skinCluster.mappedPalette[0].skeletonSpaceInverseTransposeMatrix =
                 StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+            continue;
         }
-    }
-}
 
-D3D12_GPU_DESCRIPTOR_HANDLE ModelRenderer::ResolvePaletteHandle(
-    const Model &model, const ModelSubMesh &subMesh, size_t subMeshIndex,
-    const SkeletonPoseComponent *pose, Entity entity) {
-    if (!pose || !entity.IsValid() || model.bones.empty()) {
-        return subMesh.skinCluster.paletteSrvGpuHandle;
-    }
+        const uint32_t jointCount = std::min<uint32_t>(
+            skinCluster.paletteCount,
+            static_cast<uint32_t>(model.skeletonSpaceMatrices.size()));
 
-    EnsureInstanceSkinPalette(entity, model);
-    UpdateInstanceSkinPalette(entity, subMeshIndex, subMesh, *pose);
-    return instanceSkinPalettes_[entity][subMeshIndex].paletteSrvGpuHandle;
-}
-
-void ModelRenderer::EnsureInstanceSkinPalette(Entity entity,
-                                              const Model &model) {
-    auto &palettes = instanceSkinPalettes_[entity];
-    if (palettes.size() == model.subMeshes.size()) {
-        return;
-    }
-
-    if (!srvManager_ || !dxCommon_) {
-        return;
-    }
-
-    const size_t oldSize = palettes.size();
-    palettes.resize(model.subMeshes.size());
-
-    auto *device = dxCommon_->GetDevice();
-    const uint32_t jointCount =
-        std::max<uint32_t>(1, static_cast<uint32_t>(model.bones.size()));
-    const UINT paletteBufferSize =
-        static_cast<UINT>(sizeof(WellForGPU) * jointCount);
-
-    for (size_t i = oldSize; i < palettes.size(); ++i) {
-        InstanceSkinPalette &palette = palettes[i];
-        CD3DX12_HEAP_PROPERTIES uploadHeap(D3D12_HEAP_TYPE_UPLOAD);
-        auto paletteDesc = CD3DX12_RESOURCE_DESC::Buffer(paletteBufferSize);
-
-        ThrowIfFailed(device->CreateCommittedResource(
-                          &uploadHeap, D3D12_HEAP_FLAG_NONE, &paletteDesc,
-                          D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                          IID_PPV_ARGS(&palette.paletteResource)),
-                      "CreateCommittedResource(InstancePaletteBuffer) failed");
-
-        ThrowIfFailed(palette.paletteResource->Map(
-                          0, nullptr,
-                          reinterpret_cast<void **>(&palette.mappedPalette)),
-                      "InstancePaletteBuffer Map failed");
-
-        palette.paletteCount = jointCount;
         for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
-            palette.mappedPalette[jointIndex].skeletonSpaceMatrix =
-                StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-            palette.mappedPalette[jointIndex]
-                .skeletonSpaceInverseTransposeMatrix =
-                StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
+            XMMATRIX inverseBindPose = XMLoadFloat4x4(
+                &skinCluster.inverseBindPoseMatrices[jointIndex]);
+            XMMATRIX skeletonSpace =
+                XMLoadFloat4x4(&model.skeletonSpaceMatrices[jointIndex]);
+            XMMATRIX skinningMatrix = inverseBindPose * skeletonSpace;
+            XMMATRIX skinningInverseTranspose =
+                MakeSafeInverseTranspose(skinningMatrix);
+
+            XMStoreFloat4x4(
+                &skinCluster.mappedPalette[jointIndex].skeletonSpaceMatrix,
+                XMMatrixTranspose(skinningMatrix));
+            XMStoreFloat4x4(&skinCluster.mappedPalette[jointIndex]
+                                 .skeletonSpaceInverseTransposeMatrix,
+                            XMMatrixTranspose(skinningInverseTranspose));
         }
-
-        const UINT srvIndex = srvManager_->Allocate();
-        palette.paletteSrvIndex = srvIndex;
-        palette.paletteSrvCpuHandle = srvManager_->GetCpuHandle(srvIndex);
-        palette.paletteSrvGpuHandle = srvManager_->GetGpuHandle(srvIndex);
-
-        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-        srvDesc.Shader4ComponentMapping =
-            D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-        srvDesc.Buffer.FirstElement = 0;
-        srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-        srvDesc.Buffer.NumElements = jointCount;
-        srvDesc.Buffer.StructureByteStride = sizeof(WellForGPU);
-
-        device->CreateShaderResourceView(palette.paletteResource.Get(),
-                                         &srvDesc,
-                                         palette.paletteSrvCpuHandle);
     }
 }
 
-void ModelRenderer::UpdateInstanceSkinPalette(
-    Entity entity, size_t subMeshIndex, const ModelSubMesh &subMesh,
-    const SkeletonPoseComponent &pose) {
-    auto it = instanceSkinPalettes_.find(entity);
-    if (it == instanceSkinPalettes_.end() || subMeshIndex >= it->second.size()) {
-        return;
-    }
-
-    InstanceSkinPalette &palette = it->second[subMeshIndex];
-    if (!palette.mappedPalette || palette.paletteCount == 0) {
-        return;
-    }
-
-    if (pose.skeletonSpaceMatrices.empty()) {
-        palette.mappedPalette[0].skeletonSpaceMatrix =
-            StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-        palette.mappedPalette[0].skeletonSpaceInverseTransposeMatrix =
-            StoreMatrix(XMMatrixTranspose(XMMatrixIdentity()));
-        return;
-    }
-
-    const uint32_t jointCount = std::min<uint32_t>(
-        palette.paletteCount,
-        static_cast<uint32_t>(pose.skeletonSpaceMatrices.size()));
-
-    for (uint32_t jointIndex = 0; jointIndex < jointCount; ++jointIndex) {
-        XMMATRIX inverseBindPose =
-            XMLoadFloat4x4(&subMesh.skinCluster
-                                .inverseBindPoseMatrices[jointIndex]);
-        XMMATRIX skeletonSpace =
-            XMLoadFloat4x4(&pose.skeletonSpaceMatrices[jointIndex]);
-        XMMATRIX skinningMatrix = inverseBindPose * skeletonSpace;
-        XMMATRIX skinningInverseTranspose =
-            XMMatrixTranspose(XMMatrixInverse(nullptr, skinningMatrix));
-
-        XMStoreFloat4x4(&palette.mappedPalette[jointIndex].skeletonSpaceMatrix,
-                        XMMatrixTranspose(skinningMatrix));
-        XMStoreFloat4x4(
-            &palette.mappedPalette[jointIndex]
-                 .skeletonSpaceInverseTransposeMatrix,
-            XMMatrixTranspose(skinningInverseTranspose));
-    }
+void ModelRenderer::CreateUploadBuffer() {
+    uploadBuffer_.Initialize(dxCommon_->GetDevice(), kUploadBytesPerFrame, 2);
 }
 
-void ModelRenderer::CreateConstantBuffer() {
-    objectCbStride_ = Align256(sizeof(PerObjectConstBufferData));
-    sceneCbStride_ = Align256(sizeof(SceneConstBufferData));
-    UINT objectTotalSize = objectCbStride_ * kMaxDraws;
-    UINT sceneTotalSize = sceneCbStride_ * kMaxDraws;
+D3D12_GPU_VIRTUAL_ADDRESS ModelRenderer::WriteObjectConstants(
+    const XMMATRIX &wvp, const XMMATRIX &world,
+    const XMMATRIX &worldInverseTranspose) {
+    PerObjectConstBufferData data{};
+    XMStoreFloat4x4(&data.matWVP, XMMatrixTranspose(wvp));
+    XMStoreFloat4x4(&data.matWorld, XMMatrixTranspose(world));
+    XMStoreFloat4x4(&data.matWorldInverseTranspose,
+                    XMMatrixTranspose(worldInverseTranspose));
+    return uploadBuffer_.Write(data).gpu;
+}
 
-    CD3DX12_HEAP_PROPERTIES heap(D3D12_HEAP_TYPE_UPLOAD);
-    auto objectDesc = CD3DX12_RESOURCE_DESC::Buffer(objectTotalSize);
-    auto sceneDesc = CD3DX12_RESOURCE_DESC::Buffer(sceneTotalSize);
+D3D12_GPU_VIRTUAL_ADDRESS
+ModelRenderer::WriteSceneConstants(const Camera &camera) {
+    SceneConstBufferData data{};
+    data.cameraPos = {camera.GetPosition().x, camera.GetPosition().y,
+                      camera.GetPosition().z, 1.0f};
+    data.keyLightDirection = {currentLighting_.keyLightDirection.x,
+                              currentLighting_.keyLightDirection.y,
+                              currentLighting_.keyLightDirection.z, 0.0f};
+    data.keyLightColor = currentLighting_.keyLightColor;
+    data.fillLightDirection = {currentLighting_.fillLightDirection.x,
+                               currentLighting_.fillLightDirection.y,
+                               currentLighting_.fillLightDirection.z, 0.0f};
+    data.fillLightColor = currentLighting_.fillLightColor;
+    data.ambientColor = currentLighting_.ambientColor;
+    for (size_t lightIndex = 0;
+         lightIndex < currentLighting_.pointLights.size(); ++lightIndex) {
+        data.pointLights[lightIndex].positionRange =
+            currentLighting_.pointLights[lightIndex].positionRange;
+        data.pointLights[lightIndex].colorIntensity =
+            currentLighting_.pointLights[lightIndex].colorIntensity;
+    }
+    data.lightingParams = currentLighting_.lightingParams;
+    data.lightingModeParams = currentLighting_.lightingModeParams;
+    data.fogColor = currentFog_.color;
+    data.fogParams = currentFog_.params;
+    XMStoreFloat4x4(&data.viewProjection,
+                    XMMatrixTranspose(camera.GetView() * camera.GetProj()));
+    XMStoreFloat4x4(
+        &data.lightViewProjection,
+        XMMatrixTranspose(XMLoadFloat4x4(&shadowLightViewProjection_)));
+    data.shadowParams = shadowParams_;
+    data.shadowFilterParams = shadowFilterParams_;
+    return uploadBuffer_.Write(data).gpu;
+}
 
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateCommittedResource(
-                      &heap, D3D12_HEAP_FLAG_NONE, &objectDesc,
-                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                      IID_PPV_ARGS(&objectConstBuffer_)),
-                  "CreateCommittedResource(ObjectConstantBuffer) failed");
+D3D12_VERTEX_BUFFER_VIEW
+ModelRenderer::WriteInstances(const Model &model, const Transform *transforms,
+                              uint32_t instanceCount) {
+    std::vector<InstanceData> instances(instanceCount);
+    for (uint32_t index = 0; index < instanceCount; ++index) {
+        const Transform &transform = transforms[index];
+        XMVECTOR q = XMQuaternionNormalize(XMLoadFloat4(&transform.rotation));
+        const XMMATRIX world =
+            XMMatrixScaling(transform.scale.x, transform.scale.y,
+                            transform.scale.z) *
+            XMMatrixRotationQuaternion(q) *
+            XMMatrixTranslation(transform.position.x, transform.position.y,
+                                transform.position.z);
+        XMStoreFloat4x4(&instances[index].world, world);
+    }
 
-    ThrowIfFailed(
-        objectConstBuffer_->Map(0, nullptr,
-                                reinterpret_cast<void **>(&mappedObjectCB_)),
-        "ObjectConstantBuffer Map failed");
+    return WriteInstances(model, instances.data(), instanceCount);
+}
 
-    ThrowIfFailed(dxCommon_->GetDevice()->CreateCommittedResource(
-                      &heap, D3D12_HEAP_FLAG_NONE, &sceneDesc,
-                      D3D12_RESOURCE_STATE_GENERIC_READ, nullptr,
-                      IID_PPV_ARGS(&sceneConstBuffer_)),
-                  "CreateCommittedResource(SceneConstantBuffer) failed");
+D3D12_VERTEX_BUFFER_VIEW
+ModelRenderer::WriteInstances(const Model &model,
+                              const InstanceData *sourceInstances,
+                              uint32_t instanceCount) {
+    std::vector<InstanceData> instances(instanceCount);
+    const XMMATRIX root =
+        model.hasRootAnimation ? XMLoadFloat4x4(&model.rootAnimationMatrix)
+                               : XMMatrixIdentity();
 
-    ThrowIfFailed(
-        sceneConstBuffer_->Map(0, nullptr,
-                               reinterpret_cast<void **>(&mappedSceneCB_)),
-        "SceneConstantBuffer Map failed");
+    for (uint32_t index = 0; index < instanceCount; ++index) {
+        instances[index] = sourceInstances[index];
+        XMMATRIX world = XMLoadFloat4x4(&sourceInstances[index].world);
+        if (model.hasRootAnimation) {
+            world = root * world;
+        }
+        XMStoreFloat4x4(&instances[index].world, world);
+    }
+
+    const UploadAllocation allocation =
+        uploadBuffer_.WriteArray(instances.data(), instances.size(),
+                                 alignof(InstanceData));
+
+    D3D12_VERTEX_BUFFER_VIEW view{};
+    view.BufferLocation = allocation.gpu;
+    view.SizeInBytes =
+        static_cast<UINT>(sizeof(InstanceData) * instances.size());
+    view.StrideInBytes = sizeof(InstanceData);
+    return view;
+}
+
+void ModelRenderer::SetPipelineForMaterial(const Material &material) {
+    dxCommon_->GetCommandList()->SetPipelineState(
+        pipelineStates_[PipelineVariantIndex(material)].Get());
+}
+
+void ModelRenderer::SetInstancedPipelineForMaterial(const Material &material) {
+    dxCommon_->GetCommandList()->SetPipelineState(
+        instancedPipelineStates_[PipelineVariantIndex(material)].Get());
 }
 
 void ModelRenderer::CreateRootSignature() {
-    CD3DX12_ROOT_PARAMETER params[7];
+    CD3DX12_ROOT_PARAMETER params[8];
 
     params[0].InitAsConstantBufferView(0);
     params[1].InitAsConstantBufferView(1);
@@ -870,9 +990,13 @@ void ModelRenderer::CreateRootSignature() {
     environmentRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
     params[5].InitAsDescriptorTable(1, &environmentRange);
 
-    CD3DX12_DESCRIPTOR_RANGE dissolveNoiseRange;
-    dissolveNoiseRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
-    params[6].InitAsDescriptorTable(1, &dissolveNoiseRange);
+    CD3DX12_DESCRIPTOR_RANGE shadowRange;
+    shadowRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    params[6].InitAsDescriptorTable(1, &shadowRange);
+
+    CD3DX12_DESCRIPTOR_RANGE normalRange;
+    normalRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
+    params[7].InitAsDescriptorTable(1, &normalRange);
 
     CD3DX12_STATIC_SAMPLER_DESC sampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
     sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -893,6 +1017,34 @@ void ModelRenderer::CreateRootSignature() {
                       0, blob->GetBufferPointer(), blob->GetBufferSize(),
                       IID_PPV_ARGS(&rootSignature_)),
                   "CreateRootSignature failed");
+}
+
+void ModelRenderer::CreateShadowRootSignature() {
+    CD3DX12_ROOT_PARAMETER params[3];
+    params[0].InitAsConstantBufferView(0);
+    params[1].InitAsConstantBufferView(2);
+
+    CD3DX12_DESCRIPTOR_RANGE textureRange;
+    textureRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    params[2].InitAsDescriptorTable(1, &textureRange);
+
+    CD3DX12_STATIC_SAMPLER_DESC sampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
+    sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+
+    CD3DX12_ROOT_SIGNATURE_DESC desc;
+    desc.Init(_countof(params), params, 1, &sampler,
+              D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+    ComPtr<ID3DBlob> blob, error;
+    ThrowIfFailed(D3D12SerializeRootSignature(
+                      &desc, D3D_ROOT_SIGNATURE_VERSION_1, &blob, &error),
+                  "D3D12SerializeRootSignature(ModelShadow) failed");
+    ThrowIfFailed(dxCommon_->GetDevice()->CreateRootSignature(
+                      0, blob->GetBufferPointer(), blob->GetBufferSize(),
+                      IID_PPV_ARGS(&shadowRootSignature_)),
+                  "CreateRootSignature(ModelShadow) failed");
 }
 
 void ModelRenderer::CreateSkinningRootSignature() {
@@ -934,13 +1086,16 @@ void ModelRenderer::CreateSkinningRootSignature() {
 void ModelRenderer::CreatePipelineState() {
     auto device = dxCommon_->GetDevice();
 
-    auto vs = ShaderCompiler::Compile(L"engine/resources/shaders/model/ModelVS.hlsl",
-                                      "main", "vs_5_0");
+    auto vs =
+        ShaderCompiler::Compile(ShaderPaths::ModelVS, "main", "vs_5_0");
+    auto instancedVs =
+        ShaderCompiler::Compile(ShaderPaths::ModelInstancedVS, "main",
+                                "vs_5_0");
 
-    auto ps = ShaderCompiler::Compile(L"engine/resources/shaders/model/ModelPS.hlsl",
-                                      "main", "ps_5_0");
+    auto ps =
+        ShaderCompiler::Compile(ShaderPaths::ModelPS, "main", "ps_5_0");
 
-    D3D12_INPUT_ELEMENT_DESC layout[] = {
+    D3D12_INPUT_ELEMENT_DESC baseLayout[] = {
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
         {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
@@ -949,118 +1104,199 @@ void ModelRenderer::CreatePipelineState() {
         {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
          D3D12_APPEND_ALIGNED_ELEMENT,
          D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
     };
 
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
-    pso.pRootSignature = rootSignature_.Get();
-    pso.VS = {vs->GetBufferPointer(), vs->GetBufferSize()};
-    pso.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
-    pso.InputLayout = {layout, _countof(layout)};
-    pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-    pso.NumRenderTargets = 1;
-    pso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-    pso.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    pso.SampleDesc.Count = 1;
-    pso.SampleMask = UINT_MAX;
-    pso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    // Winding check: temporarily set CullMode to NONE here if generated meshes
-    // appear clipped. Production meshes should render correctly with BACK culling.
+    D3D12_INPUT_ELEMENT_DESC instancedLayout[] = {
+        baseLayout[0],
+        baseLayout[1],
+        baseLayout[2],
+        baseLayout[3],
+        baseLayout[4],
+        {"WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCECOLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCEFADE", 0, DXGI_FORMAT_R32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCESEED", 0, DXGI_FORMAT_R32_UINT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+    };
 
-    D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    blend.RenderTarget[0].BlendEnable = FALSE;
-    pso.BlendState = blend;
+    auto makePso = [&](D3D12_SHADER_BYTECODE vertexShader,
+                       D3D12_INPUT_LAYOUT_DESC inputLayout, bool transparent,
+                       MaterialCullMode cullMode, bool depthWrite,
+                       ComPtr<ID3D12PipelineState> &psoOut) {
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+        pso.pRootSignature = rootSignature_.Get();
+        pso.VS = vertexShader;
+        pso.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
+        pso.InputLayout = inputLayout;
+        pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        pso.NumRenderTargets = 1;
+        pso.RTVFormats[0] = DirectXCommon::kSceneColorFormat;
+        pso.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        pso.SampleDesc.Count = 1;
+        pso.SampleMask = UINT_MAX;
+        pso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+        pso.RasterizerState.CullMode = ToD3D12CullMode(cullMode);
 
-    D3D12_DEPTH_STENCIL_DESC opaqueDepth =
-        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    opaqueDepth.DepthEnable = TRUE;
-    opaqueDepth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-    opaqueDepth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-    pso.DepthStencilState = opaqueDepth;
-
-    ThrowIfFailed(
-        device->CreateGraphicsPipelineState(&pso, IID_PPV_ARGS(&opaquePSO_)),
-        "CreateGraphicsPipelineState(Opaque) failed");
-
-    blend.RenderTarget[0].BlendEnable = TRUE;
-    blend.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-    blend.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-    blend.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    blend.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blend.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
-    blend.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    blend.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-    pso.BlendState = blend;
-
-    D3D12_DEPTH_STENCIL_DESC transparentDepth =
-        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-    transparentDepth.DepthEnable = TRUE;
-    transparentDepth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-    transparentDepth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-    pso.DepthStencilState = transparentDepth;
-
-    ThrowIfFailed(device->CreateGraphicsPipelineState(
-                      &pso, IID_PPV_ARGS(&transparentPSO_)),
-                  "CreateGraphicsPipelineState(Transparent) failed");
-
-    // 加算エフェクトPSO
-    blend.RenderTarget[0].BlendEnable = TRUE;
-    blend.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-    blend.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
-    blend.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-    blend.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
-    blend.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ONE;
-    blend.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
-    blend.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-    pso.BlendState = blend;
-    pso.DepthStencilState = transparentDepth;
-
-    ThrowIfFailed(device->CreateGraphicsPipelineState(
-                      &pso, IID_PPV_ARGS(&additivePSO_)),
-                  "CreateGraphicsPipelineState(Additive) failed");
-
-    D3D12_RASTERIZER_DESC noCullRasterizer =
-        CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    noCullRasterizer.CullMode = D3D12_CULL_MODE_NONE;
-    pso.RasterizerState = noCullRasterizer;
-
-    ThrowIfFailed(device->CreateGraphicsPipelineState(
-                      &pso, IID_PPV_ARGS(&additiveNoCullPSO_)),
-                  "CreateGraphicsPipelineState(AdditiveNoCull) failed");
-
-    auto gBufferPs = ShaderCompiler::Compile(
-        L"engine/resources/shaders/model/ModelGBufferPS.hlsl", "main",
-        "ps_5_0");
-
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC gBufferPso = pso;
-    gBufferPso.PS = {gBufferPs->GetBufferPointer(),
-                     gBufferPs->GetBufferSize()};
-    gBufferPso.NumRenderTargets = 3;
-    gBufferPso.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    gBufferPso.RTVFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    gBufferPso.RTVFormats[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
-    for (UINT renderTargetIndex = 3; renderTargetIndex < 8;
-         ++renderTargetIndex) {
-        gBufferPso.RTVFormats[renderTargetIndex] = DXGI_FORMAT_UNKNOWN;
-    }
-    gBufferPso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    D3D12_BLEND_DESC gBufferBlend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    for (UINT renderTargetIndex = 0; renderTargetIndex < 3;
-         ++renderTargetIndex) {
-        gBufferBlend.RenderTarget[renderTargetIndex].BlendEnable = FALSE;
-        gBufferBlend.RenderTarget[renderTargetIndex].RenderTargetWriteMask =
+        D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+        blend.RenderTarget[0].BlendEnable = transparent ? TRUE : FALSE;
+        blend.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+        blend.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+        blend.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+        blend.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+        blend.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+        blend.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+        blend.RenderTarget[0].RenderTargetWriteMask =
             D3D12_COLOR_WRITE_ENABLE_ALL;
-    }
-    gBufferPso.BlendState = gBufferBlend;
-    gBufferPso.DepthStencilState = opaqueDepth;
+        pso.BlendState = blend;
 
-    ThrowIfFailed(device->CreateGraphicsPipelineState(
-                      &gBufferPso, IID_PPV_ARGS(&gBufferPSO_)),
-                  "CreateGraphicsPipelineState(GBuffer) failed");
+        D3D12_DEPTH_STENCIL_DESC depth =
+            CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+        depth.DepthEnable = TRUE;
+        depth.DepthWriteMask = depthWrite ? D3D12_DEPTH_WRITE_MASK_ALL
+                                          : D3D12_DEPTH_WRITE_MASK_ZERO;
+        depth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        pso.DepthStencilState = depth;
+
+        ThrowIfFailed(device->CreateGraphicsPipelineState(
+                          &pso, IID_PPV_ARGS(&psoOut)),
+                      "CreateGraphicsPipelineState(ModelRenderer) failed");
+    };
+
+    for (bool transparent : {false, true}) {
+        for (MaterialCullMode cullMode :
+             {MaterialCullMode::None, MaterialCullMode::Front,
+              MaterialCullMode::Back}) {
+            for (bool depthWrite : {false, true}) {
+                const size_t index =
+                    PipelineVariantIndex(transparent, cullMode, depthWrite);
+                makePso({vs->GetBufferPointer(), vs->GetBufferSize()},
+                        {baseLayout, _countof(baseLayout)}, transparent,
+                        cullMode, depthWrite, pipelineStates_[index]);
+                makePso({instancedVs->GetBufferPointer(),
+                         instancedVs->GetBufferSize()},
+                        {instancedLayout, _countof(instancedLayout)},
+                        transparent, cullMode, depthWrite,
+                        instancedPipelineStates_[index]);
+            }
+        }
+    }
+}
+
+void ModelRenderer::CreateShadowPipelineState() {
+    auto device = dxCommon_->GetDevice();
+    auto vs =
+        ShaderCompiler::Compile(ShaderPaths::ModelShadowVS, "main", "vs_5_0");
+    auto instancedVs = ShaderCompiler::Compile(
+        ShaderPaths::ModelShadowInstancedVS, "main", "vs_5_0");
+    auto ps =
+        ShaderCompiler::Compile(ShaderPaths::ModelShadowPS, "main", "ps_5_0");
+
+    D3D12_INPUT_ELEMENT_DESC baseLayout[] = {
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+        {"TANGENT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
+    };
+
+    D3D12_INPUT_ELEMENT_DESC instancedLayout[] = {
+        baseLayout[0],
+        baseLayout[1],
+        baseLayout[2],
+        baseLayout[3],
+        baseLayout[4],
+        {"WORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"WORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCECOLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCEFADE", 0, DXGI_FORMAT_R32_FLOAT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+        {"INSTANCESEED", 0, DXGI_FORMAT_R32_UINT, 1,
+         D3D12_APPEND_ALIGNED_ELEMENT,
+         D3D12_INPUT_CLASSIFICATION_PER_INSTANCE_DATA, 1},
+    };
+
+    auto makePso = [&](D3D12_SHADER_BYTECODE vertexShader,
+                       D3D12_INPUT_LAYOUT_DESC inputLayout,
+                       ComPtr<ID3D12PipelineState> &psoOut) {
+        D3D12_GRAPHICS_PIPELINE_STATE_DESC pso{};
+        pso.pRootSignature = shadowRootSignature_.Get();
+        pso.VS = vertexShader;
+        pso.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
+        pso.InputLayout = inputLayout;
+        pso.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        pso.NumRenderTargets = 0;
+        pso.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+        pso.SampleDesc.Count = 1;
+        pso.SampleMask = UINT_MAX;
+        pso.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+        pso.RasterizerState.DepthBias = 1000;
+        pso.RasterizerState.SlopeScaledDepthBias = 1.5f;
+        pso.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+        D3D12_DEPTH_STENCIL_DESC depth =
+            CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+        depth.DepthEnable = TRUE;
+        depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+        depth.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+        pso.DepthStencilState = depth;
+
+        ThrowIfFailed(device->CreateGraphicsPipelineState(
+                          &pso, IID_PPV_ARGS(&psoOut)),
+                      "CreateGraphicsPipelineState(ModelShadow) failed");
+    };
+
+    makePso({vs->GetBufferPointer(), vs->GetBufferSize()},
+            {baseLayout, _countof(baseLayout)}, shadowPSO_);
+    makePso({instancedVs->GetBufferPointer(), instancedVs->GetBufferSize()},
+            {instancedLayout, _countof(instancedLayout)},
+            instancedShadowPSO_);
 }
 
 void ModelRenderer::CreateSkinningPipelineState() {
-    auto cs = ShaderCompiler::Compile(L"engine/resources/shaders/model/SkinningCS.hlsl",
-                                      "main", "cs_5_0");
+    auto cs =
+        ShaderCompiler::Compile(ShaderPaths::SkinningCS, "main", "cs_5_0");
 
     D3D12_COMPUTE_PIPELINE_STATE_DESC pso{};
     pso.pRootSignature = skinningRootSignature_.Get();
@@ -1071,9 +1307,7 @@ void ModelRenderer::CreateSkinningPipelineState() {
                   "CreateComputePipelineState(Skinning) failed");
 }
 
-void ModelRenderer::DispatchSkinning(
-    const ModelSubMesh &subMesh,
-    D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle) {
+void ModelRenderer::DispatchSkinning(const ModelSubMesh &subMesh) {
     const SkinCluster &skinCluster = subMesh.skinCluster;
     if (!skinCluster.skinnedVertexResource || subMesh.vertexCount == 0) {
         return;
@@ -1092,10 +1326,13 @@ void ModelRenderer::DispatchSkinning(
     cmd->SetComputeRoot32BitConstant(0, subMesh.vertexCount, 0);
     cmd->SetComputeRootDescriptorTable(1, skinCluster.inputVertexSrvGpuHandle);
     cmd->SetComputeRootDescriptorTable(2, skinCluster.influenceSrvGpuHandle);
-    cmd->SetComputeRootDescriptorTable(3, paletteSrvGpuHandle);
-    cmd->SetComputeRootDescriptorTable(4, skinCluster.skinnedVertexUavGpuHandle);
+    cmd->SetComputeRootDescriptorTable(3, skinCluster.paletteSrvGpuHandle);
+    cmd->SetComputeRootDescriptorTable(4,
+                                       skinCluster.skinnedVertexUavGpuHandle);
 
-    const UINT threadGroupCount = (subMesh.vertexCount + 1023u) / 1024u;
+    const UINT threadGroupCount =
+        (subMesh.vertexCount + kSkinningThreadCount - 1u) /
+        kSkinningThreadCount;
     cmd->Dispatch(threadGroupCount, 1, 1);
 
     auto uavBarrier =

@@ -1,69 +1,81 @@
 #pragma once
+#include "core/FrameTimer.h"
 
 class Input;
 class WinApp;
+class CameraManager;
 class SoundManager;
-class ModelServices;
-class ModelAssets;
-class SpriteServices;
-class SpriteAssets;
+class ModelManager;
+class MeshManager;
+class SpriteManager;
 class ModelRenderer;
+class MeshRenderer;
 class SpriteRenderer;
 class TextureManager;
 class DirectXCommon;
 class SrvManager;
+class PipelineManager;
 class PostEffectRenderer;
 class RenderTexture;
-class DeferredRenderer;
-class GBuffer;
 class SkyboxRenderer;
-class LightManager;
-class DebugDraw;
-class EffectSystem;
-class BillboardRenderer;
+class ShadowMapRenderer;
+class TransparentRenderQueue;
+struct RenderContext;
 
-struct CoreServices {
+#ifdef _DEBUG
+class ImguiManager;
+#endif
+
+/// <summary>
+/// シーンの更新側から参照するエンジンサービス
+/// </summary>
+struct SceneSystemServices {
     Input *input = nullptr;
     WinApp *winApp = nullptr;
     SoundManager *sound = nullptr;
-    DirectXCommon *dxCommon = nullptr;
-    SrvManager *srv = nullptr;
-};
+    TextureManager *texture = nullptr;
+    CameraManager *cameraManager = nullptr;
 
-struct AssetServices {
-    ModelServices *modelServices = nullptr;
-    ModelAssets *modelAssets = nullptr;
-    SpriteServices *spriteServices = nullptr;
-    SpriteAssets *spriteAssets = nullptr;
-    TextureManager *textureManager = nullptr;
-};
-
-struct RendererServices {
-    ModelRenderer *modelRenderer = nullptr;
-    SpriteRenderer *spriteRenderer = nullptr;
-    RenderTexture *renderTexture = nullptr;
-    GBuffer *gBuffer = nullptr;
-    DeferredRenderer *deferredRenderer = nullptr;
-    PostEffectRenderer *postEffectRenderer = nullptr;
-    SkyboxRenderer *skyboxRenderer = nullptr;
-    LightManager *light = nullptr;
-    BillboardRenderer *billboard = nullptr;
-    EffectSystem *effects = nullptr;
-    DebugDraw *debugDraw = nullptr;
-};
-
-struct FrameState {
-    float deltaTime = 0.0f;
-    int width = 0;
-    int height = 0;
+#ifdef _DEBUG
+    ImguiManager *imgui = nullptr;
+#endif
 };
 
 /// <summary>
-/// シーンが参照する各種システムへのアクセスポイントをまとめる
+/// シーン描画に必要なサービス
+/// </summary>
+struct SceneRenderServices {
+    ModelManager *model = nullptr;
+    MeshManager *mesh = nullptr;
+    SpriteManager *sprite = nullptr;
+    ModelRenderer *modelRenderer = nullptr;
+    MeshRenderer *meshRenderer = nullptr;
+    SpriteRenderer *spriteRenderer = nullptr;
+    TextureManager *texture = nullptr;
+    DirectXCommon *dxCommon = nullptr;
+    SrvManager *srv = nullptr;
+    PipelineManager *pipeline = nullptr;
+    RenderTexture *renderTexture = nullptr;
+    PostEffectRenderer *postEffectRenderer = nullptr;
+    SkyboxRenderer *skyboxRenderer = nullptr;
+    ShadowMapRenderer *shadowMapRenderer = nullptr;
+    TransparentRenderQueue *transparentQueue = nullptr;
+};
+
+/// <summary>
+/// シーンへ渡すフレーム時間
+/// </summary>
+struct SceneFrameState {
+    FrameTime frameTime{};
+    float deltaTime = 0.0f;
+};
+
+/// <summary>
+/// シーンが参照するサービスとフレーム状態をまとめる
 /// </summary>
 struct SceneContext {
-    CoreServices core;
-    AssetServices assets;
-    RendererServices renderer;
-    FrameState frame;
+    SceneSystemServices systems{};
+    SceneRenderServices rendering{};
+    const RenderContext *render = nullptr;
+    SceneFrameState frame{};
 };

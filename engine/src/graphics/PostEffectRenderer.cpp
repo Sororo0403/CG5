@@ -1,34 +1,23 @@
-#include "PostEffectRenderer.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
-#include "ShaderCompiler.h"
-#include "SpriteRenderer.h"
-#include "SrvManager.h"
+#include "graphics/PostEffectRenderer.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
+#include "graphics/ShaderCompiler.h"
+#include "graphics/ShaderPaths.h"
+#include "graphics/SrvManager.h"
+#include <algorithm>
 
 using namespace DxUtils;
 
 void PostEffectRenderer::Initialize(DirectXCommon *dxCommon,
-                                    SrvManager *srvManager,
-                                    SpriteRenderer *spriteRenderer, int width,
+                                    SrvManager *srvManager, int width,
                                     int height) {
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
-    spriteRenderer_ = spriteRenderer;
 
     CreateRootSignature();
     CreatePipelineState();
     CreateConstantBuffer();
-
-    colorGradingPass_.Initialize(dxCommon, srvManager, width, height);
-    filterPass_.Initialize(dxCommon, srvManager, width, height);
-    edgePass_.Initialize(dxCommon, srvManager, width, height);
-    noisePass_.Initialize(dxCommon, srvManager, width, height);
-    radialBlurPass_.Initialize(dxCommon, srvManager, width, height);
-    vignettePass_.Initialize(dxCommon, srvManager, width, height);
-    distortionPass_.Initialize(dxCommon, srvManager, width, height);
-    overlayPass_.Initialize(dxCommon, srvManager, width, height);
-
     Resize(width, height);
 }
 
@@ -48,21 +37,11 @@ void PostEffectRenderer::Resize(int width, int height) {
     scissorRect_.right = width_;
     scissorRect_.bottom = height_;
 
-    colorGradingPass_.Resize(width_, height_);
-    filterPass_.Resize(width_, height_);
-    edgePass_.Resize(width_, height_);
-    noisePass_.Resize(width_, height_);
-    radialBlurPass_.Resize(width_, height_);
-    vignettePass_.Resize(width_, height_);
-    distortionPass_.Resize(width_, height_);
-    overlayPass_.Resize(width_, height_);
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
                               D3D12_GPU_DESCRIPTOR_HANDLE depthHandle) {
-    PostEffectConstants constants = BuildConstants(textureHandle, depthHandle);
-    UpdateConstantBuffer(constants);
-
     auto commandList = dxCommon_->GetCommandList();
 
     ID3D12DescriptorHeap *heaps[] = {srvManager_->GetHeap()};
@@ -81,116 +60,85 @@ void PostEffectRenderer::Draw(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
 }
 
 void PostEffectRenderer::SetColorMode(ColorMode mode) {
-    colorGradingPass_.SetMode(mode);
+    colorMode_ = mode;
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::SetFilterMode(FilterMode mode) {
-    filterPass_.SetMode(mode);
+    filterMode_ = mode;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetEdgeMode(EdgeMode mode) { edgePass_.SetMode(mode); }
+void PostEffectRenderer::SetEdgeMode(EdgeMode mode) {
+    edgeMode_ = mode;
+    UpdateConstantBuffer();
+}
 
 void PostEffectRenderer::SetLuminanceEdgeThreshold(float threshold) {
-    edgePass_.SetLuminanceThreshold(threshold);
+    luminanceEdgeThreshold_ = threshold;
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::SetDepthEdgeThreshold(float threshold) {
-    edgePass_.SetDepthThreshold(threshold);
+    depthEdgeThreshold_ = threshold;
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::SetDepthParameters(float nearZ, float farZ) {
-    edgePass_.SetDepthParameters(nearZ, farZ);
+    nearZ_ = nearZ;
+    farZ_ = farZ;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetVignettingEnabled(bool enabled) {
-    vignettePass_.SetEnabled(enabled);
+void PostEffectRenderer::SetGrayscaleWeights(float r, float g, float b) {
+    grayscaleWeights_[0] = r;
+    grayscaleWeights_[1] = g;
+    grayscaleWeights_[2] = b;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRadialBlurCenter(float x, float y) {
-    radialBlurPass_.SetCenter(x, y);
+void PostEffectRenderer::SetTonemapEnabled(bool enabled) {
+    tonemapEnabled_ = enabled;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRadialBlurStrength(float strength) {
-    radialBlurPass_.SetStrength(strength);
+void PostEffectRenderer::SetExposure(float exposure) {
+    exposure_ = (std::max)(exposure, 0.0f);
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRadialBlurSampleCount(int32_t sampleCount) {
-    radialBlurPass_.SetSampleCount(sampleCount);
+void PostEffectRenderer::SetGamma(float gamma) {
+    gamma_ = (std::max)(gamma, 0.001f);
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRandomMode(RandomMode mode) {
-    noisePass_.SetMode(mode);
+void PostEffectRenderer::SetBloomEnabled(bool enabled) {
+    bloomEnabled_ = enabled;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRandomStrength(float strength) {
-    noisePass_.SetStrength(strength);
+void PostEffectRenderer::SetBloom(float threshold, float intensity,
+                                  float radius) {
+    bloomThreshold_ = (std::max)(threshold, 0.0f);
+    bloomIntensity_ = (std::max)(intensity, 0.0f);
+    bloomRadius_ = (std::max)(radius, 0.0f);
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRandomScale(float scale) {
-    noisePass_.SetScale(scale);
+void PostEffectRenderer::SetNoiseEnabled(bool enabled) {
+    noiseEnabled_ = enabled;
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::SetRandomTime(float time) { noisePass_.SetTime(time); }
-
-void PostEffectRenderer::Request(PostEffectType type) {
-    if (type == PostEffectType::CounterVignette) {
-        overlayPass_.Request(OverlayEffectType::CounterVignette);
-    }
+void PostEffectRenderer::SetNoise(float strength, float scale) {
+    noiseStrength_ = (std::max)(strength, 0.0f);
+    noiseScale_ = (std::max)(scale, 0.001f);
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::Request(PostEffectType type,
-                                 const DirectX::XMFLOAT3 &worldPosition) {
-    if (type == PostEffectType::WarpRingStart) {
-        overlayPass_.Request(OverlayEffectType::WarpRingStart, worldPosition);
-        return;
-    }
-    if (type == PostEffectType::WarpRingEnd) {
-        overlayPass_.Request(OverlayEffectType::WarpRingEnd, worldPosition);
-        return;
-    }
-
-    Request(type);
-}
-
-void PostEffectRenderer::Request(PostEffectType type,
-                                 const DistortionEffectParams &params) {
-    if (type == PostEffectType::Distortion) {
-        distortionPass_.Request(params);
-        return;
-    }
-
-    Request(type);
-}
-
-void PostEffectRenderer::SetCounterVignetteActive(bool active) {
-    overlayPass_.SetCounterVignetteActive(active);
-}
-
-void PostEffectRenderer::UpdateScreenEffects(float deltaTime,
-                                             const Camera &camera, int width,
-                                             int height) {
-    colorGradingPass_.Update(deltaTime);
-    filterPass_.Update(deltaTime);
-    edgePass_.Update(deltaTime);
-    noisePass_.Update(deltaTime);
-    radialBlurPass_.Update(deltaTime);
-    vignettePass_.Update(deltaTime);
-    distortionPass_.Update(deltaTime);
-    overlayPass_.Update(deltaTime, camera, width, height);
-}
-
-void PostEffectRenderer::DrawScreenOverlays() const {
-    if (spriteRenderer_ == nullptr) {
-        return;
-    }
-    spriteRenderer_->PreDraw();
-    distortionPass_.Render({}, {}, spriteRenderer_);
-    overlayPass_.Render(spriteRenderer_);
-    spriteRenderer_->PostDraw();
-}
-
-const ElectricRingParamGPU &PostEffectRenderer::GetElectricRingParam() const {
-    return overlayPass_.GetElectricRingParam();
+void PostEffectRenderer::SetNoiseTime(float time) {
+    noiseTime_ = time;
+    UpdateConstantBuffer();
 }
 
 void PostEffectRenderer::CreateRootSignature() {
@@ -229,12 +177,10 @@ void PostEffectRenderer::CreateRootSignature() {
 }
 
 void PostEffectRenderer::CreatePipelineState() {
-    auto vs = ShaderCompiler::Compile(
-        L"engine/resources/shaders/posteffect/PostEffectVS.hlsl", "main",
-        "vs_5_0");
-    auto ps = ShaderCompiler::Compile(
-        L"engine/resources/shaders/posteffect/PostEffectPS.hlsl", "main",
-        "ps_5_0");
+    auto vs =
+        ShaderCompiler::Compile(ShaderPaths::PostEffectVS, "main", "vs_5_0");
+    auto ps =
+        ShaderCompiler::Compile(ShaderPaths::PostEffectPS, "main", "ps_5_0");
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{};
     desc.pRootSignature = rootSignature_.Get();
@@ -242,15 +188,14 @@ void PostEffectRenderer::CreatePipelineState() {
     desc.PS = {ps->GetBufferPointer(), ps->GetBufferSize()};
     desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
     desc.NumRenderTargets = 1;
-    desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-    desc.DSVFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    desc.RTVFormats[0] = DirectXCommon::kBackBufferFormat;
+    desc.DSVFormat = DXGI_FORMAT_UNKNOWN;
     desc.SampleDesc.Count = 1;
     desc.SampleMask = UINT_MAX;
     desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
     desc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
-    D3D12_DEPTH_STENCIL_DESC depth =
-        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    D3D12_DEPTH_STENCIL_DESC depth = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
     depth.DepthEnable = FALSE;
     depth.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
     desc.DepthStencilState = depth;
@@ -273,41 +218,40 @@ void PostEffectRenderer::CreateConstantBuffer() {
                       IID_PPV_ARGS(&constBuffer_)),
                   "Create PostEffect constant buffer failed");
 
-    ThrowIfFailed(constBuffer_->Map(
-                      0, nullptr,
-                      reinterpret_cast<void **>(&mappedConstBuffer_)),
-                  "Map PostEffect constant buffer failed");
+    ThrowIfFailed(
+        constBuffer_->Map(0, nullptr,
+                          reinterpret_cast<void **>(&mappedConstBuffer_)),
+        "Map PostEffect constant buffer failed");
 
-    PostEffectConstants constants{};
-    UpdateConstantBuffer(constants);
+    UpdateConstantBuffer();
 }
 
-void PostEffectRenderer::UpdateConstantBuffer(
-    const PostEffectConstants &constants) {
+void PostEffectRenderer::UpdateConstantBuffer() {
     if (!mappedConstBuffer_) {
         return;
     }
 
-    *mappedConstBuffer_ = constants;
-}
-
-PostEffectConstants PostEffectRenderer::BuildConstants(
-    D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE depthHandle) {
-    PostEffectConstants constants{};
-    constants.texelSize[0] = 1.0f / static_cast<float>(width_);
-    constants.texelSize[1] = 1.0f / static_cast<float>(height_);
-
-    PostEffectPassContext context{constants, textureHandle, depthHandle, width_,
-                                  height_};
-
-    // Keep the shader's existing order to avoid changing the current look.
-    filterPass_.Render(context);
-    radialBlurPass_.Render(context);
-    colorGradingPass_.Render(context);
-    vignettePass_.Render(context);
-    edgePass_.Render(context);
-    noisePass_.Render(context);
-
-    return constants;
+    mappedConstBuffer_->colorMode = static_cast<int32_t>(colorMode_);
+    mappedConstBuffer_->filterMode = static_cast<int32_t>(filterMode_);
+    mappedConstBuffer_->texelSize[0] = 1.0f / static_cast<float>(width_);
+    mappedConstBuffer_->texelSize[1] = 1.0f / static_cast<float>(height_);
+    mappedConstBuffer_->edgeMode = static_cast<int32_t>(edgeMode_);
+    mappedConstBuffer_->luminanceEdgeThreshold = luminanceEdgeThreshold_;
+    mappedConstBuffer_->depthEdgeThreshold = depthEdgeThreshold_;
+    mappedConstBuffer_->nearZ = nearZ_;
+    mappedConstBuffer_->farZ = farZ_;
+    mappedConstBuffer_->grayscaleWeights[0] = grayscaleWeights_[0];
+    mappedConstBuffer_->grayscaleWeights[1] = grayscaleWeights_[1];
+    mappedConstBuffer_->grayscaleWeights[2] = grayscaleWeights_[2];
+    mappedConstBuffer_->tonemapEnabled = tonemapEnabled_ ? 1 : 0;
+    mappedConstBuffer_->exposure = exposure_;
+    mappedConstBuffer_->gamma = gamma_;
+    mappedConstBuffer_->bloomEnabled = bloomEnabled_ ? 1 : 0;
+    mappedConstBuffer_->bloomThreshold = bloomThreshold_;
+    mappedConstBuffer_->bloomIntensity = bloomIntensity_;
+    mappedConstBuffer_->bloomRadius = bloomRadius_;
+    mappedConstBuffer_->noiseEnabled = noiseEnabled_ ? 1 : 0;
+    mappedConstBuffer_->noiseStrength = noiseStrength_;
+    mappedConstBuffer_->noiseScale = noiseScale_;
+    mappedConstBuffer_->noiseTime = noiseTime_;
 }

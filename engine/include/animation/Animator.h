@@ -1,6 +1,5 @@
 #pragma once
-#include "AnimationComponents.h"
-#include "Model.h"
+#include "model/Model.h"
 
 /// <summary>
 /// モデルアニメーションの再生制御を担当する
@@ -8,25 +7,23 @@
 class Animator {
   public:
     /// <summary>
-    /// アニメーション再生開始
+    /// 指定したアニメーションをモデルへ設定して再生を開始する
     /// </summary>
-    void Play(const Model &model, AnimationComponent &animation,
-              const std::string &animationName, bool loop = true);
+    void Play(Model &model, const std::string &animationName, bool loop = true);
 
     /// <summary>
-    /// 更新処理
+    /// 再生中アニメーションの時間を進めてモデル姿勢を更新する
     /// </summary>
-    void Update(const Model &model, AnimationComponent &animation,
-                SkeletonPoseComponent &pose, float deltaTime);
+    void Update(Model &model, float deltaTime);
 
     /// <summary>
-    /// 再生終了したか
+    /// モデルの現在のアニメーションが終端まで再生されたかを返す
     /// </summary>
-    bool IsFinished(const AnimationComponent &animation) const;
+    bool IsFinished(const Model &model) const;
 
   private:
     /// <summary>
     /// モデルをバインドポーズへ戻す
     /// </summary>
-    void ApplyBindPose(const Model &model, SkeletonPoseComponent &pose);
+    void ApplyBindPose(Model &model);
 };

@@ -1,40 +1,16 @@
-#include "RenderTexture.h"
-#include "DirectXCommon.h"
-#include "DxHelpers.h"
-#include "DxUtils.h"
-#include "SrvManager.h"
-#include <stdexcept>
+#include "graphics/RenderTexture.h"
+#include "graphics/DirectXCommon.h"
+#include "graphics/DxHelpers.h"
+#include "graphics/DxUtils.h"
+#include "graphics/SrvManager.h"
 
 using namespace DxUtils;
 
-RenderTexture::~RenderTexture() {
-    if (srvManager_ && srvIndex_ != UINT_MAX) {
-        srvManager_->Free(srvIndex_);
-        srvIndex_ = UINT_MAX;
-    }
-}
-
 void RenderTexture::Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
                                int width, int height) {
-    if (!dxCommon || !srvManager) {
-        throw std::invalid_argument(
-            "RenderTexture::Initialize requires valid managers");
-    }
-    if (width <= 0 || height <= 0) {
-        throw std::invalid_argument(
-            "RenderTexture::Initialize requires a positive size");
-    }
-
-    if (srvManager_ && srvManager_ != srvManager && srvIndex_ != UINT_MAX) {
-        srvManager_->Free(srvIndex_);
-        srvIndex_ = UINT_MAX;
-    }
-
     dxCommon_ = dxCommon;
     srvManager_ = srvManager;
-    if (srvIndex_ == UINT_MAX) {
-        srvIndex_ = srvManager_->Allocate();
-    }
+    srvIndex_ = srvManager_->Allocate();
     width_ = width;
     height_ = height;
 
@@ -55,11 +31,6 @@ void RenderTexture::Resize(int width, int height) {
 }
 
 void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor) {
-    BeginRender(clearColor, true, true);
-}
-
-void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor,
-                                bool bindDepth, bool clearDepth) {
     auto commandList = dxCommon_->GetCommandList();
 
     auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(
@@ -83,20 +54,16 @@ void RenderTexture::BeginRender(const DirectX::XMFLOAT4 &clearColor,
 
     auto rtvHandle = rtvHeap_->GetCPUDescriptorHandleForHeapStart();
     auto dsvHandle = dxCommon_->GetDepthStencilView();
-    D3D12_CPU_DESCRIPTOR_HANDLE *dsvHandlePtr =
-        bindDepth ? &dsvHandle : nullptr;
 
     commandList->RSSetViewports(1, &viewport);
     commandList->RSSetScissorRects(1, &scissorRect);
-    commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, dsvHandlePtr);
+    commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, &dsvHandle);
 
     const float clear[4] = {clearColor.x, clearColor.y, clearColor.z,
                             clearColor.w};
     commandList->ClearRenderTargetView(rtvHandle, clear, 0, nullptr);
-    if (bindDepth && clearDepth) {
-        commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH,
-                                           1.0f, 0, 0, nullptr);
-    }
+    commandList->ClearDepthStencilView(dsvHandle, D3D12_CLEAR_FLAG_DEPTH, 1.0f,
+                                       0, 0, nullptr);
 }
 
 void RenderTexture::EndRender() {
@@ -116,20 +83,20 @@ void RenderTexture::CreateResources() {
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
     rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
     rtvHeapDesc.NumDescriptors = 1;
-    ThrowIfFailed(device->CreateDescriptorHeap(&rtvHeapDesc,
-                                               IID_PPV_ARGS(&rtvHeap_)),
-                  "Create RenderTexture RTV heap failed");
+    ThrowIfFailed(
+        device->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&rtvHeap_)),
+        "Create RenderTexture RTV heap failed");
 
     rtvDescriptorSize_ = device->GetDescriptorHandleIncrementSize(
         D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     auto resourceDesc = CD3DX12_RESOURCE_DESC::Tex2D(
-        DXGI_FORMAT_R8G8B8A8_TYPELESS, static_cast<UINT64>(width_),
+        DXGI_FORMAT_R8G8B8A8_UNORM, static_cast<UINT64>(width_),
         static_cast<UINT>(height_), 1, 1, 1, 0,
         D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET);
 
     D3D12_CLEAR_VALUE clearValue{};
-    clearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    clearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     clearValue.Color[0] = 0.1f;
     clearValue.Color[1] = 0.2f;
     clearValue.Color[2] = 0.4f;
@@ -143,10 +110,11 @@ void RenderTexture::CreateResources() {
                   "Create RenderTexture resource failed");
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
-    rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+    rtvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
     device->CreateRenderTargetView(
-        resource_.Get(), &rtvDesc, rtvHeap_->GetCPUDescriptorHandleForHeapStart());
+        resource_.Get(), &rtvDesc,
+        rtvHeap_->GetCPUDescriptorHandleForHeapStart());
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

@@ -1,8 +1,7 @@
 #pragma once
-#include "AssimpAnimationLoader.h"
-#include "AssimpMeshLoader.h"
-#include "DirectXCommon.h"
-#include "Model.h"
+#include "animation/AssimpAnimationLoader.h"
+#include "model/AssimpMeshLoader.h"
+#include "model/Model.h"
 #include <string>
 
 class TextureManager;
@@ -15,7 +14,7 @@ class MaterialManager;
 class AssimpLoader {
   public:
     /// <summary>
-    /// 初期化処理
+    /// Assimp読み込みで使用する各種マネージャを設定する
     /// </summary>
     /// <param name="textureManager">TextureManagerインスタンス</param>
     /// <param name="meshManager">MeshManagerインスタンス</param>
@@ -28,8 +27,7 @@ class AssimpLoader {
     /// </summary>
     /// <param name="path">読み込むモデルのファイルパス</param>
     /// <returns>モデル構造体</returns>
-    Model Load(const DirectXCommon::UploadContext &uploadContext,
-               const std::string &path);
+    Model Load(const std::string &path);
 
   private:
     AssimpMeshLoader meshLoader_{};

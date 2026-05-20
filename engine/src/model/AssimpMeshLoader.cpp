@@ -1,10 +1,11 @@
-#include "AssimpMeshLoader.h"
-#include "Material.h"
-#include "MaterialManager.h"
-#include "MeshManager.h"
-#include "TextureManager.h"
-#include "Vertex.h"
+#include "model/AssimpMeshLoader.h"
+#include "model/Material.h"
+#include "model/MaterialManager.h"
+#include "model/MeshManager.h"
+#include "model/Vertex.h"
+#include "texture/TextureManager.h"
 #include <DirectXMath.h>
+#include <algorithm>
 #include <assimp/GltfMaterial.h>
 #include <cstdlib>
 #include <filesystem>
@@ -35,9 +36,7 @@ bool AssimpMeshLoader::IsInitialized() const {
     return textureManager_ && meshManager_ && materialManager_;
 }
 
-void AssimpMeshLoader::LoadMeshes(
-                                  const DirectXCommon::UploadContext &uploadContext,
-                                  const aiScene *scene, const std::string &path,
+void AssimpMeshLoader::LoadMeshes(const aiScene *scene, const std::string &path,
                                   Model &model) const {
     if (!IsInitialized()) {
         throw std::runtime_error("AssimpMeshLoader is not initialized");
@@ -76,6 +75,11 @@ void AssimpMeshLoader::LoadMeshes(
                 v.uv = {0.0f, 0.0f};
             }
 
+            if (mesh->HasTangentsAndBitangents()) {
+                v.tangent = {mesh->mTangents[i].x, mesh->mTangents[i].y,
+                             mesh->mTangents[i].z, 1.0f};
+            }
+
             vertices.push_back(v);
         }
 
@@ -93,6 +97,24 @@ void AssimpMeshLoader::LoadMeshes(
 
         ModelSubMesh subMesh{};
         subMesh.vertexCount = static_cast<uint32_t>(vertices.size());
+        subMesh.sourcePositions.reserve(vertices.size());
+        subMesh.sourceBoundsMin = vertices.front().position;
+        subMesh.sourceBoundsMax = vertices.front().position;
+        for (const Vertex &vertex : vertices) {
+            subMesh.sourcePositions.push_back(vertex.position);
+            subMesh.sourceBoundsMin.x =
+                (std::min)(subMesh.sourceBoundsMin.x, vertex.position.x);
+            subMesh.sourceBoundsMin.y =
+                (std::min)(subMesh.sourceBoundsMin.y, vertex.position.y);
+            subMesh.sourceBoundsMin.z =
+                (std::min)(subMesh.sourceBoundsMin.z, vertex.position.z);
+            subMesh.sourceBoundsMax.x =
+                (std::max)(subMesh.sourceBoundsMax.x, vertex.position.x);
+            subMesh.sourceBoundsMax.y =
+                (std::max)(subMesh.sourceBoundsMax.y, vertex.position.y);
+            subMesh.sourceBoundsMax.z =
+                (std::max)(subMesh.sourceBoundsMax.z, vertex.position.z);
+        }
 
         if (mesh->HasBones()) {
             for (unsigned int i = 0; i < mesh->mNumBones; i++) {
@@ -114,9 +136,7 @@ void AssimpMeshLoader::LoadMeshes(
 
                     BoneInfo info{};
                     info.name = boneName;
-                    // This project's existing animation path already uses
-                    // Assimp's node transforms as-is, so the inverse bind pose
-                    // also needs to stay in the same space.
+
                     info.offsetMatrix = ToMatrix(bone->mOffsetMatrix);
 
                     model.bones.push_back(info);
@@ -124,7 +144,8 @@ void AssimpMeshLoader::LoadMeshes(
                     boneIndex = it->second;
                 }
 
-                JointWeightData &jointWeightData = subMesh.skinClusterData[boneName];
+                JointWeightData &jointWeightData =
+                    subMesh.skinClusterData[boneName];
                 jointWeightData.inverseBindPoseMatrix =
                     model.bones[boneIndex].offsetMatrix;
 
@@ -143,16 +164,19 @@ void AssimpMeshLoader::LoadMeshes(
 
         aiMaterial *mat = nullptr;
         uint32_t textureId = 0;
+        uint32_t normalTextureId = UINT32_MAX;
         bool hasTexture = false;
+        bool hasNormalTexture = false;
 
         if (scene->HasMaterials() &&
             mesh->mMaterialIndex < scene->mNumMaterials) {
             mat = scene->mMaterials[mesh->mMaterialIndex];
 
-            auto tryLoadTexture = [&](aiTextureType textureType) -> bool {
+            auto tryLoadTexture = [&](aiTextureType textureType,
+                                      uint32_t &outTextureId) -> bool {
                 aiString texPath;
-                if (!mat || mat->GetTexture(textureType, 0, &texPath) !=
-                                AI_SUCCESS) {
+                if (!mat ||
+                    mat->GetTexture(textureType, 0, &texPath) != AI_SUCCESS) {
                     return false;
                 }
 
@@ -171,8 +195,7 @@ void AssimpMeshLoader::LoadMeshes(
                     }
 
                     if (tex->mHeight == 0) {
-                        textureId = textureManager_->LoadFromMemory(
-                            uploadContext,
+                        outTextureId = textureManager_->LoadFromMemory(
                             reinterpret_cast<const uint8_t *>(tex->pcData),
                             tex->mWidth);
                         return true;
@@ -183,13 +206,15 @@ void AssimpMeshLoader::LoadMeshes(
 
                 std::filesystem::path modelPath(path);
                 auto fullPath = modelPath.parent_path() / texName;
-                textureId = textureManager_->Load(uploadContext,
-                                                  fullPath.wstring());
+                outTextureId = textureManager_->Load(fullPath.wstring());
                 return true;
             };
 
-            hasTexture = tryLoadTexture(aiTextureType_BASE_COLOR) ||
-                         tryLoadTexture(aiTextureType_DIFFUSE);
+            hasTexture = tryLoadTexture(aiTextureType_BASE_COLOR, textureId) ||
+                         tryLoadTexture(aiTextureType_DIFFUSE, textureId);
+            hasNormalTexture =
+                tryLoadTexture(aiTextureType_NORMALS, normalTextureId) ||
+                tryLoadTexture(aiTextureType_HEIGHT, normalTextureId);
         }
 
         uint32_t meshId = meshManager_->CreateMesh(
@@ -221,9 +246,14 @@ void AssimpMeshLoader::LoadMeshes(
                         XMMatrixTranspose(XMMatrixIdentity()));
 
         material.enableTexture = hasTexture ? 1 : 0;
+        material.enableNormalMap = hasNormalTexture ? 1 : 0;
+        material.baseColorTextureId = hasTexture ? textureId : UINT32_MAX;
+        material.normalTextureId =
+            hasNormalTexture ? normalTextureId : UINT32_MAX;
 
         subMesh.meshId = meshId;
         subMesh.textureId = textureId;
+        subMesh.normalTextureId = normalTextureId;
         subMesh.materialId = materialManager_->CreateMaterial(material);
 
         model.subMeshes.push_back(subMesh);
@@ -262,7 +292,8 @@ const aiNode *AssimpMeshLoader::FindNodeByName(const aiNode *node,
     return nullptr;
 }
 
-void AssimpMeshLoader::BuildBoneHierarchy(const aiScene *scene, Model &model) const {
+void AssimpMeshLoader::BuildBoneHierarchy(const aiScene *scene,
+                                          Model &model) const {
     if (!scene || !scene->mRootNode) {
         return;
     }
@@ -314,8 +345,7 @@ void AssimpMeshLoader::ReorderBonesParentFirst(Model &model) const {
 
     for (size_t boneIndex = 0; boneIndex < boneCount; ++boneIndex) {
         const int parentIndex = model.bones[boneIndex].parentIndex;
-        if (parentIndex >= 0 &&
-            static_cast<size_t>(parentIndex) < boneCount) {
+        if (parentIndex >= 0 && static_cast<size_t>(parentIndex) < boneCount) {
             children[static_cast<size_t>(parentIndex)].push_back(boneIndex);
         } else {
             roots.push_back(boneIndex);

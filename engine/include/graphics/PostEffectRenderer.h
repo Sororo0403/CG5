@@ -1,43 +1,25 @@
 #pragma once
-#include "posteffect/PostEffectPassContext.h"
-#include "posteffect/pass/ColorGradingPass.h"
-#include "posteffect/pass/DistortionPass.h"
-#include "posteffect/pass/EdgePass.h"
-#include "posteffect/pass/FilterPass.h"
-#include "posteffect/pass/NoisePass.h"
-#include "posteffect/pass/OverlayPass.h"
-#include "posteffect/pass/RadialBlurPass.h"
-#include "posteffect/pass/VignettePass.h"
+#include "graphics/PostEffectSettings.h"
 #include <d3d12.h>
 #include <wrl.h>
 
-class Camera;
 class DirectXCommon;
 class SrvManager;
-class SpriteRenderer;
 
 /// <summary>
 /// テクスチャを画面全体へ描画するポストエフェクト用レンダラー
 /// </summary>
 class PostEffectRenderer {
   public:
-    using ColorMode = ColorGradingMode;
-    using FilterMode = ::FilterMode;
-    using EdgeMode = ::EdgeMode;
-    using RandomMode = NoiseMode;
-
-    enum class PostEffectType {
-        CounterVignette,
-        WarpRingStart,
-        WarpRingEnd,
-        Distortion,
-    };
+    using ColorMode = PostEffectColorMode;
+    using FilterMode = PostEffectFilterMode;
+    using EdgeMode = PostEffectEdgeMode;
 
     /// <summary>
-    /// 初期化処理
+    /// ポストエフェクト描画に必要なパイプラインと定数バッファを初期化する
     /// </summary>
-    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager,
-                    SpriteRenderer *spriteRenderer, int width, int height);
+    void Initialize(DirectXCommon *dxCommon, SrvManager *srvManager, int width,
+                    int height);
 
     /// <summary>
     /// 描画領域を更新する
@@ -58,7 +40,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在の色変換エフェクトの種類を取得する
     /// </summary>
-    ColorMode GetColorMode() const { return colorGradingPass_.GetMode(); }
+    ColorMode GetColorMode() const { return colorMode_; }
 
     /// <summary>
     /// 平滑化フィルターの種類を設定する
@@ -68,7 +50,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在の平滑化フィルターの種類を取得する
     /// </summary>
-    FilterMode GetFilterMode() const { return filterPass_.GetMode(); }
+    FilterMode GetFilterMode() const { return filterMode_; }
 
     /// <summary>
     /// エッジ抽出の種類を設定する
@@ -78,7 +60,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 現在のエッジ抽出の種類を取得する
     /// </summary>
-    EdgeMode GetEdgeMode() const { return edgePass_.GetMode(); }
+    EdgeMode GetEdgeMode() const { return edgeMode_; }
 
     /// <summary>
     /// 輝度エッジの閾値を設定する
@@ -88,9 +70,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 輝度エッジの閾値を取得する
     /// </summary>
-    float GetLuminanceEdgeThreshold() const {
-        return edgePass_.GetLuminanceThreshold();
-    }
+    float GetLuminanceEdgeThreshold() const { return luminanceEdgeThreshold_; }
 
     /// <summary>
     /// 深度エッジの閾値を設定する
@@ -100,7 +80,7 @@ class PostEffectRenderer {
     /// <summary>
     /// 深度エッジの閾値を取得する
     /// </summary>
-    float GetDepthEdgeThreshold() const { return edgePass_.GetDepthThreshold(); }
+    float GetDepthEdgeThreshold() const { return depthEdgeThreshold_; }
 
     /// <summary>
     /// 深度復元に使うNear/Farを設定する
@@ -108,104 +88,98 @@ class PostEffectRenderer {
     void SetDepthParameters(float nearZ, float farZ);
 
     /// <summary>
-    /// ビネット効果の有効/無効を設定する
+    /// グレースケール変換の輝度係数を設定する
     /// </summary>
-    void SetVignettingEnabled(bool enabled);
+    void SetGrayscaleWeights(float r, float g, float b);
 
     /// <summary>
-    /// ビネット効果が有効か取得する
+    /// HDRトーンマップの有効状態を設定する
     /// </summary>
-    bool IsVignettingEnabled() const { return vignettePass_.IsEnabled(); }
+    void SetTonemapEnabled(bool enabled);
 
     /// <summary>
-    /// ラジアルブラーの中心座標を設定する
+    /// HDRトーンマップの露光を設定する
     /// </summary>
-    void SetRadialBlurCenter(float x, float y);
+    void SetExposure(float exposure);
 
     /// <summary>
-    /// ラジアルブラーの中心座標を取得する
+    /// HDRトーンマップのガンマを設定する
     /// </summary>
-    const float *GetRadialBlurCenter() const {
-        return radialBlurPass_.GetCenter();
-    }
+    void SetGamma(float gamma);
 
     /// <summary>
-    /// ラジアルブラーの強さを設定する
+    /// 簡易Bloomの有効状態を設定する
     /// </summary>
-    void SetRadialBlurStrength(float strength);
+    void SetBloomEnabled(bool enabled);
 
     /// <summary>
-    /// ラジアルブラーの強さを取得する
+    /// 簡易Bloomの閾値、強度、半径を設定する
     /// </summary>
-    float GetRadialBlurStrength() const { return radialBlurPass_.GetStrength(); }
+    void SetBloom(float threshold, float intensity, float radius);
 
     /// <summary>
-    /// ラジアルブラーのサンプル数を設定する
+    /// ポストノイズの有効状態を設定する
     /// </summary>
-    void SetRadialBlurSampleCount(int32_t sampleCount);
+    void SetNoiseEnabled(bool enabled);
 
     /// <summary>
-    /// ラジアルブラーのサンプル数を取得する
+    /// ポストノイズの強度とスケールを設定する
     /// </summary>
-    int32_t GetRadialBlurSampleCount() const {
-        return radialBlurPass_.GetSampleCount();
-    }
+    void SetNoise(float strength, float scale);
 
     /// <summary>
-    /// 疑似乱数ノイズの表示方法を設定する
+    /// ポストノイズの時間を設定する
     /// </summary>
-    void SetRandomMode(RandomMode mode);
+    void SetNoiseTime(float time);
 
     /// <summary>
-    /// 疑似乱数ノイズの表示方法を取得する
+    /// HDRトーンマップの有効状態を取得する
     /// </summary>
-    RandomMode GetRandomMode() const { return noisePass_.GetMode(); }
+    bool IsTonemapEnabled() const { return tonemapEnabled_; }
 
     /// <summary>
-    /// ノイズを重ねる強さを設定する
+    /// HDRトーンマップの露光を取得する
     /// </summary>
-    void SetRandomStrength(float strength);
+    float GetExposure() const { return exposure_; }
 
     /// <summary>
-    /// ノイズを重ねる強さを取得する
+    /// HDRトーンマップのガンマを取得する
     /// </summary>
-    float GetRandomStrength() const { return noisePass_.GetStrength(); }
+    float GetGamma() const { return gamma_; }
 
     /// <summary>
-    /// ノイズの粒の細かさを設定する
+    /// 簡易Bloomの有効状態を取得する
     /// </summary>
-    void SetRandomScale(float scale);
+    bool IsBloomEnabled() const { return bloomEnabled_; }
 
     /// <summary>
-    /// ノイズの粒の細かさを取得する
+    /// ポストノイズの有効状態を取得する
     /// </summary>
-    float GetRandomScale() const { return noisePass_.GetScale(); }
-
-    /// <summary>
-    /// ノイズ生成に使う時間を設定する
-    /// </summary>
-    void SetRandomTime(float time);
-
-    void Request(PostEffectType type);
-    void Request(PostEffectType type, const DirectX::XMFLOAT3 &worldPosition);
-    void Request(PostEffectType type, const DistortionEffectParams &params);
-    void SetCounterVignetteActive(bool active);
-    void UpdateScreenEffects(float deltaTime, const Camera &camera, int width,
-                             int height);
-    void DrawScreenOverlays() const;
-    const ElectricRingParamGPU &GetElectricRingParam() const;
+    bool IsNoiseEnabled() const { return noiseEnabled_; }
 
   private:
+    /// <summary>
+    /// ルートシグネチャを生成する
+    /// </summary>
     void CreateRootSignature();
+
+    /// <summary>
+    /// パイプラインステートを生成する
+    /// </summary>
     void CreatePipelineState();
+
+    /// <summary>
+    /// エフェクト用定数バッファを生成する
+    /// </summary>
     void CreateConstantBuffer();
-    void UpdateConstantBuffer(const PostEffectConstants &constants);
-    PostEffectConstants BuildConstants(D3D12_GPU_DESCRIPTOR_HANDLE textureHandle,
-                                       D3D12_GPU_DESCRIPTOR_HANDLE depthHandle);
+
+    /// <summary>
+    /// 現在のエフェクト設定を定数バッファへ書き込む
+    /// </summary>
+    void UpdateConstantBuffer();
 
     DirectXCommon *dxCommon_ = nullptr;
     SrvManager *srvManager_ = nullptr;
-    SpriteRenderer *spriteRenderer_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
@@ -213,15 +187,25 @@ class PostEffectRenderer {
     PostEffectConstants *mappedConstBuffer_ = nullptr;
     D3D12_VIEWPORT viewport_{};
     D3D12_RECT scissorRect_{};
+    ColorMode colorMode_ = ColorMode::None;
+    FilterMode filterMode_ = FilterMode::None;
+    EdgeMode edgeMode_ = EdgeMode::None;
+    float grayscaleWeights_[3]{0.2125f, 0.7154f, 0.0721f};
+    float luminanceEdgeThreshold_ = 0.2f;
+    float depthEdgeThreshold_ = 0.02f;
+    float nearZ_ = 0.1f;
+    float farZ_ = 100.0f;
+    bool tonemapEnabled_ = true;
+    float exposure_ = 1.0f;
+    float gamma_ = 2.2f;
+    bool bloomEnabled_ = false;
+    float bloomThreshold_ = 1.0f;
+    float bloomIntensity_ = 0.25f;
+    float bloomRadius_ = 2.0f;
+    bool noiseEnabled_ = false;
+    float noiseStrength_ = 0.025f;
+    float noiseScale_ = 240.0f;
+    float noiseTime_ = 0.0f;
     int width_ = 1;
     int height_ = 1;
-
-    ColorGradingPass colorGradingPass_{};
-    FilterPass filterPass_{};
-    EdgePass edgePass_{};
-    NoisePass noisePass_{};
-    RadialBlurPass radialBlurPass_{};
-    VignettePass vignettePass_{};
-    DistortionPass distortionPass_{};
-    OverlayPass overlayPass_{};
 };

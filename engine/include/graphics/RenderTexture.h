@@ -11,8 +11,6 @@ class SrvManager;
 /// </summary>
 class RenderTexture {
   public:
-    ~RenderTexture();
-
     /// <summary>
     /// RenderTextureを生成する
     /// </summary>
@@ -28,8 +26,6 @@ class RenderTexture {
     /// RenderTextureへの描画を開始する
     /// </summary>
     void BeginRender(const DirectX::XMFLOAT4 &clearColor);
-    void BeginRender(const DirectX::XMFLOAT4 &clearColor, bool bindDepth,
-                     bool clearDepth);
 
     /// <summary>
     /// RenderTextureへの描画を終了し、シェーダーから読める状態にする
@@ -41,10 +37,20 @@ class RenderTexture {
     /// </summary>
     D3D12_GPU_DESCRIPTOR_HANDLE GetGpuHandle() const;
 
+    /// <summary>
+    /// テクスチャ幅を取得する
+    /// </summary>
     int GetWidth() const { return width_; }
+
+    /// <summary>
+    /// テクスチャ高さを取得する
+    /// </summary>
     int GetHeight() const { return height_; }
 
   private:
+    /// <summary>
+    /// 描画先リソースとビューを生成する
+    /// </summary>
     void CreateResources();
 
     DirectXCommon *dxCommon_ = nullptr;
@@ -53,7 +59,7 @@ class RenderTexture {
     Microsoft::WRL::ComPtr<ID3D12Resource> resource_;
     Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> rtvHeap_;
     UINT rtvDescriptorSize_ = 0;
-    UINT srvIndex_ = UINT_MAX;
+    UINT srvIndex_ = 0;
     int width_ = 0;
     int height_ = 0;
 };

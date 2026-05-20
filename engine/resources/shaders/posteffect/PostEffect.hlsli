@@ -10,25 +10,25 @@ struct PostEffectVSOutput
 cbuffer PostEffectConstants : register(b0)
 {
     int colorMode;
-    int enableVignetting;
     int filterMode;
-    int padding0;
     float2 texelSize;
-    float2 padding1;
     int edgeMode;
     float luminanceEdgeThreshold;
     float depthEdgeThreshold;
-    float padding2;
     float nearZ;
     float farZ;
-    float2 padding3;
-    float2 radialBlurCenter;
-    float radialBlurStrength;
-    int radialBlurSampleCount;
-    int randomMode;
-    float randomStrength;
-    float randomScale;
-    float randomTime;
+    float3 grayscaleWeights;
+    int tonemapEnabled;
+    float exposure;
+    float gamma;
+    int bloomEnabled;
+    float bloomThreshold;
+    float bloomIntensity;
+    float bloomRadius;
+    int noiseEnabled;
+    float noiseStrength;
+    float noiseScale;
+    float noiseTime;
 };
 
 #endif // POST_EFFECT_HLSLI

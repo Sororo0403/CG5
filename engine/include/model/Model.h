@@ -1,5 +1,5 @@
 #pragma once
-#include "AnimationTypes.h"
+#include "animation/AnimationTypes.h"
 #include <DirectXMath.h>
 #include <array>
 #include <cstdint>
@@ -25,9 +25,6 @@ struct JointWeightData {
     std::vector<VertexWeightData> vertexWeights;
 };
 
-/// <summary>
-/// 1頂点に影響する最大ジョイント数
-/// </summary>
 constexpr uint32_t kNumMaxInfluence = 4;
 
 /// <summary>
@@ -57,23 +54,19 @@ struct SkinCluster {
     uint32_t influenceCount = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE influenceSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE influenceSrvGpuHandle{};
-    uint32_t influenceSrvIndex = UINT_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
     WellForGPU *mappedPalette = nullptr;
     uint32_t paletteCount = 0;
     D3D12_CPU_DESCRIPTOR_HANDLE paletteSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle{};
-    uint32_t paletteSrvIndex = UINT_MAX;
 
     Microsoft::WRL::ComPtr<ID3D12Resource> skinnedVertexResource;
     D3D12_VERTEX_BUFFER_VIEW skinnedVertexBufferView{};
     D3D12_CPU_DESCRIPTOR_HANDLE inputVertexSrvCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE inputVertexSrvGpuHandle{};
-    uint32_t inputVertexSrvIndex = UINT_MAX;
     D3D12_CPU_DESCRIPTOR_HANDLE skinnedVertexUavCpuHandle{};
     D3D12_GPU_DESCRIPTOR_HANDLE skinnedVertexUavGpuHandle{};
-    uint32_t skinnedVertexUavIndex = UINT_MAX;
 };
 
 /// <summary>
@@ -93,8 +86,12 @@ struct BoneInfo {
 struct ModelSubMesh {
     uint32_t meshId = 0;
     uint32_t textureId = 0;
+    uint32_t normalTextureId = UINT32_MAX;
     uint32_t materialId = 0;
     uint32_t vertexCount = 0;
+    std::vector<DirectX::XMFLOAT3> sourcePositions;
+    DirectX::XMFLOAT3 sourceBoundsMin = {0.0f, 0.0f, 0.0f};
+    DirectX::XMFLOAT3 sourceBoundsMax = {0.0f, 0.0f, 0.0f};
 
     std::unordered_map<std::string, JointWeightData> skinClusterData;
     SkinCluster skinCluster;
@@ -114,4 +111,19 @@ struct Model {
     std::unordered_map<std::string, uint32_t> boneMap;
 
     std::unordered_map<std::string, AnimationClip> animations;
+    std::string rootNodeName;
+
+    std::vector<DirectX::XMFLOAT4X4> skeletonSpaceMatrices;
+    std::vector<DirectX::XMFLOAT4X4> finalBoneMatrices;
+
+    std::string currentAnimation = "";
+    float animationTime = 0.0f;
+    bool isLoop = true;
+    bool isPlaying = true;
+    bool animationFinished = false;
+
+    bool hasRootAnimation = false;
+    DirectX::XMFLOAT4X4 rootAnimationMatrix = {
+        1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
 };

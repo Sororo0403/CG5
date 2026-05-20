@@ -1,7 +1,9 @@
 #pragma once
-#include "Sprite.h"
+#include "graphics/UploadRingBuffer.h"
+#include "sprite/Sprite.h"
 #include <DirectXMath.h>
 #include <cstddef>
+#include <cstdint>
 #include <d3d12.h>
 #include <wrl.h>
 
@@ -9,13 +11,10 @@ class DirectXCommon;
 class TextureManager;
 class SrvManager;
 
-/// <summary>
-/// 2Dスプライト描画パイプラインを管理する
-/// </summary>
 class SpriteRenderer {
   public:
     /// <summary>
-    /// 初期化処理
+    /// スプライト描画に必要なパイプラインとバッファを初期化する
     /// </summary>
     /// <param name="dxCommon">DirectXCommonインスタンス</param>
     /// <param name="textureManager">TextureManagerインスタンス</param>
@@ -26,91 +25,66 @@ class SpriteRenderer {
                     SrvManager *srvManager, int width, int height);
 
     /// <summary>
-    /// 描画処理
+    /// スプライト1枚分の頂点を一時バッファへ書き込んで描画する
     /// </summary>
     /// <param name="sprite">描画するスプライト</param>
     void Draw(const Sprite &sprite);
 
-    void DrawFilledCircle(const DirectX::XMFLOAT2 &center, float radius,
-                          const DirectX::XMFLOAT4 &color,
-                          uint32_t segments = 48);
-    void DrawCircle(const DirectX::XMFLOAT2 &center, float radius,
-                    const DirectX::XMFLOAT4 &color, float thickness,
-                    uint32_t segments = 48);
-    void DrawLine(const DirectX::XMFLOAT2 &start, const DirectX::XMFLOAT2 &end,
-                  const DirectX::XMFLOAT4 &color, float thickness);
-    void DrawPolyline(const DirectX::XMFLOAT2 *points, size_t pointCount,
-                      const DirectX::XMFLOAT4 &color, bool closed,
-                      float thickness);
-    void DrawConvexPolygon(const DirectX::XMFLOAT2 *points, size_t pointCount,
-                           const DirectX::XMFLOAT4 &color);
+    /// <summary>
+    /// フレーム開始時に一時描画領域を先頭へ戻す
+    /// </summary>
+    void BeginFrame();
 
     /// <summary>
-    /// 描画前処理
+    /// スプライト用パイプラインを描画前に設定する
     /// </summary>
     void PreDraw();
 
     /// <summary>
-    /// 描画後処理
+    /// スプライト描画後の状態を整理する
     /// </summary>
     void PostDraw();
 
     /// <summary>
     /// 投影行列を更新する
     /// </summary>
-    /// <param name="width">描画領域の幅</param>
-    /// <param name="height">描画領域の高さ</param>
     void UpdateProjection(int width, int height);
 
   private:
-    struct SpriteVertex {
-        DirectX::XMFLOAT3 pos;
-        DirectX::XMFLOAT2 uv;
-        DirectX::XMFLOAT4 color;
+    enum class PipelineKind : uint32_t {
+        Alpha = 0,
+        Modulate = 1,
+        PremultipliedMask = 2,
+        Count,
     };
 
     /// <summary>
     /// ルートシグネチャを生成する
     /// </summary>
     void CreateRootSignature();
+
     /// <summary>
     /// パイプラインステートを生成する
     /// </summary>
     void CreatePipelineState();
-    /// <summary>
-    /// 頂点バッファを生成する
-    /// </summary>
-    void CreateVertexBuffer();
-    /// <summary>
-    /// 定数バッファを生成する
-    /// </summary>
-    void CreateConstantBuffer();
-    void DrawPrimitiveTriangle(const DirectX::XMFLOAT2 &a,
-                               const DirectX::XMFLOAT2 &b,
-                               const DirectX::XMFLOAT2 &c,
-                               const DirectX::XMFLOAT4 &color);
-    void DrawPrimitiveQuad(const DirectX::XMFLOAT2 &a,
-                           const DirectX::XMFLOAT2 &b,
-                           const DirectX::XMFLOAT2 &c,
-                           const DirectX::XMFLOAT2 &d,
-                           const DirectX::XMFLOAT4 &color);
-    void DrawVertices(const SpriteVertex *vertices, UINT vertexCount);
 
-    static constexpr UINT kMaxDynamicVertices = 65536;
+    void CreateUploadBuffer();
 
+  private:
     DirectXCommon *dxCommon_ = nullptr;
     TextureManager *textureManager_ = nullptr;
     SrvManager *srvManager_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> pipelineState_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState>
+        pipelineStates_[static_cast<uint32_t>(PipelineKind::Count)];
 
-    Microsoft::WRL::ComPtr<ID3D12Resource> vertexBuffer_;
-    D3D12_VERTEX_BUFFER_VIEW vbView_{};
-    SpriteVertex *vertexMapped_ = nullptr;
-    UINT vertexCursor_ = 0;
-
-    Microsoft::WRL::ComPtr<ID3D12Resource> constBuffer_;
+    UploadRingBuffer uploadBuffer_;
+    uint32_t drawCursor_ = 0;
+    static constexpr uint32_t kVerticesPerSprite = 6;
+    static constexpr uint32_t kMaxSpriteDraws = 4096;
+    static constexpr size_t kUploadBytesPerFrame = 4 * 1024 * 1024;
 
     DirectX::XMFLOAT4X4 matProjection_{};
+    PipelineKind activePipelineKind_ = PipelineKind::Alpha;
 };

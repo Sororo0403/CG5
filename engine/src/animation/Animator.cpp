@@ -1,123 +1,131 @@
-#include "Animator.h"
-#include "AnimationSampler.h"
-#include "SkeletonPoseBuilder.h"
+#include "animation/Animator.h"
+#include "animation/AnimationSampler.h"
+#include "animation/SkeletonPoseBuilder.h"
 #include <DirectXMath.h>
 
 using namespace DirectX;
 
-void Animator::Play(const Model &model, AnimationComponent &animation,
-                    const std::string &animationName, bool loop) {
+void Animator::Play(Model &model, const std::string &animationName, bool loop) {
     auto it = model.animations.find(animationName);
     if (it == model.animations.end()) {
         return;
     }
 
-    animation.currentAnimation = animationName;
-    animation.time = 0.0f;
-    animation.previousTime = 0.0f;
-    animation.loop = loop;
-    animation.playing = true;
-    animation.finished = false;
+    model.currentAnimation = animationName;
+    model.animationTime = 0.0f;
+    model.isLoop = loop;
+    model.isPlaying = true;
+    model.animationFinished = false;
 }
 
-bool Animator::IsFinished(const AnimationComponent &animation) const {
-    return animation.finished;
+bool Animator::IsFinished(const Model &model) const {
+    return model.animationFinished;
 }
 
-void Animator::ApplyBindPose(const Model &model, SkeletonPoseComponent &pose) {
+void Animator::ApplyBindPose(Model &model) {
     const size_t boneCount = model.bones.size();
 
-    if (pose.skeletonSpaceMatrices.size() != boneCount) {
-        pose.skeletonSpaceMatrices.resize(boneCount);
+    if (model.skeletonSpaceMatrices.size() != boneCount) {
+        model.skeletonSpaceMatrices.resize(boneCount);
     }
 
-    if (pose.finalBoneMatrices.size() != boneCount) {
-        pose.finalBoneMatrices.resize(boneCount);
+    if (model.finalBoneMatrices.size() != boneCount) {
+        model.finalBoneMatrices.resize(boneCount);
     }
 
     std::vector<XMMATRIX> localMatrices;
     SkeletonPoseBuilder::BuildBindPoseLocals(model, localMatrices);
-    SkeletonPoseBuilder::UpdateSkeleton(model, pose, localMatrices);
+    SkeletonPoseBuilder::UpdateSkeleton(model, localMatrices);
 }
 
-void Animator::Update(const Model &model, AnimationComponent &animation,
-                      SkeletonPoseComponent &pose, float deltaTime) {
-    animation.previousTime = animation.time;
-
-    if (animation.currentAnimation.empty()) {
-        pose.hasRootAnimation = false;
-        XMStoreFloat4x4(&pose.rootAnimationMatrix, XMMatrixIdentity());
+void Animator::Update(Model &model, float deltaTime) {
+    if (model.currentAnimation.empty()) {
+        model.hasRootAnimation = false;
+        XMStoreFloat4x4(&model.rootAnimationMatrix, XMMatrixIdentity());
         if (!model.bones.empty()) {
-            ApplyBindPose(model, pose);
+            ApplyBindPose(model);
         }
         return;
     }
 
-    auto clipIt = model.animations.find(animation.currentAnimation);
+    auto clipIt = model.animations.find(model.currentAnimation);
     if (clipIt == model.animations.end()) {
-        pose.hasRootAnimation = false;
-        XMStoreFloat4x4(&pose.rootAnimationMatrix, XMMatrixIdentity());
+        model.hasRootAnimation = false;
+        XMStoreFloat4x4(&model.rootAnimationMatrix, XMMatrixIdentity());
         if (!model.bones.empty()) {
-            ApplyBindPose(model, pose);
+            ApplyBindPose(model);
         }
         return;
     }
 
     const AnimationClip &clip = clipIt->second;
     if (clip.duration <= 0.0f) {
-        pose.hasRootAnimation = false;
-        XMStoreFloat4x4(&pose.rootAnimationMatrix, XMMatrixIdentity());
+        model.hasRootAnimation = false;
+        XMStoreFloat4x4(&model.rootAnimationMatrix, XMMatrixIdentity());
         if (!model.bones.empty()) {
-            ApplyBindPose(model, pose);
+            ApplyBindPose(model);
         }
         return;
     }
 
-    if (animation.playing) {
-        animation.time += deltaTime;
-        if (animation.loop) {
-            while (animation.time >= clip.duration) {
-                animation.time -= clip.duration;
+    if (model.isPlaying) {
+        model.animationTime += deltaTime;
+        if (model.isLoop) {
+            while (model.animationTime >= clip.duration) {
+                model.animationTime -= clip.duration;
             }
-        } else if (animation.time >= clip.duration) {
-            animation.time = clip.duration;
-            animation.playing = false;
-            animation.finished = true;
+        } else if (model.animationTime >= clip.duration) {
+            model.animationTime = clip.duration;
+            model.isPlaying = false;
+            model.animationFinished = true;
         }
     }
 
     if (model.bones.empty()) {
-        pose.hasRootAnimation = false;
-        XMStoreFloat4x4(&pose.rootAnimationMatrix, XMMatrixIdentity());
+        model.hasRootAnimation = false;
+        XMStoreFloat4x4(&model.rootAnimationMatrix, XMMatrixIdentity());
 
-        if (!clip.nodeAnimations.empty()) {
-            const NodeAnimation &rootAnim = clip.nodeAnimations.begin()->second;
+        if (!clip.rootNodeName.empty()) {
+            auto rootIt = clip.nodeAnimations.find(clip.rootNodeName);
+            if (rootIt == clip.nodeAnimations.end()) {
+                return;
+            }
+
+            const NodeAnimation &rootAnim = rootIt->second;
             XMFLOAT3 pos = rootAnim.translate.keyframes.empty()
                                ? XMFLOAT3{0.0f, 0.0f, 0.0f}
                                : AnimationSampler::SampleVec3(
-                                     rootAnim.translate, animation.time);
+                                     rootAnim.translate, model.animationTime);
             XMFLOAT3 scl = rootAnim.scale.keyframes.empty()
                                ? XMFLOAT3{1.0f, 1.0f, 1.0f}
                                : AnimationSampler::SampleVec3(
-                                     rootAnim.scale, animation.time);
+                                     rootAnim.scale, model.animationTime);
             XMFLOAT4 rot = rootAnim.rotate.keyframes.empty()
                                ? XMFLOAT4{0.0f, 0.0f, 0.0f, 1.0f}
                                : AnimationSampler::SampleQuat(
-                                     rootAnim.rotate, animation.time);
+                                     rootAnim.rotate, model.animationTime);
 
-            XMMATRIX local =
-                XMMatrixScaling(scl.x, scl.y, scl.z) *
-                XMMatrixRotationQuaternion(XMQuaternionNormalize(XMLoadFloat4(&rot))) *
-                XMMatrixTranslation(pos.x, pos.y, pos.z);
-            XMStoreFloat4x4(&pose.rootAnimationMatrix, local);
-            pose.hasRootAnimation = true;
+            XMMATRIX local = XMMatrixScaling(scl.x, scl.y, scl.z) *
+                             XMMatrixRotationQuaternion(
+                                 XMQuaternionNormalize(XMLoadFloat4(&rot))) *
+                             XMMatrixTranslation(pos.x, pos.y, pos.z);
+            XMStoreFloat4x4(&model.rootAnimationMatrix, local);
+            model.hasRootAnimation = true;
         }
 
         return;
     }
 
+    const size_t boneCount = model.bones.size();
+    if (model.skeletonSpaceMatrices.size() != boneCount) {
+        model.skeletonSpaceMatrices.resize(boneCount);
+    }
+    if (model.finalBoneMatrices.size() != boneCount) {
+        model.finalBoneMatrices.resize(boneCount);
+    }
+
     std::vector<XMMATRIX> localMatrices;
-    SkeletonPoseBuilder::BuildAnimatedLocals(model, clip, animation.time,
+    SkeletonPoseBuilder::BuildAnimatedLocals(model, clip, model.animationTime,
                                              localMatrices);
-    SkeletonPoseBuilder::UpdateSkeleton(model, pose, localMatrices);
+    SkeletonPoseBuilder::UpdateSkeleton(model, localMatrices);
 }

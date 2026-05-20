@@ -1,35 +1,20 @@
 #pragma once
-#include "AnimationComponents.h"
-#include "Camera.h"
-#include "Entity.h"
-#include "LightManager.h"
-#include "MaterialManager.h"
-#include "Model.h"
-#include "Transform.h"
+#include "camera/Camera.h"
+#include "graphics/Lighting.h"
+#include "graphics/UploadRingBuffer.h"
+#include "model/InstanceData.h"
+#include "model/MaterialManager.h"
+#include "model/Model.h"
+#include "model/Transform.h"
+#include <DirectXMath.h>
+#include <cstddef>
 #include <d3d12.h>
-#include <unordered_map>
-#include <vector>
 #include <wrl.h>
 
 class DirectXCommon;
 class SrvManager;
 class MeshManager;
 class TextureManager;
-class World;
-
-/// <summary>
-/// モデル描画時の一時エフェクト設定
-/// </summary>
-struct ModelDrawEffect {
-    bool enabled = false;
-    bool additiveBlend = false;
-    bool disableCulling = false;
-    DirectX::XMFLOAT4 color = {1.0f, 0.2f, 0.7f, 0.65f};
-    float intensity = 0.0f;
-    float fresnelPower = 3.5f;
-    float noiseAmount = 0.0f;
-    float time = 0.0f;
-};
 
 /// <summary>
 /// モデル描画パイプラインと定数バッファ更新を担当する
@@ -37,7 +22,7 @@ struct ModelDrawEffect {
 class ModelRenderer {
   public:
     /// <summary>
-    /// 初期化処理
+    /// モデル描画に必要なパイプラインと各マネージャ参照を初期化する
     /// </summary>
     /// <param name="dxCommon">DirectX共通管理</param>
     /// <param name="srvManager">SRV管理</param>
@@ -48,61 +33,72 @@ class ModelRenderer {
                     MeshManager *meshManager, TextureManager *textureManager,
                     MaterialManager *materialManager);
 
+    void BeginFrame();
+
     /// <summary>
-    /// 描画処理
+    /// 指定モデルをTransformとカメラに基づいて描画する
     /// </summary>
     /// <param name="model">描画するモデル</param>
     /// <param name="transform">描画するモデルのTransform</param>
     /// <param name="camera">描画に使用するカメラ</param>
-    /// <param name="environmentTextureId">
-    /// この描画で使用する環境マップテクスチャID
-    /// UINT32_MAXを指定した場合はSetEnvironmentTextureの設定を使用
-    /// </param>
+    /// <param
+    /// name="environmentTextureId">この描画で使用する環境マップテクスチャID。UINT32_MAXの場合はSetEnvironmentTextureの設定を使用</param>
     void Draw(const Model &model, const Transform &transform,
-              const Camera &camera,
-              uint32_t environmentTextureId = UINT32_MAX);
-    void Draw(const Model &model, const DirectX::XMFLOAT4X4 &worldMatrix,
-              const Camera &camera,
-              uint32_t environmentTextureId = UINT32_MAX);
-    void Draw(const Model &model, const Transform &transform,
-              const Camera &camera, const SkeletonPoseComponent &pose,
-              Entity entity, uint32_t environmentTextureId = UINT32_MAX);
-    void Draw(const Model &model, const DirectX::XMFLOAT4X4 &worldMatrix,
-              const Camera &camera, const SkeletonPoseComponent &pose,
-              Entity entity, uint32_t environmentTextureId = UINT32_MAX);
+              const Camera &camera, uint32_t environmentTextureId = UINT32_MAX);
 
     /// <summary>
-    /// GBufferのgeometry passへモデルを書き込む
+    /// 同一モデルを複数Transformでまとめて描画する
     /// </summary>
-    void DrawGBuffer(const Model &model, const Transform &transform,
-                     const Camera &camera);
-    void DrawGBuffer(const Model &model,
-                     const DirectX::XMFLOAT4X4 &worldMatrix,
-                     const Camera &camera);
-    void DrawGBuffer(const Model &model, const Transform &transform,
-                     const Camera &camera, const SkeletonPoseComponent &pose,
-                     Entity entity);
-    void DrawGBuffer(const Model &model,
-                     const DirectX::XMFLOAT4X4 &worldMatrix,
-                     const Camera &camera, const SkeletonPoseComponent &pose,
-                     Entity entity);
+    void DrawInstanced(const Model &model, const Transform *transforms,
+                       uint32_t instanceCount, const Camera &camera,
+                       uint32_t environmentTextureId = UINT32_MAX);
 
     /// <summary>
-    /// 現在フレームの描画エフェクトを設定する
+    /// 同一モデルを複数InstanceDataでまとめて描画する
     /// </summary>
-    /// <param name="effect">適用するエフェクト</param>
-    void SetDrawEffect(const ModelDrawEffect &effect) { currentEffect_ = effect; }
+    void DrawInstanced(const Model &model, const InstanceData *instances,
+                       uint32_t instanceCount, const Camera &camera,
+                       uint32_t environmentTextureId = UINT32_MAX);
+
     /// <summary>
-    /// 描画エフェクト設定を初期状態へ戻す
+    /// ShadowPass用の描画状態を設定する
     /// </summary>
-    void ClearDrawEffect() { currentEffect_ = ModelDrawEffect{}; }
+    void PreDrawShadow();
+
+    /// <summary>
+    /// 指定モデルをShadowMapへ深度描画する
+    /// </summary>
+    void DrawShadow(const Model &model, const Transform &transform,
+                    const DirectX::XMFLOAT4X4 &lightViewProjection);
+
+    /// <summary>
+    /// 同一モデルを複数TransformでShadowMapへまとめて深度描画する
+    /// </summary>
+    void DrawInstancedShadow(const Model &model, const Transform *transforms,
+                             uint32_t instanceCount,
+                             const DirectX::XMFLOAT4X4 &lightViewProjection);
+
+    /// <summary>
+    /// 同一モデルを複数InstanceDataでShadowMapへまとめて深度描画する
+    /// </summary>
+    void DrawInstancedShadow(const Model &model, const InstanceData *instances,
+                             uint32_t instanceCount,
+                             const DirectX::XMFLOAT4X4 &lightViewProjection);
+
     /// <summary>
     /// シーンライティングを設定する
     /// </summary>
     /// <param name="lighting">適用するライティング定数</param>
     void SetSceneLighting(const SceneLighting &lighting) {
-        currentLighting_ = LightManager::CreateForwardLightingData(lighting);
+        currentLighting_ = lighting;
     }
+
+    /// <summary>
+    /// シーンフォグを設定する
+    /// </summary>
+    /// <param name="fog">適用するフォグ定数</param>
+    void SetSceneFog(const SceneFog &fog) { currentFog_ = fog; }
+
     /// <summary>
     /// 環境マップに使うキューブマップテクスチャを設定する
     /// </summary>
@@ -111,29 +107,25 @@ class ModelRenderer {
         environmentTextureId_ = textureId;
         hasEnvironmentTexture_ = true;
     }
-    /// <summary>
-    /// ディゾルブ用ノイズテクスチャを設定する
-    /// </summary>
-    /// <param name="textureId">2DノイズテクスチャID</param>
-    void SetDissolveNoiseTexture(uint32_t textureId) {
-        dissolveNoiseTextureId_ = textureId;
-    }
+
     /// <summary>
     /// 環境マップを無効化する
     /// </summary>
     void ClearEnvironmentTexture() { hasEnvironmentTexture_ = false; }
+
+    /// <summary>
+    /// 標準シェーダーが参照するShadowMapを設定する
+    /// </summary>
+    void SetShadowMap(D3D12_GPU_DESCRIPTOR_HANDLE shadowMap,
+                      const DirectX::XMFLOAT4X4 &lightViewProjection,
+                      const SceneShadowSettings &settings);
+
     /// <summary>
     /// モデル用スキンクラスターGPUリソースを生成する
     /// </summary>
     /// <param name="model">対象モデル</param>
     void CreateSkinClusters(Model &model);
-    /// <summary>
-    /// モデル用スキンクラスターのSRV/UAVディスクリプタを解放する
-    /// </summary>
-    /// <param name="model">対象モデル</param>
-    void ReleaseSkinClusters(Model &model);
-    void ReleaseInstanceSkinPalette(Entity entity);
-    void ReleaseUnusedInstanceSkinPalettes(const World &world);
+
     /// <summary>
     /// スキンクラスターのパレット内容を更新する
     /// </summary>
@@ -141,12 +133,12 @@ class ModelRenderer {
     void UpdateSkinClusters(Model &model);
 
     /// <summary>
-    /// 描画前処理
+    /// モデル描画用パイプラインを描画前に設定する
     /// </summary>
     void PreDraw();
 
     /// <summary>
-    /// 描画後処理
+    /// モデル描画後の状態を整理する
     /// </summary>
     void PostDraw();
 
@@ -155,66 +147,55 @@ class ModelRenderer {
     /// ルートシグネチャを生成する
     /// </summary>
     void CreateRootSignature();
+
     /// <summary>
     /// ComputeShader用ルートシグネチャを生成する
     /// </summary>
     void CreateSkinningRootSignature();
+
     /// <summary>
     /// パイプラインステートを生成する
     /// </summary>
     void CreatePipelineState();
+
+    /// <summary>
+    /// ShadowPass用のルートシグネチャを生成する
+    /// </summary>
+    void CreateShadowRootSignature();
+
+    /// <summary>
+    /// ShadowPass用のパイプラインステートを生成する
+    /// </summary>
+    void CreateShadowPipelineState();
+
     /// <summary>
     /// ComputeShader用パイプラインステートを生成する
     /// </summary>
     void CreateSkinningPipelineState();
-    /// <summary>
-    /// 定数バッファを生成する
-    /// </summary>
-    void CreateConstantBuffer();
+
+    void CreateUploadBuffer();
+    D3D12_GPU_VIRTUAL_ADDRESS WriteObjectConstants(
+        const DirectX::XMMATRIX &wvp, const DirectX::XMMATRIX &world,
+        const DirectX::XMMATRIX &worldInverseTranspose);
+    D3D12_GPU_VIRTUAL_ADDRESS WriteSceneConstants(const Camera &camera);
+    D3D12_VERTEX_BUFFER_VIEW WriteInstances(const Model &model,
+                                            const Transform *transforms,
+                                            uint32_t instanceCount);
+    D3D12_VERTEX_BUFFER_VIEW WriteInstances(const Model &model,
+                                            const InstanceData *instances,
+                                            uint32_t instanceCount);
+    void SetPipelineForMaterial(const Material &material);
+    void SetInstancedPipelineForMaterial(const Material &material);
+
     /// <summary>
     /// ComputeShaderでスキニング済み頂点を書き込む
     /// </summary>
-    void DispatchSkinning(
-        const ModelSubMesh &subMesh,
-        D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle);
-    void DrawInternal(const Model &model, const Transform &transform,
-                      const Camera &camera,
-                      const SkeletonPoseComponent *pose, Entity entity,
-                      uint32_t environmentTextureId);
-    void DrawInternal(const Model &model,
-                      const DirectX::XMFLOAT4X4 *worldMatrix,
-                      const Transform *transform, const Camera &camera,
-                      const SkeletonPoseComponent *pose, Entity entity,
-                      uint32_t environmentTextureId);
-    void DrawGBufferInternal(const Model &model, const Transform &transform,
-                             const Camera &camera,
-                             const SkeletonPoseComponent *pose,
-                             Entity entity);
-    void DrawGBufferInternal(const Model &model,
-                             const DirectX::XMFLOAT4X4 *worldMatrix,
-                             const Transform *transform,
-                             const Camera &camera,
-                             const SkeletonPoseComponent *pose,
-                             Entity entity);
-    D3D12_GPU_DESCRIPTOR_HANDLE ResolvePaletteHandle(
-        const Model &model, const ModelSubMesh &subMesh, size_t subMeshIndex,
-        const SkeletonPoseComponent *pose, Entity entity);
-    void EnsureInstanceSkinPalette(Entity entity, const Model &model);
-    void UpdateInstanceSkinPalette(
-        Entity entity, size_t subMeshIndex, const ModelSubMesh &subMesh,
-        const SkeletonPoseComponent &pose);
+    void DispatchSkinning(const ModelSubMesh &subMesh);
 
   private:
-    struct InstanceSkinPalette {
-        Microsoft::WRL::ComPtr<ID3D12Resource> paletteResource;
-        WellForGPU *mappedPalette = nullptr;
-        uint32_t paletteCount = 0;
-        D3D12_CPU_DESCRIPTOR_HANDLE paletteSrvCpuHandle{};
-        D3D12_GPU_DESCRIPTOR_HANDLE paletteSrvGpuHandle{};
-        uint32_t paletteSrvIndex = UINT_MAX;
-    };
-
     static constexpr uint32_t kMaxDraws = 4096;
+    static constexpr size_t kUploadBytesPerFrame = 16 * 1024 * 1024;
+    static constexpr size_t kPipelineVariantCount = 12;
 
     DirectXCommon *dxCommon_ = nullptr;
     SrvManager *srvManager_ = nullptr;
@@ -223,28 +204,30 @@ class ModelRenderer {
     MaterialManager *materialManager_ = nullptr;
 
     Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature_;
+    Microsoft::WRL::ComPtr<ID3D12RootSignature> shadowRootSignature_;
     Microsoft::WRL::ComPtr<ID3D12RootSignature> skinningRootSignature_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> opaquePSO_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> transparentPSO_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> additivePSO_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> additiveNoCullPSO_;
-    Microsoft::WRL::ComPtr<ID3D12PipelineState> gBufferPSO_;
+    std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
+               kPipelineVariantCount>
+        pipelineStates_;
+    std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>,
+               kPipelineVariantCount>
+        instancedPipelineStates_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> shadowPSO_;
+    Microsoft::WRL::ComPtr<ID3D12PipelineState> instancedShadowPSO_;
     Microsoft::WRL::ComPtr<ID3D12PipelineState> skinningPSO_;
-    Microsoft::WRL::ComPtr<ID3D12Resource> objectConstBuffer_;
-    Microsoft::WRL::ComPtr<ID3D12Resource> sceneConstBuffer_;
 
+    UploadRingBuffer uploadBuffer_;
     uint32_t drawIndex_ = 0;
-    bool drawLimitWarningIssued_ = false;
-    uint32_t objectCbStride_ = 0;
-    uint32_t sceneCbStride_ = 0;
-    uint8_t *mappedObjectCB_ = nullptr;
-    uint8_t *mappedSceneCB_ = nullptr;
-    ModelDrawEffect currentEffect_{};
-    ForwardLightingData currentLighting_ =
-        LightManager::CreateForwardLightingData(SceneLighting{});
+    SceneLighting currentLighting_{};
+    SceneFog currentFog_{};
     uint32_t environmentTextureId_ = 0;
-    uint32_t dissolveNoiseTextureId_ = 0;
     bool hasEnvironmentTexture_ = false;
-    std::unordered_map<Entity, std::vector<InstanceSkinPalette>>
-        instanceSkinPalettes_;
+    D3D12_GPU_DESCRIPTOR_HANDLE shadowMapGpuHandle_{};
+    DirectX::XMFLOAT4X4 shadowLightViewProjection_ = {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f};
+    DirectX::XMFLOAT4 shadowParams_{0.0f, 0.0015f, 0.45f, 0.0f};
+    DirectX::XMFLOAT4 shadowFilterParams_{1.45f, 2600.0f, 0.045f, 0.0f};
 };
